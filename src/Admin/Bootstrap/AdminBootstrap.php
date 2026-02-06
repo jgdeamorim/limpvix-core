@@ -13,6 +13,8 @@ use LimpVix\Admin\Controllers\AdminActionsController;
 use LimpVix\Admin\Settings\MercadoPagoSettings;
 use LimpVix\Admin\Settings\MercadoPagoDetector;
 use LimpVix\Admin\Settings\GoogleBusinessSettings;
+use LimpVix\Admin\Settings\TwilioSettings;
+use LimpVix\Admin\Settings\DialogSettings;
 use LimpVix\Admin\Settings\TestVendorsManager;
 use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 use LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage;
@@ -41,6 +43,8 @@ class AdminBootstrap
 
         MercadoPagoSettings::registerHooks();
         GoogleBusinessSettings::registerHooks();
+        TwilioSettings::registerHooks();
+        DialogSettings::registerHooks();
         // TestVendorsManager::registerHooks(); // DESABILITADO;
         MercadoPagoDetector::registerSyncHooks();
 
@@ -473,6 +477,37 @@ class AdminBootstrap
                 </div>
                 <div class="limpvix-card-body">
                     <?php GoogleBusinessSettings::render(); ?>
+                </div>
+            </div>
+
+            <!-- Communication Providers Grid -->
+            <div class="limpvix-grid limpvix-grid-2">
+                <!-- Twilio SMS Settings -->
+                <div class="limpvix-card">
+                    <div class="limpvix-card-header">
+                        <h3>
+                            <span class="dashicons dashicons-smartphone"></span>
+                            Twilio SMS
+                        </h3>
+                        <p>Configurações de envio de SMS via Twilio</p>
+                    </div>
+                    <div class="limpvix-card-body">
+                        <?php TwilioSettings::render(); ?>
+                    </div>
+                </div>
+
+                <!-- 360Dialog WhatsApp Settings -->
+                <div class="limpvix-card">
+                    <div class="limpvix-card-header">
+                        <h3>
+                            <span class="dashicons dashicons-whatsapp"></span>
+                            360Dialog WhatsApp
+                        </h3>
+                        <p>Configurações de envio de WhatsApp via 360Dialog</p>
+                    </div>
+                    <div class="limpvix-card-body">
+                        <?php DialogSettings::render(); ?>
+                    </div>
                 </div>
             </div>
         </div>
