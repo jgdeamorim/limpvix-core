@@ -14,6 +14,10 @@ use LimpVix\Admin\Settings\MercadoPagoSettings;
 use LimpVix\Admin\Settings\MercadoPagoDetector;
 use LimpVix\Admin\Settings\TestVendorsManager;
 use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
+use LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage;
+use LimpVix\Infrastructure\Admin\Pages\MessageFlowsAdminPage;
+use LimpVix\Infrastructure\Admin\Pages\MessageTemplatesAdminPage;
+use LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage;
 
 defined("ABSPATH") || exit;
 
@@ -43,6 +47,19 @@ class AdminBootstrap
         // Registrar páginas de payouts
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PayoutsPage')) {
             PayoutsPage::register();
+        }
+
+        // Registrar páginas de comunicação (BLOCO E)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageFlowsAdminPage')) {
+            MessageFlowsAdminPage::register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
+            MessageTemplatesAdminPage::register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
+            FeedbackManagementPage::register();
         }
 
         // REMOVIDO: registerCommunicationPages() que causava duplicação
@@ -105,27 +122,51 @@ class AdminBootstrap
             [$this, "renderPayoutsPage"]
         );
 
-        // Submenu: Comunicação
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage')) {
+        // Submenu: Central de Comunicação (Hub)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationCenterPage')) {
             add_submenu_page(
                 self::MENU_SLUG,
-                "Configurações de Comunicação",
+                "Central de Comunicação",
                 "Comunicação",
                 "manage_options",
-                "limpvix-communication",
-                ['LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage', 'render']
+                "limpvix-communication-center",
+                [$this, 'renderCommunicationCenterPage']
             );
         }
 
-        // Submenu: Templates
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage')) {
+        // Submenu: Gerenciar Fluxos
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageFlowsAdminPage')) {
+            add_submenu_page(
+                self::MENU_SLUG,
+                "Gerenciar Fluxos Automáticos",
+                "Fluxos",
+                "manage_options",
+                "limpvix-message-flows",
+                [$this, 'renderMessageFlowsPage']
+            );
+        }
+
+        // Submenu: Templates (página 3 - a ser implementada)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
             add_submenu_page(
                 self::MENU_SLUG,
                 "Templates de Mensagens",
                 "Templates",
                 "manage_options",
                 "limpvix-templates",
-                ['LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage', 'render']
+                [$this, 'renderMessageTemplatesPage']
+            );
+        }
+
+        // Submenu: Feedback Negativo (página 4 - a ser implementada)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
+            add_submenu_page(
+                self::MENU_SLUG,
+                "Feedback Negativo (C2)",
+                "Feedback C2",
+                "manage_options",
+                "limpvix-feedback-management",
+                [$this, 'renderFeedbackManagementPage']
             );
         }
 
@@ -433,6 +474,46 @@ class AdminBootstrap
 
         $page = new PayoutsPage();
         $page->render();
+    }
+
+    public function renderCommunicationCenterPage(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die("Acesso negado");
+        }
+
+        $page = new CommunicationCenterPage();
+        $page->render();
+    }
+
+    public function renderMessageFlowsPage(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die("Acesso negado");
+        }
+
+        $page = new MessageFlowsAdminPage();
+        $page->render();
+    }
+
+    public function renderMessageTemplatesPage(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die("Acesso negado");
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
+            $page = new \LimpVix\Infrastructure\Admin\Pages\MessageTemplatesAdminPage();
+            $page->render();
+        }
+    }
+
+    public function renderFeedbackManagementPage(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die("Acesso negado");
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
+            $page = new \LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage();
+            $page->render();
+        }
     }
 
     public function deactivate(): void {

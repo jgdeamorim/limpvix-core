@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Templates - Standalone</title>
+
+    <!-- CSS DIRETO -->
+    <link rel="stylesheet" href="assets/css/limpvix-admin-modern.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="assets/css/limpvix-admin.css?v=<?php echo time(); ?>">
+
+    <style>
+        body {
+            background: #f0f0f1;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 20px;
+        }
+        .test-info {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00a32a;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .test-info.error {
+            border-left-color: #d63638;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>🧪 Teste Standalone - Templates de Mensagens</h2>
+        <p><strong>Se você está vendo esta tabela estilizada abaixo, o CSS está funcionando!</strong></p>
+        <p>Arquivo acessado: <code>http://localhost/wp-content/plugins/limpvix-core/teste-templates-standalone.html</code></p>
+    </div>
+
+    <!-- CONTEÚDO REAL DA PÁGINA TEMPLATES -->
+    <div class="wrap limpvix-admin">
+        <div class="limpvix-page-header">
+            <h1>Templates de Mensagens</h1>
+            <div class="limpvix-page-actions">
+                <a href="#" class="button button-primary">+ Novo Template</a>
+                <a href="#" class="button button-secondary">📖 Documentação</a>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="limpvix-tabs">
+            <a href="#" class="limpvix-tab active">📋 Templates Canônicos</a>
+            <a href="#" class="limpvix-tab">✏️ Templates Customizados (0)</a>
+            <a href="#" class="limpvix-tab">🔄 Gerenciar Fluxos</a>
+            <a href="#" class="limpvix-tab">🧪 Testar Envios</a>
+        </div>
+
+        <div class="limpvix-tab-content">
+            <div class="limpvix-portlet" style="background: white; padding: 0; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 4px;">
+                <div class="limpvix-portlet-header" style="padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 18px;">Templates Canônicos do Sistema</h2>
+                        <p style="margin: 5px 0 0; color: #666; font-size: 13px;">Templates validados para produção (LGPD + CDC compliant)</p>
+                    </div>
+                </div>
+                <div class="limpvix-portlet-body" style="padding: 20px;">
+                    <div class="limpvix-alert info" style="margin-bottom: 20px;">
+                        <strong>ℹ️ Templates Canônicos</strong><br>
+                        Estes templates são parte do core do sistema e não podem ser editados diretamente.
+                        Para customizar, crie um template customizado que sobrescreve o canônico.
+                    </div>
+
+                    <table class="limpvix-table">
+                        <thead>
+                            <tr>
+                                <th>Fluxo</th>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Canal</th>
+                                <th>Variáveis</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #6c70dc; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">C1.1</span>
+                                </td>
+                                <td>
+                                    <strong>Feedback D+1</strong><br>
+                                    <small>Primeiro lembrete de feedback após conclusão do serviço</small>
+                                </td>
+                                <td>Feedback</td>
+                                <td>WhatsApp prioritário</td>
+                                <td>
+                                    <code style="font-size: 11px;">customer_name, feedback_url</code>
+                                </td>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #ffb900; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Requer Aprovação</span>
+                                </td>
+                                <td>
+                                    <button type="button" class="button button-small">👁️ Visualizar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #6c70dc; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">C1.2</span>
+                                </td>
+                                <td>
+                                    <strong>Feedback D+3</strong><br>
+                                    <small>Segundo lembrete de feedback</small>
+                                </td>
+                                <td>Feedback</td>
+                                <td>WhatsApp ou SMS</td>
+                                <td>
+                                    <code style="font-size: 11px;">customer_name, feedback_url</code>
+                                </td>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #ffb900; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Requer Aprovação</span>
+                                </td>
+                                <td>
+                                    <button type="button" class="button button-small">👁️ Visualizar</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #999; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">P1</span>
+                                </td>
+                                <td>
+                                    <strong>Serviço Concluído</strong><br>
+                                    <small>Notificar profissional sobre conclusão do serviço</small>
+                                </td>
+                                <td>Notificação</td>
+                                <td>SMS</td>
+                                <td>
+                                    <code style="font-size: 11px;">staff_name, service_name</code>
+                                </td>
+                                <td>
+                                    <span class="limpvix-badge" style="background: #46b450; color: white; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Pronto</span>
+                                </td>
+                                <td>
+                                    <button type="button" class="button button-small">👁️ Visualizar</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-info">
+        <h3>✅ Verificações:</h3>
+        <ul>
+            <li><strong>Você vê a tabela com bordas e estilo?</strong> Se sim, o CSS está carregando!</li>
+            <li><strong>Os badges (C1.1, P1) têm cores?</strong> Se sim, as variáveis CSS funcionam!</li>
+            <li><strong>As tabs estão estilizadas?</strong> Se sim, tudo está OK!</li>
+        </ul>
+        <p><strong>Se esta página funciona mas a página WordPress não:</strong></p>
+        <ol>
+            <li>Limpe cache do navegador: Ctrl+Shift+Del</li>
+            <li>Desative todas as extensões do navegador</li>
+            <li>Teste em modo anônimo: Ctrl+Shift+N</li>
+            <li>Force reload: Ctrl+Shift+R na página do WordPress</li>
+        </ol>
+    </div>
+
+    <script>
+        console.log('✅ Teste Standalone carregado');
+        console.log('📊 Verificando CSS...');
+
+        // Verificar se CSS foi aplicado
+        const table = document.querySelector('.limpvix-table');
+        if (table) {
+            const styles = window.getComputedStyle(table);
+            console.log('Largura da tabela:', styles.width);
+            console.log('Border collapse:', styles.borderCollapse);
+
+            if (styles.width === '100%' && styles.borderCollapse === 'separate') {
+                console.log('✅ CSS APLICADO CORRETAMENTE!');
+            } else {
+                console.error('❌ CSS NÃO APLICADO!');
+            }
+        }
+    </script>
+</body>
+</html>
