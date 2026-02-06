@@ -41,11 +41,15 @@ Sistema agora permite jornada completa do cliente: aceitar briefing → receber 
   - Prevenção de avaliação duplicada
 
 #### Comunicação Real
-- **TwilioSmsProvider** - Envio real de SMS via Twilio SDK
-  - Integração com Twilio REST API
+- **TwilioSmsProvider** - Envio real de SMS via Twilio API REST
+  - ✅ **SEM SDK** - Usa `wp_remote_post()` ao invés de SDK Twilio
+  - ✅ **Zero dependências** - Sem Composer, sem vendor/
+  - ✅ **Máxima compatibilidade** - Funciona em qualquer hospedagem WordPress
+  - Integração via API REST oficial do Twilio
+  - Autenticação HTTP Basic Auth (account_sid:auth_token)
+  - Endpoint: `https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json`
   - Logging automático de tentativas em `MessageRepository`
-  - Fallback gracioso se SDK não instalado
-  - Error handling robusto
+  - Error handling robusto com fallback
   - Status tracking (pending → sent → failed)
 
 - **360DialogProvider** - Envio real de WhatsApp via 360Dialog API
