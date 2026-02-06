@@ -104,6 +104,9 @@ class FeatureFlags
 
         // UI Admin
         'admin_ui' => false,
+
+        // Módulo Briefing (FASE 0-6)
+        'briefing_enabled' => false,
     ];
 
     /**
@@ -326,6 +329,13 @@ class FeatureFlags
                 'description' => 'Aplica cálculo de preço LimpVix',
                 'default' => false,
                 'category' => 'pricing'
+            ],
+            'briefing_enabled' => [
+                'name' => 'Módulo Briefing (FASE 0-6)',
+                'description' => 'Habilita módulo completo de Briefing: state machine, Firebase OTP, cálculo m²/tempo, contrato, agenda',
+                'default' => false,
+                'category' => 'modules',
+                'phase' => '0-6'
             ],
             // ... outras flags conforme necessário
         ];

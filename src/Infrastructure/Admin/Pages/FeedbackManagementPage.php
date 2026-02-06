@@ -13,8 +13,29 @@
 
 namespace LimpVix\Infrastructure\Admin\Pages;
 
+use LimpVix\Domain\Support\FeedbackCaseStatus;
+use LimpVix\Infrastructure\Persistence\WpFeedbackCaseRepository;
+
 class FeedbackManagementPage
 {
+    /**
+     * @var WpFeedbackCaseRepository
+     */
+    private static $repository;
+
+    /**
+     * Obter instância do repository
+     *
+     * @return WpFeedbackCaseRepository
+     */
+    private static function getRepository(): WpFeedbackCaseRepository
+    {
+        if (self::$repository === null) {
+            self::$repository = new WpFeedbackCaseRepository();
+        }
+        return self::$repository;
+    }
+
     /**
      * Registrar hooks
      */
@@ -410,9 +431,9 @@ class FeedbackManagementPage
         $sent = true;
 
         if ($sent && $markResolved) {
-            // Atualizar status do caso
-            update_post_meta($orderId, '_limpvix_c2_status', 'resolved');
-            update_post_meta($orderId, '_limpvix_c2_resolved_at', current_time('mysql'));
+            // Atualizar status do caso usando repository
+            $repository = self::getRepository();
+            $repository->saveStatus($orderId, FeedbackCaseStatus::resolved());
         }
 
         wp_redirect(add_query_arg([
@@ -435,9 +456,9 @@ class FeedbackManagementPage
 
         $orderId = absint($_POST['order_id']);
 
-        // Atualizar status
-        update_post_meta($orderId, '_limpvix_c2_status', 'resolved');
-        update_post_meta($orderId, '_limpvix_c2_resolved_at', current_time('mysql'));
+        // Atualizar status usando repository
+        $repository = self::getRepository();
+        $repository->saveStatus($orderId, FeedbackCaseStatus::resolved());
 
         wp_redirect(add_query_arg([
             'page' => 'limpvix-feedback-management',
