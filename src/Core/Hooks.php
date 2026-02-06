@@ -141,46 +141,33 @@ class Hooks
      * PASSO 5.5: Registra Módulo de Payout
      *
      * RESPONSABILIDADE:
-     * - Carregar módulo Mercado Pago
-     * - Inicializar PayoutProvider
-     * - Disponibilizar ExecuteTransfer Use Case
+     * - Inicializar PayoutProvider (nova arquitetura em src/Infrastructure)
+     * - Módulo antigo (modules/payouts) foi DEPRECADO
      *
-     * CONFIGURAÇÃO NECESSÁRIA (wp-config.php):
-     * - LIMPVIX_MP_ACCESS_TOKEN
-     * - LIMPVIX_MP_TIMEOUT (opcional)
+     * NOTA: A nova implementação está em:
+     * - src/Infrastructure/Finance/Providers/MercadoPagoPayoutProvider.php
+     * - Inicializado via PayoutReconciliationService
+     * - Lê credenciais de wp_options (sincronizado pelo MercadoPagoDetector)
      *
+     * @deprecated Módulo antigo em modules/payouts foi substituído
      * @return void
      */
     private function registerPayoutModule(): void
     {
-        // Verificar feature flag
-        if (!$this->featureFlags->isEnabled('payout_engine')) {
-            return;
-        }
+        // DESABILITADO: Módulo antigo foi substituído pela nova arquitetura
+        // A nova implementação é carregada via autoload PSR-4 e não precisa de registro manual
+        // Credenciais são gerenciadas via MercadoPagoDetector + wp_options
 
-        // Carregar interface do provider (necessária para autoload)
-        $providerInterface = LIMPVIX_PLUGIN_DIR . 'modules/payouts/PayoutProviderInterface.php';
-        if (file_exists($providerInterface)) {
-            require_once $providerInterface;
-        }
+        // ✅ ARQUITETURA NOVA (ativa):
+        // - src/Infrastructure/Finance/Providers/MercadoPagoPayoutProvider.php
+        // - src/Application/Services/PayoutReconciliationService.php
+        // - src/Admin/Settings/MercadoPagoDetector.php
 
-        // Carregar módulo Mercado Pago
-        $mpModuleFile = LIMPVIX_PLUGIN_DIR . 'modules/payouts/mercadopago/MercadoPagoModule.php';
-        if (file_exists($mpModuleFile)) {
-            require_once $mpModuleFile;
+        // ❌ ARQUITETURA ANTIGA (deprecada):
+        // - modules/payouts/mercadopago/MercadoPagoModule.php
+        // - modules/payouts/mercadopago/MercadoPagoPayoutProvider.php (duplicado!)
 
-            // Inicializar módulo (optional - não quebrar se MP não configurado)
-            if (class_exists('LimpVix\\Modules\\Payouts\\MercadoPago\\MercadoPagoModule')) {
-                try {
-                    $mpModule = new \LimpVix\Modules\Payouts\MercadoPago\MercadoPagoModule();
-                    $mpModule->boot();
-                } catch (\Exception $e) {
-                    // Mercado Pago não configurado - não é crítico
-                    // Log para debug mas não quebrar o plugin
-                    error_log('[LimpVix] Payout Module not initialized: ' . $e->getMessage());
-                }
-            }
-        }
+        return; // Nada a fazer aqui - nova arquitetura se auto-inicializa
     }
 
     /**
