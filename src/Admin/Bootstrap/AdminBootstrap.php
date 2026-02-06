@@ -13,6 +13,7 @@ use LimpVix\Admin\Controllers\AdminActionsController;
 use LimpVix\Admin\Settings\MercadoPagoSettings;
 use LimpVix\Admin\Settings\MercadoPagoDetector;
 use LimpVix\Admin\Settings\TestVendorsManager;
+use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 
 defined("ABSPATH") || exit;
 
@@ -38,6 +39,11 @@ class AdminBootstrap
         MercadoPagoDetector::registerSyncHooks();
 
         $this->initializeControllers();
+
+        // Registrar páginas de payouts
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PayoutsPage')) {
+            PayoutsPage::register();
+        }
 
         // REMOVIDO: registerCommunicationPages() que causava duplicação
         // Os menus de comunicação são adicionados diretamente no registerMenu()
@@ -421,7 +427,12 @@ class AdminBootstrap
     }
 
     public function renderPayoutsPage(): void {
-        echo "<div class='wrap limpvix-admin'><div class='limpvix-page-header'><div><h1><span class='dashicons dashicons-money'></span> Histórico de Payouts</h1><p class='limpvix-page-subtitle'>Acompanhar repasses e pagamentos aos profissionais</p></div></div><div class='limpvix-alert limpvix-alert-info'><div class='limpvix-alert-icon'><span class='dashicons dashicons-info'></span></div><div class='limpvix-alert-content'><div class='limpvix-alert-title'>Página em Desenvolvimento</div><p>O histórico de payouts será implementado em breve.</p></div></div></div>";
+        if (!FinanceCapabilities::canView()) {
+            wp_die("Acesso negado");
+        }
+
+        $page = new PayoutsPage();
+        $page->render();
     }
 
     public function deactivate(): void {
