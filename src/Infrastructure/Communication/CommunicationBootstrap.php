@@ -9,6 +9,8 @@ namespace LimpVix\Infrastructure\Communication;
 
 use LimpVix\Infrastructure\Communication\Cron\FeedbackRemindersCron;
 use LimpVix\Infrastructure\Communication\MessageFlowTriggers;
+use LimpVix\Infrastructure\Admin\Pages\CustomerBriefingPage;
+use LimpVix\Infrastructure\Admin\Pages\CustomerFeedbackPage;
 
 defined('ABSPATH') || exit;
 
@@ -27,6 +29,15 @@ final class CommunicationBootstrap
         // Registrar triggers de fluxos de mensagens
         if (class_exists('LimpVix\\Infrastructure\\Communication\\MessageFlowTriggers')) {
             MessageFlowTriggers::register();
+        }
+
+        // Registrar páginas públicas do cliente (Sprint 1)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CustomerBriefingPage')) {
+            CustomerBriefingPage::register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CustomerFeedbackPage')) {
+            CustomerFeedbackPage::register();
         }
     }
 
