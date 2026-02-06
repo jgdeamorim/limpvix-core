@@ -5,6 +5,36 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.1] - 2026-02-06
+
+### 🔄 Modificado
+
+#### Reorganização de Menus
+- **Estrutura hierárquica melhorada**: Comunicação e Templates agora são submenus de Configurações
+- **Nova navegação**:
+  ```
+  LimpVix
+  ├─ Dashboard
+  ├─ Orders
+  ├─ Payouts
+  └─ Configurações
+      ├─ Comunicação
+      └─ Templates
+  ```
+- **Removida duplicação**: Eliminado registro duplicado de menu em `MessageTemplatesPage::register()`
+
+### 🐛 Corrigido
+
+- **Menu duplicado**: Resolvido problema onde Templates aparecia em múltiplos locais
+- **Organização**: Melhor agrupamento lógico de funcionalidades relacionadas
+
+### 📝 Arquivos Modificados
+
+- `src/Admin/Bootstrap/AdminBootstrap.php` - Reorganizado `registerMenu()`
+- `src/Infrastructure/Admin/Pages/MessageTemplatesPage.php` - Removido hook `admin_menu` duplicado
+
+---
+
 ## [0.1.0] - 2026-02-06
 
 ### 🎉 Lançamento Inicial
