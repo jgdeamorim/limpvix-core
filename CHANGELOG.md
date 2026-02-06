@@ -9,19 +9,20 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### 🔄 Modificado
 
-#### Reorganização de Menus
-- **Estrutura hierárquica melhorada**: Comunicação e Templates agora são submenus de Configurações
-- **Nova navegação**:
+#### Simplificação de Menus
+- **Estrutura plana**: Todos os menus agora estão no mesmo nível (sem hierarquia)
+- **Navegação simplificada**:
   ```
   LimpVix
   ├─ Dashboard
   ├─ Orders
   ├─ Payouts
+  ├─ Comunicação
+  ├─ Templates
   └─ Configurações
-      ├─ Comunicação
-      └─ Templates
   ```
 - **Removida duplicação**: Eliminado registro duplicado de menu em `MessageTemplatesPage::register()`
+- **Acesso direto**: Todos os itens acessíveis diretamente sem navegação aninhada
 
 ### 🐛 Corrigido
 
