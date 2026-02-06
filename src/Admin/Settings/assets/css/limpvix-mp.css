@@ -1,0 +1,735 @@
+/**
+ * LimpVix Mercado Pago Settings - Ultra Modern UI
+ * Design inspirado no plugin oficial woocommerce-mercadopago
+ */
+
+:root {
+    --lv-mp-primary: #009ee3;
+    --lv-mp-primary-dark: #0084c2;
+    --lv-mp-primary-light: #e6f7ff;
+    --lv-mp-success: #00a650;
+    --lv-mp-success-light: #e6f9f0;
+    --lv-mp-warning: #ff9800;
+    --lv-mp-warning-light: #fff3e0;
+    --lv-mp-danger: #f23d4f;
+    --lv-mp-danger-light: #ffe6e9;
+    --lv-mp-info: #3483fa;
+    --lv-mp-info-light: #e6f0ff;
+    --lv-mp-gray-50: #fafafa;
+    --lv-mp-gray-100: #f5f5f5;
+    --lv-mp-gray-200: #eeeeee;
+    --lv-mp-gray-300: #e0e0e0;
+    --lv-mp-gray-400: #bdbdbd;
+    --lv-mp-gray-500: #9e9e9e;
+    --lv-mp-gray-600: #757575;
+    --lv-mp-gray-700: #616161;
+    --lv-mp-gray-800: #424242;
+    --lv-mp-gray-900: #212121;
+    --lv-mp-radius-sm: 4px;
+    --lv-mp-radius-md: 8px;
+    --lv-mp-radius-lg: 12px;
+    --lv-mp-radius-xl: 16px;
+    --lv-mp-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --lv-mp-shadow-md: 0 4px 12px rgba(0,0,0,0.10);
+    --lv-mp-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    --lv-mp-shadow-xl: 0 12px 48px rgba(0,0,0,0.15);
+    --lv-mp-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Container Principal */
+.limpvix-mp-wrap {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 0 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Header da Página */
+.limpvix-mp-header {
+    background: linear-gradient(135deg, var(--lv-mp-primary) 0%, var(--lv-mp-primary-dark) 100%);
+    border-radius: var(--lv-mp-radius-xl);
+    padding: 32px 40px;
+    margin-bottom: 32px;
+    box-shadow: var(--lv-mp-shadow-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+.limpvix-mp-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 400px;
+    height: 400px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+}
+
+.limpvix-mp-header::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -5%;
+    width: 300px;
+    height: 300px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 50%;
+}
+
+.limpvix-mp-header-content {
+    position: relative;
+    z-index: 1;
+}
+
+.limpvix-mp-header h1 {
+    color: white;
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.limpvix-mp-header h1 .dashicons {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+}
+
+.limpvix-mp-header p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 16px;
+    margin: 0;
+    line-height: 1.6;
+}
+
+/* Notificações Modernas */
+.limpvix-mp-notice {
+    border-radius: var(--lv-mp-radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: var(--lv-mp-shadow-md);
+    border-left: 4px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    animation: slideDown 0.4s ease-out;
+    position: relative;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.limpvix-mp-notice-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.limpvix-mp-notice-content {
+    flex: 1;
+}
+
+.limpvix-mp-notice-content h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.limpvix-mp-notice-content p {
+    margin: 0 0 16px 0;
+    line-height: 1.6;
+    color: var(--lv-mp-gray-700);
+}
+
+.limpvix-mp-notice-content ol,
+.limpvix-mp-notice-content ul {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.limpvix-mp-notice-content li {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.limpvix-mp-notice.notice-warning {
+    background: var(--lv-mp-warning-light);
+    border-left-color: var(--lv-mp-warning);
+}
+
+.limpvix-mp-notice.notice-warning .limpvix-mp-notice-icon {
+    color: var(--lv-mp-warning);
+}
+
+.limpvix-mp-notice.notice-error {
+    background: var(--lv-mp-danger-light);
+    border-left-color: var(--lv-mp-danger);
+}
+
+.limpvix-mp-notice.notice-error .limpvix-mp-notice-icon {
+    color: var(--lv-mp-danger);
+}
+
+.limpvix-mp-notice.notice-info {
+    background: var(--lv-mp-info-light);
+    border-left-color: var(--lv-mp-info);
+}
+
+.limpvix-mp-notice.notice-info .limpvix-mp-notice-icon {
+    color: var(--lv-mp-info);
+}
+
+.limpvix-mp-notice.notice-success {
+    background: var(--lv-mp-success-light);
+    border-left-color: var(--lv-mp-success);
+}
+
+.limpvix-mp-notice.notice-success .limpvix-mp-notice-icon {
+    color: var(--lv-mp-success);
+}
+
+/* Botões Modernos */
+.limpvix-mp-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--lv-mp-radius-md);
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: var(--lv-mp-transition);
+    box-shadow: var(--lv-mp-shadow-sm);
+}
+
+.limpvix-mp-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--lv-mp-shadow-md);
+}
+
+.limpvix-mp-btn:active {
+    transform: translateY(0);
+}
+
+.limpvix-mp-btn-primary {
+    background: var(--lv-mp-primary);
+    color: white;
+}
+
+.limpvix-mp-btn-primary:hover {
+    background: var(--lv-mp-primary-dark);
+    color: white;
+}
+
+.limpvix-mp-btn-success {
+    background: var(--lv-mp-success);
+    color: white;
+}
+
+.limpvix-mp-btn-success:hover {
+    background: #008f45;
+    color: white;
+}
+
+.limpvix-mp-btn-secondary {
+    background: var(--lv-mp-gray-100);
+    color: var(--lv-mp-gray-800);
+    border: 1px solid var(--lv-mp-gray-300);
+}
+
+.limpvix-mp-btn-secondary:hover {
+    background: var(--lv-mp-gray-200);
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-btn .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* Status Cards */
+.limpvix-mp-status-card {
+    background: white;
+    border-radius: var(--lv-mp-radius-lg);
+    padding: 32px;
+    box-shadow: var(--lv-mp-shadow-md);
+    margin-bottom: 24px;
+    border: 1px solid var(--lv-mp-gray-200);
+}
+
+.limpvix-mp-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--lv-mp-gray-100);
+}
+
+.limpvix-mp-status-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.limpvix-mp-status-title h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-status-title .dashicons {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: var(--lv-mp-primary);
+}
+
+/* Badge de Status */
+.limpvix-mp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--lv-mp-radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    animation: fadeInScale 0.4s ease-out;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.limpvix-mp-badge-success {
+    background: var(--lv-mp-success-light);
+    color: var(--lv-mp-success);
+    border: 1px solid var(--lv-mp-success);
+}
+
+.limpvix-mp-badge-warning {
+    background: var(--lv-mp-warning-light);
+    color: var(--lv-mp-warning);
+    border: 1px solid var(--lv-mp-warning);
+}
+
+.limpvix-mp-badge-error {
+    background: var(--lv-mp-danger-light);
+    color: var(--lv-mp-danger);
+    border: 1px solid var(--lv-mp-danger);
+}
+
+.limpvix-mp-badge .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Informações da Conta */
+.limpvix-mp-account-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.limpvix-mp-info-item {
+    background: var(--lv-mp-gray-50);
+    border-radius: var(--lv-mp-radius-md);
+    padding: 20px;
+    border: 1px solid var(--lv-mp-gray-200);
+}
+
+.limpvix-mp-info-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--lv-mp-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.limpvix-mp-info-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--lv-mp-gray-900);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.limpvix-mp-info-value .dashicons {
+    color: var(--lv-mp-primary);
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+/* Seletor de Ambiente */
+.limpvix-mp-environment {
+    background: white;
+    border-radius: var(--lv-mp-radius-lg);
+    padding: 32px;
+    box-shadow: var(--lv-mp-shadow-md);
+    margin-bottom: 24px;
+    border: 1px solid var(--lv-mp-gray-200);
+}
+
+.limpvix-mp-environment h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-env-toggle {
+    display: flex;
+    gap: 12px;
+    background: var(--lv-mp-gray-100);
+    padding: 4px;
+    border-radius: var(--lv-mp-radius-md);
+    width: fit-content;
+}
+
+.limpvix-mp-env-btn {
+    padding: 12px 32px;
+    border-radius: var(--lv-mp-radius-md);
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--lv-mp-gray-700);
+    cursor: pointer;
+    transition: var(--lv-mp-transition);
+    position: relative;
+}
+
+.limpvix-mp-env-btn.active {
+    background: white;
+    color: var(--lv-mp-primary);
+    box-shadow: var(--lv-mp-shadow-sm);
+}
+
+.limpvix-mp-env-btn:hover:not(.active) {
+    color: var(--lv-mp-gray-900);
+}
+
+/* Credenciais Grid */
+.limpvix-mp-credentials {
+    background: white;
+    border-radius: var(--lv-mp-radius-lg);
+    padding: 32px;
+    box-shadow: var(--lv-mp-shadow-md);
+    margin-bottom: 24px;
+    border: 1px solid var(--lv-mp-gray-200);
+}
+
+.limpvix-mp-credentials h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 20px 0;
+    color: var(--lv-mp-gray-900);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.limpvix-mp-credentials h3 .dashicons {
+    color: var(--lv-mp-primary);
+}
+
+.limpvix-mp-cred-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.limpvix-mp-cred-item {
+    background: var(--lv-mp-gray-50);
+    border-radius: var(--lv-mp-radius-md);
+    padding: 20px;
+    border: 1px solid var(--lv-mp-gray-200);
+}
+
+.limpvix-mp-cred-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--lv-mp-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.limpvix-mp-cred-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.limpvix-mp-cred-value input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid var(--lv-mp-gray-300);
+    border-radius: var(--lv-mp-radius-sm);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    background: white;
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-cred-value input:disabled {
+    background: var(--lv-mp-gray-100);
+    cursor: not-allowed;
+}
+
+.limpvix-mp-toggle-visibility {
+    background: white;
+    border: 1px solid var(--lv-mp-gray-300);
+    border-radius: var(--lv-mp-radius-sm);
+    padding: 8px;
+    cursor: pointer;
+    transition: var(--lv-mp-transition);
+    color: var(--lv-mp-gray-600);
+}
+
+.limpvix-mp-toggle-visibility:hover {
+    background: var(--lv-mp-gray-50);
+    color: var(--lv-mp-primary);
+    border-color: var(--lv-mp-primary);
+}
+
+/* Modal */
+.limpvix-mp-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.limpvix-mp-modal {
+    background: white;
+    border-radius: var(--lv-mp-radius-xl);
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--lv-mp-shadow-xl);
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.limpvix-mp-modal-header {
+    padding: 28px 32px;
+    border-bottom: 1px solid var(--lv-mp-gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.limpvix-mp-modal-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: var(--lv-mp-gray-500);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--lv-mp-radius-sm);
+    transition: var(--lv-mp-transition);
+}
+
+.limpvix-mp-modal-close:hover {
+    background: var(--lv-mp-gray-100);
+    color: var(--lv-mp-gray-900);
+}
+
+.limpvix-mp-modal-body {
+    padding: 32px;
+}
+
+.limpvix-mp-modal-footer {
+    padding: 20px 32px;
+    border-top: 1px solid var(--lv-mp-gray-200);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Sync Status */
+.limpvix-mp-sync-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--lv-mp-gray-50);
+    border-radius: var(--lv-mp-radius-md);
+    border: 1px solid var(--lv-mp-gray-200);
+    margin-top: 20px;
+}
+
+.limpvix-mp-sync-icon {
+    color: var(--lv-mp-success);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.limpvix-mp-sync-text {
+    flex: 1;
+    font-size: 14px;
+    color: var(--lv-mp-gray-700);
+}
+
+.limpvix-mp-sync-time {
+    font-size: 13px;
+    color: var(--lv-mp-gray-500);
+    font-weight: 600;
+}
+
+/* Loading Spinner */
+.limpvix-mp-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--lv-mp-gray-200);
+    border-top-color: var(--lv-mp-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .limpvix-mp-wrap {
+        padding: 0 16px;
+    }
+
+    .limpvix-mp-header {
+        padding: 24px 24px;
+    }
+
+    .limpvix-mp-header h1 {
+        font-size: 24px;
+    }
+
+    .limpvix-mp-status-card,
+    .limpvix-mp-environment,
+    .limpvix-mp-credentials {
+        padding: 20px;
+    }
+
+    .limpvix-mp-account-info,
+    .limpvix-mp-cred-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .limpvix-mp-status-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .limpvix-mp-modal {
+        width: 95%;
+    }
+
+    .limpvix-mp-modal-header,
+    .limpvix-mp-modal-body,
+    .limpvix-mp-modal-footer {
+        padding: 20px;
+    }
+}
+
+/* Animação de entrada dos elementos */
+.limpvix-mp-fade-in {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Estados de hover para cards */
+.limpvix-mp-status-card,
+.limpvix-mp-environment,
+.limpvix-mp-credentials {
+    transition: var(--lv-mp-transition);
+}
+
+.limpvix-mp-status-card:hover,
+.limpvix-mp-environment:hover,
+.limpvix-mp-credentials:hover {
+    box-shadow: var(--lv-mp-shadow-lg);
+}

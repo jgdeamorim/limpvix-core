@@ -1,0 +1,213 @@
+/**
+ * Limpvix Finance - Admin Styles
+ *
+ * PASSO 5.6.1 - Infraestrutura Admin
+ *
+ * @package LimpVix\Admin\Assets
+ */
+
+/* ==========================================================================
+   Layout Geral
+   ========================================================================== */
+
+.limpvix-finance {
+    margin-top: 20px;
+}
+
+.limpvix-finance h1 {
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   Timeline do Ledger
+   ========================================================================== */
+
+.limpvix-timeline {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.limpvix-timeline-event {
+    position: relative;
+    padding-left: 40px;
+    padding-bottom: 30px;
+    border-left: 2px solid #ddd;
+}
+
+.limpvix-timeline-event:last-child {
+    border-left: none;
+    padding-bottom: 0;
+}
+
+.limpvix-timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #2271b1;
+    border: 2px solid #fff;
+}
+
+.limpvix-timeline-event-header {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.limpvix-timeline-event-meta {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.limpvix-timeline-event-details {
+    background: #f8f9fa;
+    border-left: 3px solid #2271b1;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+/* ==========================================================================
+   Status Badges
+   ========================================================================== */
+
+.limpvix-status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.limpvix-status-badge.created {
+    background: #f0f0f1;
+    color: #646970;
+}
+
+.limpvix-status-badge.paid {
+    background: #d5e5f7;
+    color: #135e96;
+}
+
+.limpvix-status-badge.held {
+    background: #fff8e5;
+    color: #996800;
+}
+
+.limpvix-status-badge.review {
+    background: #fef7e7;
+    color: #94660c;
+}
+
+.limpvix-status-badge.authorized {
+    background: #e7f7ed;
+    color: #007017;
+}
+
+.limpvix-status-badge.transferred {
+    background: #00a32a;
+    color: #fff;
+}
+
+.limpvix-status-badge.blocked {
+    background: #f8dfe0;
+    color: #b32d2e;
+}
+
+.limpvix-status-badge.refunded {
+    background: #646970;
+    color: #fff;
+}
+
+/* ==========================================================================
+   Flags
+   ========================================================================== */
+
+.limpvix-flag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    margin-right: 5px;
+}
+
+.limpvix-flag.error {
+    background: #f8dfe0;
+    color: #b32d2e;
+}
+
+.limpvix-flag.warning {
+    background: #fff8e5;
+    color: #996800;
+}
+
+.limpvix-flag.info {
+    background: #d5e5f7;
+    color: #135e96;
+}
+
+/* ==========================================================================
+   Payouts History
+   ========================================================================== */
+
+.limpvix-payouts {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.limpvix-payout-item {
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.limpvix-payout-item:last-child {
+    border-bottom: none;
+}
+
+.limpvix-payout-success {
+    border-left: 3px solid #00a32a;
+}
+
+.limpvix-payout-failed {
+    border-left: 3px solid #b32d2e;
+}
+
+/* ==========================================================================
+   Actions
+   ========================================================================== */
+
+.limpvix-actions {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.limpvix-actions .button {
+    margin-right: 10px;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media screen and (max-width: 782px) {
+    .limpvix-timeline-event {
+        padding-left: 30px;
+    }
+
+    .limpvix-actions .button {
+        display: block;
+        margin-bottom: 10px;
+        margin-right: 0;
+    }
+}
