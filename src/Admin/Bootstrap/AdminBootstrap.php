@@ -99,6 +99,30 @@ class AdminBootstrap
             [$this, "renderPayoutsPage"]
         );
 
+        // Submenu: Comunicação
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage')) {
+            add_submenu_page(
+                self::MENU_SLUG,
+                "Configurações de Comunicação",
+                "Comunicação",
+                "manage_options",
+                "limpvix-communication",
+                ['LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage', 'render']
+            );
+        }
+
+        // Submenu: Templates
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage')) {
+            add_submenu_page(
+                self::MENU_SLUG,
+                "Templates de Mensagens",
+                "Templates",
+                "manage_options",
+                "limpvix-templates",
+                ['LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage', 'render']
+            );
+        }
+
         // Submenu: Configurações
         add_submenu_page(
             self::MENU_SLUG,
@@ -108,30 +132,6 @@ class AdminBootstrap
             "limpvix-settings",
             [$this, "renderSettingsPage"]
         );
-
-        // Submenu: Comunicação (FILHO DE CONFIGURAÇÕES)
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage')) {
-            add_submenu_page(
-                'limpvix-settings',  // Parent = Configurações
-                "Configurações de Comunicação",
-                "Comunicação",
-                "manage_options",
-                "limpvix-communication",
-                ['LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationSettingsPage', 'render']
-            );
-        }
-
-        // Submenu: Templates (FILHO DE CONFIGURAÇÕES)
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage')) {
-            add_submenu_page(
-                'limpvix-settings',  // Parent = Configurações
-                "Templates de Mensagens",
-                "Templates",
-                "manage_options",
-                "limpvix-templates",
-                ['LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesPage', 'render']
-            );
-        }
     }
 
     public function registerAssets(string $hook): void
