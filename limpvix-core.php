@@ -56,6 +56,20 @@ if (file_exists(LIMPVIX_PLUGIN_DIR . 'vendor/autoload.php')) {
 }
 
 /**
+ * Registra cron schedules customizados ANTES do plugins_loaded
+ *
+ * IMPORTANTE: O filtro cron_schedules precisa ser registrado ANTES de plugins_loaded
+ * para garantir que os schedules estejam disponíveis quando o WordPress precisar deles.
+ */
+add_filter('cron_schedules', function($schedules) {
+    $schedules['limpvix_five_minutes'] = [
+        'interval' => 300, // 5 minutos
+        'display' => __('A cada 5 minutos (LimpVix)', 'limpvix'),
+    ];
+    return $schedules;
+});
+
+/**
  * Inicializa o plugin quando WordPress estiver pronto
  *
  * RESPONSABILIDADE:
