@@ -2,7 +2,12 @@
 /**
  * TwilioSmsProvider
  *
- * Provider real de SMS via Twilio
+ * Provider real de SMS via Twilio REST API
+ *
+ * ✅ SEM SDK - Usa wp_remote_post() para máxima compatibilidade
+ * ✅ Funciona em qualquer hospedagem WordPress
+ * ✅ Sem Composer, sem vendor/, sem dependências externas
+ * ✅ Arquitetura enterprise-grade para WordPress
  *
  * @package LimpVix\Infrastructure\Communication\Providers
  * @since 0.1.2
@@ -14,8 +19,10 @@ use LimpVix\Infrastructure\Communication\Repositories\MessageRepository;
 
 class TwilioSmsProvider
 {
-    private ?object $client = null;
+    private string $accountSid;
+    private string $authToken;
     private string $fromNumber;
+    private string $apiUrl;
     private MessageRepository $messageRepository;
     private bool $enabled = false;
 
@@ -30,25 +37,15 @@ class TwilioSmsProvider
             return;
         }
 
+        $this->accountSid = $settings['account_sid'];
+        $this->authToken = $settings['auth_token'];
         $this->fromNumber = $settings['from_number'];
+        $this->apiUrl = "https://api.twilio.com/2010-04-01/Accounts/{$this->accountSid}/Messages.json";
         $this->enabled = true;
-
-        // Twilio SDK (requer composer require twilio/sdk)
-        if (class_exists('\Twilio\Rest\Client')) {
-            try {
-                $this->client = new \Twilio\Rest\Client(
-                    $settings['account_sid'],
-                    $settings['auth_token']
-                );
-            } catch (\Exception $e) {
-                error_log('[LimpVix] Erro ao inicializar Twilio: ' . $e->getMessage());
-                $this->enabled = false;
-            }
-        }
     }
 
     /**
-     * Enviar SMS via Twilio
+     * Enviar SMS via Twilio REST API
      *
      * @param string $to Telefone destino (formato: +5527999999999)
      * @param string $message Conteúdo da mensagem
@@ -70,36 +67,71 @@ class TwilioSmsProvider
             'status' => 'pending'
         ]);
 
-        if (!$this->enabled || !$this->client) {
-            error_log('[LimpVix] Twilio não disponível (configuração ou SDK)');
-            $this->messageRepository->updateStatus($log_id, 'failed', 'Twilio não configurado ou SDK não instalado');
+        if (!$this->enabled) {
+            error_log('[LimpVix] Twilio não configurado');
+            $this->messageRepository->updateStatus($log_id, 'failed', 'Twilio não configurado');
             return false;
         }
 
         try {
-            $result = $this->client->messages->create($to, [
-                'from' => $this->fromNumber,
-                'body' => $message
+            // HTTP Basic Auth: base64(account_sid:auth_token)
+            $authHeader = 'Basic ' . base64_encode($this->accountSid . ':' . $this->authToken);
+
+            // Request para Twilio API
+            $response = wp_remote_post($this->apiUrl, [
+                'headers' => [
+                    'Authorization' => $authHeader,
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                ],
+                'body' => [
+                    'From' => $this->fromNumber,
+                    'To' => $to,
+                    'Body' => $message,
+                ],
+                'timeout' => 15,
             ]);
 
-            $response = json_encode([
-                'sid' => $result->sid,
-                'status' => $result->status,
-                'to' => $result->to,
-                'from' => $result->from
-            ]);
+            // Verificar erro de rede
+            if (is_wp_error($response)) {
+                $error_message = $response->get_error_message();
+                error_log('[LimpVix] Erro de rede ao enviar SMS: ' . $error_message);
+                $this->messageRepository->updateStatus($log_id, 'failed', $error_message);
+                return false;
+            }
 
-            error_log("[LimpVix] SMS enviado com sucesso: SID={$result->sid}, To={$to}");
+            $status_code = wp_remote_retrieve_response_code($response);
+            $body = json_decode(wp_remote_retrieve_body($response), true);
 
-            $this->messageRepository->updateStatus($log_id, 'sent', $response);
+            // Sucesso (200, 201)
+            if ($status_code >= 200 && $status_code < 300) {
+                $response_data = json_encode([
+                    'sid' => $body['sid'] ?? null,
+                    'status' => $body['status'] ?? null,
+                    'to' => $body['to'] ?? null,
+                    'from' => $body['from'] ?? null,
+                    'date_created' => $body['date_created'] ?? null,
+                ]);
 
-            return true;
+                error_log("[LimpVix] SMS enviado com sucesso via API REST: SID={$body['sid']}, To={$to}");
+
+                $this->messageRepository->updateStatus($log_id, 'sent', $response_data);
+
+                return true;
+            }
+
+            // Erro da API Twilio (4xx, 5xx)
+            $error_message = $body['message'] ?? 'Erro desconhecido da API Twilio';
+            $error_code = $body['code'] ?? $status_code;
+
+            error_log("[LimpVix] Erro Twilio API: Code={$error_code}, Message={$error_message}");
+
+            $this->messageRepository->updateStatus($log_id, 'failed', "Twilio Error {$error_code}: {$error_message}");
+
+            return false;
 
         } catch (\Exception $e) {
-            error_log('[LimpVix] Erro ao enviar SMS: ' . $e->getMessage());
-
+            error_log('[LimpVix] Exceção ao enviar SMS: ' . $e->getMessage());
             $this->messageRepository->updateStatus($log_id, 'failed', $e->getMessage());
-
             return false;
         }
     }
@@ -111,6 +143,6 @@ class TwilioSmsProvider
      */
     public function isAvailable(): bool
     {
-        return $this->enabled && $this->client !== null;
+        return $this->enabled;
     }
 }
