@@ -26,8 +26,9 @@ final class MessageTemplatesPage
      */
     public static function register(): void
     {
-        // Prioridade 25 para registrar DEPOIS de CommunicationSettingsPage (20)
-        add_action('admin_menu', [__CLASS__, 'addMenu'], 25);
+        // REMOVIDO: Menu já é registrado em AdminBootstrap como filho de Configurações
+        // add_action('admin_menu', [__CLASS__, 'addMenu'], 25);
+
         add_action('admin_init', [__CLASS__, 'registerSettings']);
         add_action('admin_post_limpvix_save_template', [__CLASS__, 'handleSaveTemplate']);
         add_action('admin_post_limpvix_test_template', [__CLASS__, 'handleTestTemplate']);
