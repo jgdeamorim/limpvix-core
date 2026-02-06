@@ -1,6 +1,6 @@
 <?php
 /**
- * 360DialogProvider
+ * WhatsApp360DialogProvider
  *
  * Provider real de WhatsApp via 360Dialog API
  *
@@ -12,7 +12,7 @@ namespace LimpVix\Infrastructure\Communication\Providers;
 
 use LimpVix\Infrastructure\Communication\Repositories\MessageRepository;
 
-class DialogProvider
+class WhatsApp360DialogProvider
 {
     private string $apiKey;
     private string $apiUrl = 'https://waba.360dialog.io/v1/messages';

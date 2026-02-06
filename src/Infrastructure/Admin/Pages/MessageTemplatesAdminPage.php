@@ -12,7 +12,7 @@
 
 namespace LimpVix\Infrastructure\Admin\Pages;
 
-use LimpVix\Domain\Communication\Templates\MessageTemplates;
+use LimpVix\Domain\Communication\MessageTemplates;
 
 class MessageTemplatesAdminPage
 {
