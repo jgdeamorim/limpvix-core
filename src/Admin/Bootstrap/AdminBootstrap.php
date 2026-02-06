@@ -12,6 +12,7 @@ use LimpVix\Admin\Controllers\OrderDetailController;
 use LimpVix\Admin\Controllers\AdminActionsController;
 use LimpVix\Admin\Settings\MercadoPagoSettings;
 use LimpVix\Admin\Settings\MercadoPagoDetector;
+use LimpVix\Admin\Settings\GoogleBusinessSettings;
 use LimpVix\Admin\Settings\TestVendorsManager;
 use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 use LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage;
@@ -39,6 +40,7 @@ class AdminBootstrap
         add_action("admin_enqueue_scripts", [$this, "registerAssets"]);
 
         MercadoPagoSettings::registerHooks();
+        GoogleBusinessSettings::registerHooks();
         // TestVendorsManager::registerHooks(); // DESABILITADO;
         MercadoPagoDetector::registerSyncHooks();
 
@@ -457,6 +459,20 @@ class AdminBootstrap
                 </div>
                 <div class="limpvix-card-body">
                     <?php MercadoPagoSettings::render(); ?>
+                </div>
+            </div>
+
+            <!-- Google Business Settings (Full Width) -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-google"></span>
+                        Google Meu Negócio
+                    </h3>
+                    <p>Configurações de integração com Google My Business para convites de avaliação</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php GoogleBusinessSettings::render(); ?>
                 </div>
             </div>
         </div>

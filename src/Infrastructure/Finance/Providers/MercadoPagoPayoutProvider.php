@@ -29,21 +29,29 @@ class MercadoPagoPayoutProvider
     {
         $this->payoutRepository = new WpPayoutRepository();
 
-        $settings = get_option('limpvix_mercadopago_settings', []);
+        // Buscar status do Mercado Pago (sincronizado pelo MercadoPagoDetector)
+        $mpStatus = get_option('limpvix_mp_status', []);
+        $environment = $mpStatus['environment'] ?? 'production';
 
-        if (empty($settings['access_token'])) {
+        // Determinar qual access token usar (prod ou test) baseado no environment
+        $accessTokenKey = ($environment === 'sandbox') ? 'limpvix_mp_access_token_test' : 'limpvix_mp_access_token_prod';
+        $accessToken = get_option($accessTokenKey);
+
+        if (empty($accessToken)) {
             error_log('[LimpVix] Mercado Pago não configurado (access_token ausente)');
             return;
         }
 
-        $this->accessToken = $settings['access_token'];
-        $this->sandbox = !empty($settings['sandbox']);
+        $this->accessToken = $accessToken;
+        $this->sandbox = ($environment === 'sandbox');
         $this->enabled = true;
 
         // Ajustar URL se sandbox
         if ($this->sandbox) {
             $this->apiUrl = 'https://api.mercadopago.com/v1/sandbox/payouts';
         }
+
+        error_log("[LimpVix] MercadoPagoPayoutProvider inicializado - Environment: {$environment}, Enabled: true");
     }
 
     /**
