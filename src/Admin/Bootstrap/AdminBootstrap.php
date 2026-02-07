@@ -140,18 +140,6 @@ class AdminBootstrap
             [$this, "renderBriefingsPage"]
         );
 
-        // Submenu: Templates (página 3 - a ser implementada)
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
-            add_submenu_page(
-                self::MENU_SLUG,
-                "Templates de Mensagens",
-                "Templates",
-                "manage_options",
-                "limpvix-templates",
-                [$this, 'renderMessageTemplatesPage']
-            );
-        }
-
         // Submenu: Feedback Negativo (página 4 - a ser implementada)
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
             add_submenu_page(
@@ -513,6 +501,221 @@ class AdminBootstrap
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
                                     <?php else: ?>
                                         <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Inativo</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Segunda linha: Módulos e Estatísticas -->
+        <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
+            <!-- Módulos Ativos -->
+            <div class="limpvix-card limpvix-card-info">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-plugins"></span>
+                        Módulos do Sistema
+                    </h3>
+                    <p>Componentes carregados e funcionais</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    $modules = [
+                        'Briefing' => class_exists('LimpVix\\Core\\BriefingBootstrap') && method_exists('LimpVix\\Core\\BriefingBootstrap', 'isInitialized') ? \LimpVix\Core\BriefingBootstrap::isInitialized() : false,
+                        'Comunicação' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationCenterPage'),
+                        'Financeiro' => class_exists('LimpVix\\Domain\\Finance\\LedgerEntry'),
+                        'Feedback' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage'),
+                        'Fluxos' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageFlowsAdminPage'),
+                        'Templates' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage'),
+                    ];
+                    ?>
+                    <table class="limpvix-table">
+                        <tbody>
+                            <?php foreach ($modules as $name => $active): ?>
+                            <tr>
+                                <td><strong><?php echo esc_html($name); ?></strong></td>
+                                <td style="text-align: right;">
+                                    <?php if ($active): ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">Inativo</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Estatísticas do Sistema -->
+            <div class="limpvix-card limpvix-card-warning">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-chart-bar"></span>
+                        Estatísticas Gerais
+                    </h3>
+                    <p>Resumo de dados do sistema</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    global $wpdb;
+
+                    // Contar briefings
+                    $briefings_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_briefings");
+
+                    // Contar mensagens (últimos 30 dias)
+                    $messages_count = $wpdb->get_var(
+                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_messages
+                         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    );
+
+                    // Contar pedidos WooCommerce (últimos 30 dias)
+                    $orders_count = $wpdb->get_var(
+                        "SELECT COUNT(*) FROM {$wpdb->prefix}posts
+                         WHERE post_type = 'shop_order'
+                         AND post_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    );
+
+                    // Contar entradas ledger (últimos 7 dias)
+                    $ledger_count = $wpdb->get_var(
+                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_ledger
+                         WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+                    );
+                    ?>
+                    <table class="limpvix-table">
+                        <tbody>
+                            <tr>
+                                <td><strong>Briefings (total)</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($briefings_count ?: 0); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mensagens (30 dias)</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($messages_count ?: 0); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Pedidos (30 dias)</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($orders_count ?: 0); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Eventos Ledger (7 dias)</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($ledger_count ?: 0); ?></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terceira linha: Integrações -->
+        <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
+            <!-- Status de Integrações -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-cloud"></span>
+                        Integrações Externas
+                    </h3>
+                    <p>Status das conexões com serviços externos</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    $integrations = [
+                        'Firebase' => !empty(get_option('limpvix_firebase_project_id')),
+                        'Twilio' => !empty(get_option('limpvix_twilio_account_sid')),
+                        '360Dialog' => !empty(get_option('limpvix_360dialog_api_key')),
+                        'Google Business' => !empty(get_option('limpvix_google_business_api_key')),
+                        'Mercado Pago' => !empty(get_option('limpvix_mercadopago_access_token')),
+                        'Booknetic' => is_plugin_active('booknetic/init.php'),
+                        'WooCommerce' => class_exists('WooCommerce'),
+                    ];
+                    ?>
+                    <table class="limpvix-table">
+                        <tbody>
+                            <?php foreach ($integrations as $name => $configured): ?>
+                            <tr>
+                                <td><strong><?php echo esc_html($name); ?></strong></td>
+                                <td style="text-align: right;">
+                                    <?php if ($configured): ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Configurado</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">Não configurado</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Informações do Ambiente -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-tools"></span>
+                        Ambiente e Performance
+                    </h3>
+                    <p>Informações técnicas do servidor</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    $php_version = PHP_VERSION;
+                    $wp_version = get_bloginfo('version');
+                    $memory_limit = ini_get('memory_limit');
+                    $max_execution_time = ini_get('max_execution_time');
+                    $upload_max_filesize = ini_get('upload_max_filesize');
+                    ?>
+                    <table class="limpvix-table">
+                        <tbody>
+                            <tr>
+                                <td><strong>PHP</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($php_version); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>WordPress</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($wp_version); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Memory Limit</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($memory_limit); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Max Execution Time</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($max_execution_time); ?>s</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Upload Max Size</strong></td>
+                                <td style="text-align: right;">
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($upload_max_filesize); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Debug Mode</strong></td>
+                                <td style="text-align: right;">
+                                    <?php if (defined('WP_DEBUG') && WP_DEBUG): ?>
+                                        <span class="limpvix-badge limpvix-badge-warning limpvix-badge-dot">Ativo</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Inativo</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -891,15 +1094,14 @@ class AdminBootstrap
         exit;
     }
 
+    /**
+     * @deprecated Movido para aba Templates em Configurações (renderTemplatesTab)
+     * @see renderTemplatesTab()
+     */
     public function renderMessageTemplatesPage(): void {
-        if (!current_user_can('manage_options')) {
-            wp_die("Acesso negado");
-        }
-
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
-            $page = new \LimpVix\Infrastructure\Admin\Pages\MessageTemplatesAdminPage();
-            $page->render();
-        }
+        // Redirecionar para nova localização
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=templates'));
+        exit;
     }
 
     public function renderFeedbackManagementPage(): void {
