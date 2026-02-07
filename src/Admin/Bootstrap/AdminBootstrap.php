@@ -399,6 +399,10 @@ class AdminBootstrap
                    class="nav-tab <?php echo $activeTab === 'briefing' ? 'nav-tab-active' : ''; ?>">
                     📋 Briefing
                 </a>
+                <a href="?page=limpvix-settings&tab=templates"
+                   class="nav-tab <?php echo $activeTab === 'templates' ? 'nav-tab-active' : ''; ?>">
+                    📝 Templates
+                </a>
                 <a href="?page=limpvix-settings&tab=pagamentos"
                    class="nav-tab <?php echo $activeTab === 'pagamentos' ? 'nav-tab-active' : ''; ?>">
                     💳 Pagamentos
@@ -413,6 +417,9 @@ class AdminBootstrap
                     break;
                 case 'briefing':
                     $this->renderBriefingTab();
+                    break;
+                case 'templates':
+                    $this->renderTemplatesTab();
                     break;
                 case 'pagamentos':
                     $this->renderPagamentosTab();
@@ -711,6 +718,111 @@ class AdminBootstrap
                 </button>
             </p>
         </form>
+        <?php
+    }
+
+    private function renderTemplatesTab(): void
+    {
+        // Carregar templates canônicos do domínio
+        $canonical_templates = [];
+        if (class_exists('\LimpVix\Domain\Communication\MessageTemplates')) {
+            $templatesClass = new \LimpVix\Domain\Communication\MessageTemplates();
+            $reflection = new \ReflectionClass($templatesClass);
+            $method = $reflection->getMethod('getAllTemplates');
+            $method->setAccessible(true);
+            $canonical_templates = $method->invoke($templatesClass);
+        }
+
+        ?>
+        <div class="limpvix-card">
+            <div class="limpvix-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3>
+                        <span class="dashicons dashicons-media-document"></span>
+                        📝 Templates Canônicos
+                    </h3>
+                    <p>Templates pré-definidos do sistema (read-only)</p>
+                </div>
+                <a href="<?php echo admin_url('admin.php?page=limpvix-templates'); ?>" class="button button-primary">
+                    <span class="dashicons dashicons-edit"></span> Gerenciar Templates Customizados
+                </a>
+            </div>
+            <div class="limpvix-card-body">
+                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin-bottom: 20px;">
+                    <strong>ℹ️ Templates Canônicos:</strong> Definidos no domínio (MessageTemplates.php).
+                    Não podem ser editados pela UI. Para modificar, edite o arquivo fonte ou crie um template customizado.
+                </div>
+
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">ID</th>
+                            <th style="width: 250px;">Nome</th>
+                            <th style="width: 100px;">Canal</th>
+                            <th style="width: 150px;">Tipo</th>
+                            <th>Conteúdo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($canonical_templates)): ?>
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 40px;">
+                                    <em>Nenhum template canônico encontrado.</em>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($canonical_templates as $template): ?>
+                            <tr>
+                                <td><code><?php echo esc_html($template['id']); ?></code></td>
+                                <td><strong><?php echo esc_html($template['name']); ?></strong></td>
+                                <td>
+                                    <?php
+                                    $channel = $template['channel'] ?? 'UNKNOWN';
+                                    $channelBadge = [
+                                        'SMS' => '<span class="limpvix-badge limpvix-badge-info">📱 SMS</span>',
+                                        'WHATSAPP' => '<span class="limpvix-badge limpvix-badge-success">💬 WhatsApp</span>',
+                                        'EMAIL' => '<span class="limpvix-badge limpvix-badge-primary">📧 Email</span>',
+                                    ];
+                                    echo $channelBadge[$channel] ?? esc_html($channel);
+                                    ?>
+                                </td>
+                                <td>
+                                    <span class="limpvix-badge limpvix-badge-gray">
+                                        <?php echo esc_html($template['type'] ?? 'N/A'); ?>
+                                    </span>
+                                </td>
+                                <td style="font-family: monospace; font-size: 12px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    <?php echo esc_html(substr($template['content'], 0, 100)) . (strlen($template['content']) > 100 ? '...' : ''); ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="limpvix-card" style="margin-top: 20px;">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-admin-customizer"></span>
+                    ✨ Templates Customizados
+                </h3>
+                <p>Crie variações personalizadas dos templates canônicos</p>
+            </div>
+            <div class="limpvix-card-body">
+                <p>Para criar e gerenciar templates customizados, utilize o editor completo:</p>
+                <p>
+                    <a href="<?php echo admin_url('admin.php?page=limpvix-templates'); ?>" class="button button-primary button-large">
+                        <span class="dashicons dashicons-edit"></span> Abrir Editor de Templates Customizados
+                    </a>
+                </p>
+                <p class="description">
+                    Templates customizados permitem que você crie variações dos templates canônicos sem modificar o código-fonte.
+                    Você pode personalizar o conteúdo, adicionar variáveis dinâmicas e testar antes de ativar.
+                </p>
+            </div>
+        </div>
         <?php
     }
 

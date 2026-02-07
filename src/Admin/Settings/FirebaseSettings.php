@@ -278,55 +278,66 @@ class FirebaseSettings
     private static function renderConfigForm(string $projectId, string $apiKey, string $authDomain, bool $visible = false): void
     {
         ?>
-        <div class="limpvix-firebase-form" style="<?php echo $visible ? '' : 'display:none;'; ?>">
+        <div class="limpvix-firebase-form" style="<?php echo $visible ? 'background: #f0f6fc; padding: 20px; border-radius: 8px; border: 2px solid #0073aa;' : 'display:none;'; ?>">
             <div id="limpvix-firebase-feedback"></div>
+
+            <?php if ($visible): ?>
+                <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin-bottom: 20px;">
+                    <strong>👇 Preencha os campos abaixo para conectar ao Firebase:</strong>
+                </div>
+            <?php endif; ?>
 
             <table class="form-table" role="presentation">
                 <tr>
                     <th scope="row">
-                        <label for="firebase_project_id">Project ID *</label>
+                        <label for="firebase_project_id" style="font-weight: 600; font-size: 14px;">Project ID *</label>
                     </th>
                     <td>
                         <input type="text"
                                id="firebase_project_id"
                                name="firebase_project_id"
                                value="<?php echo esc_attr($projectId); ?>"
-                               class="regular-text"
-                               placeholder="my-project-123456">
+                               class="large-text"
+                               style="font-size: 14px; padding: 8px;"
+                               placeholder="my-project-123456"
+                               required>
                         <p class="description">
-                            ID do projeto Firebase (encontrado no Console Firebase)
+                            📍 ID do projeto Firebase (encontrado no Console Firebase)
                         </p>
                     </td>
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="firebase_api_key">Web API Key *</label>
+                        <label for="firebase_api_key" style="font-weight: 600; font-size: 14px;">Web API Key *</label>
                     </th>
                     <td>
                         <input type="text"
                                id="firebase_api_key"
                                name="firebase_api_key"
                                value="<?php echo esc_attr($apiKey); ?>"
-                               class="regular-text"
-                               placeholder="AIzaSy...">
+                               class="large-text"
+                               style="font-size: 14px; padding: 8px;"
+                               placeholder="AIzaSy..."
+                               required>
                         <p class="description">
-                            Web API Key (encontrado em Project Settings → General)
+                            🔑 Web API Key (encontrado em Project Settings → General)
                         </p>
                     </td>
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="firebase_auth_domain">Auth Domain</label>
+                        <label for="firebase_auth_domain" style="font-weight: 600; font-size: 14px;">Auth Domain</label>
                     </th>
                     <td>
                         <input type="text"
                                id="firebase_auth_domain"
                                name="firebase_auth_domain"
                                value="<?php echo esc_attr($authDomain); ?>"
-                               class="regular-text"
+                               class="large-text"
+                               style="font-size: 14px; padding: 8px;"
                                placeholder="my-project-123456.firebaseapp.com">
                         <p class="description">
-                            Domínio de autenticação (geralmente: {projectId}.firebaseapp.com). Deixe vazio para usar padrão.
+                            🌐 Domínio de autenticação (geralmente: {projectId}.firebaseapp.com). Deixe vazio para usar padrão.
                         </p>
                     </td>
                 </tr>
