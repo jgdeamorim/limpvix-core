@@ -537,31 +537,34 @@ class AdminBootstrap
     private function renderConexoesTab(): void
     {
         ?>
-        <!-- Firebase Authentication -->
-        <div class="limpvix-card">
-            <div class="limpvix-card-header">
-                <h3>
-                    <span class="dashicons dashicons-admin-network"></span>
-                    🔥 Firebase Authentication (SMS OTP)
-                </h3>
-                <p>Configuração de autenticação via SMS para verificação de telefone no Briefing</p>
+        <!-- Authentication Providers Grid -->
+        <div class="limpvix-grid limpvix-grid-2">
+            <!-- Firebase Authentication -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-network"></span>
+                        🔥 Firebase Authentication
+                    </h3>
+                    <p>SMS OTP para verificação de telefone</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php FirebaseSettings::render(); ?>
+                </div>
             </div>
-            <div class="limpvix-card-body">
-                <?php FirebaseSettings::render(); ?>
-            </div>
-        </div>
 
-        <!-- Google Meu Negócio -->
-        <div class="limpvix-card">
-            <div class="limpvix-card-header">
-                <h3>
-                    <span class="dashicons dashicons-google"></span>
-                    Google Meu Negócio
-                </h3>
-                <p>Configurações de integração com Google My Business para convites de avaliação</p>
-            </div>
-            <div class="limpvix-card-body">
-                <?php GoogleBusinessSettings::render(); ?>
+            <!-- Google Meu Negócio -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-google"></span>
+                        Google Meu Negócio
+                    </h3>
+                    <p>Integração para convites de avaliação</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php GoogleBusinessSettings::render(); ?>
+                </div>
             </div>
         </div>
 

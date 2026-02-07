@@ -48,22 +48,24 @@ class FirebaseSettings
         ?>
         <div class="limpvix-settings-section">
             <!-- Status Badge -->
-            <div style="margin-bottom: 20px;">
-                <?php if ($isConfigured): ?>
-                    <span class="limpvix-firebase-status connected">
-                        <span class="dashicons dashicons-yes-alt"></span>
-                        Firebase Configurado
-                    </span>
-                <?php else: ?>
-                    <span class="limpvix-firebase-status disconnected">
-                        <span class="dashicons dashicons-warning"></span>
-                        Firebase não configurado
-                    </span>
-                <?php endif; ?>
-            </div>
+            <?php if ($isConfigured): ?>
+                <div class="notice notice-success inline" style="margin: 0 0 20px 0; padding: 12px;">
+                    <p style="margin: 0;">
+                        <span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span>
+                        <strong>Firebase conectado</strong> - Project ID: <code><?php echo esc_html($projectId); ?></code>
+                    </p>
+                </div>
+            <?php else: ?>
+                <div class="notice notice-warning inline" style="margin: 0 0 20px 0; padding: 12px;">
+                    <p style="margin: 0;">
+                        <span class="dashicons dashicons-warning" style="color: #f0b849;"></span>
+                        <strong>Firebase não configurado</strong> - Preencha os campos abaixo para conectar
+                    </p>
+                </div>
+            <?php endif; ?>
 
             <!-- Sempre mostrar formulário -->
-            <?php self::renderConfigureState($projectId, $apiKey, $authDomain); ?>
+            <?php self::renderConfigForm($projectId, $apiKey, $authDomain, !$isConfigured); ?>
 
             <!-- Botão de teste (só se configurado) -->
             <?php if ($isConfigured): ?>
@@ -78,20 +80,6 @@ class FirebaseSettings
 
         <script>
         jQuery(document).ready(function($) {
-            // Toggle edição
-            $('#limpvix-firebase-edit-btn').on('click', function() {
-                $('.limpvix-firebase-readonly').hide();
-                $('.limpvix-firebase-form').show();
-                $(this).hide();
-            });
-
-            // Cancelar edição
-            $('#limpvix-firebase-cancel-btn').on('click', function() {
-                $('.limpvix-firebase-form').hide();
-                $('.limpvix-firebase-readonly').show();
-                $('#limpvix-firebase-edit-btn').show();
-            });
-
             // Salvar configuração
             $('#limpvix-firebase-save-btn').on('click', function() {
                 var $btn = $(this);
@@ -160,43 +148,20 @@ class FirebaseSettings
         </script>
 
         <style>
-        .limpvix-firebase-readonly { margin-bottom: 20px; }
-        .limpvix-firebase-form { display: none; margin-bottom: 20px; }
         .limpvix-firebase-info-box {
             background: #f0f6fc;
             border-left: 4px solid #0073aa;
-            padding: 15px;
-            margin: 15px 0;
+            padding: 12px 15px;
         }
         .limpvix-firebase-info-box h4 {
-            margin: 0 0 10px 0;
+            margin: 0 0 8px 0;
             color: #0073aa;
+            font-size: 14px;
         }
         .limpvix-firebase-info-box ol {
-            margin: 10px 0 0 20px;
-        }
-        .limpvix-firebase-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-weight: 500;
-        }
-        .limpvix-firebase-status.connected {
-            background: #d4edda;
-            color: #155724;
-        }
-        .limpvix-firebase-status.disconnected {
-            background: #fff3cd;
-            color: #856404;
-        }
-        .limpvix-firebase-credential {
-            font-family: monospace;
-            background: #f5f5f5;
-            padding: 4px 8px;
-            border-radius: 3px;
+            margin: 0;
             font-size: 13px;
+            line-height: 1.6;
         }
         .dashicons.spinning {
             animation: rotation 1s infinite linear;
@@ -209,103 +174,25 @@ class FirebaseSettings
         <?php
     }
 
-    /**
-     * Renderiza estado CONECTADO
-     */
-    private static function renderConnectedState(string $projectId, string $apiKey, string $authDomain): void
-    {
-        ?>
-        <div class="limpvix-firebase-readonly">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div>
-                    <span class="limpvix-firebase-status connected">
-                        <span class="dashicons dashicons-yes-alt"></span>
-                        Firebase Configurado
-                    </span>
-                </div>
-                <button type="button" id="limpvix-firebase-edit-btn" class="button">
-                    <span class="dashicons dashicons-edit"></span> Editar Configuração
-                </button>
-            </div>
-
-            <table class="form-table" role="presentation">
-                <tr>
-                    <th scope="row">Project ID:</th>
-                    <td>
-                        <code class="limpvix-firebase-credential"><?php echo esc_html($projectId); ?></code>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">API Key:</th>
-                    <td>
-                        <code class="limpvix-firebase-credential"><?php echo esc_html(substr($apiKey, 0, 20) . '...'); ?></code>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">Auth Domain:</th>
-                    <td>
-                        <code class="limpvix-firebase-credential"><?php echo esc_html($authDomain ?: $projectId . '.firebaseapp.com'); ?></code>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="margin-top: 20px;">
-                <button type="button" id="limpvix-firebase-test-btn" class="button button-secondary">
-                    <span class="dashicons dashicons-yes"></span> Testar Conexão
-                </button>
-                <div id="limpvix-firebase-test-result" style="margin-top: 10px;"></div>
-            </div>
-        </div>
-        <?php
-        self::renderConfigForm($projectId, $apiKey, $authDomain);
-    }
-
-    /**
-     * Renderiza estado NÃO CONFIGURADO
-     */
-    private static function renderConfigureState(string $projectId, string $apiKey, string $authDomain): void
-    {
-        ?>
-        <div style="margin-bottom: 20px;">
-            <span class="limpvix-firebase-status disconnected">
-                <span class="dashicons dashicons-warning"></span>
-                Firebase não configurado
-            </span>
-        </div>
-
-        <div class="limpvix-firebase-info-box">
-            <h4>🔥 Como configurar Firebase Authentication:</h4>
-            <ol>
-                <li>Acesse <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a></li>
-                <li>Crie um projeto ou selecione um existente</li>
-                <li>Vá em <strong>Authentication → Sign-in method</strong></li>
-                <li>Ative <strong>Phone</strong> como método de autenticação</li>
-                <li>Em <strong>Project Settings → General</strong>, copie:
-                    <ul>
-                        <li>Project ID</li>
-                        <li>Web API Key</li>
-                    </ul>
-                </li>
-                <li>Cole os valores nos campos abaixo e salve</li>
-            </ol>
-        </div>
-
-        <?php
-        self::renderConfigForm($projectId, $apiKey, $authDomain, true);
-    }
 
     /**
      * Renderiza formulário de configuração
      */
-    private static function renderConfigForm(string $projectId, string $apiKey, string $authDomain, bool $visible = false): void
+    private static function renderConfigForm(string $projectId, string $apiKey, string $authDomain, bool $highlight = false): void
     {
         ?>
-        <div class="limpvix-firebase-form" style="<?php echo $visible ? 'background: #f0f6fc; padding: 20px; border-radius: 8px; border: 2px solid #0073aa;' : 'display:none;'; ?>">
+        <div class="limpvix-firebase-form" style="<?php echo $highlight ? 'background: #f9f9f9; padding: 20px; border-radius: 4px;' : ''; ?>">
             <div id="limpvix-firebase-feedback"></div>
 
-            <?php if ($visible): ?>
-                <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin-bottom: 20px;">
-                    <strong>👇 Preencha os campos abaixo para conectar ao Firebase:</strong>
+            <?php if ($highlight): ?>
+                <div class="limpvix-firebase-info-box" style="margin-bottom: 20px;">
+                    <h4>📋 Instruções:</h4>
+                    <ol style="margin-left: 20px;">
+                        <li>Acesse <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a></li>
+                        <li>Vá em <strong>Authentication → Sign-in method</strong> e ative <strong>Phone</strong></li>
+                        <li>Em <strong>Project Settings → General</strong>, copie <strong>Project ID</strong> e <strong>Web API Key</strong></li>
+                        <li>Cole os valores abaixo e clique em Salvar</li>
+                    </ol>
                 </div>
             <?php endif; ?>
 
@@ -369,11 +256,6 @@ class FirebaseSettings
                 <button type="button" id="limpvix-firebase-save-btn" class="button button-primary">
                     💾 Salvar Configuração
                 </button>
-                <?php if (self::isConfigured()): ?>
-                    <button type="button" id="limpvix-firebase-cancel-btn" class="button" style="margin-left: 10px;">
-                        Cancelar
-                    </button>
-                <?php endif; ?>
             </div>
         </div>
         <?php
