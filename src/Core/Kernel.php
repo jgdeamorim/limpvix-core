@@ -112,6 +112,16 @@ class Kernel
             BriefingBootstrap::init();
         }
 
+        // Inicializar módulo Communication
+        if (class_exists('LimpVix\\Core\\CommunicationBootstrap')) {
+            CommunicationBootstrap::init();
+        }
+
+        // Inicializar módulo Feedback
+        if (class_exists('LimpVix\\Core\\FeedbackBootstrap')) {
+            FeedbackBootstrap::init();
+        }
+
         // Marcar como inicializado
         $this->booted = true;
 
