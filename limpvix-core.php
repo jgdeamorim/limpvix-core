@@ -149,6 +149,7 @@ register_activation_hook(__FILE__, function() {
         'LimpVix\\Core\\Migrations\\CreateOrdersTable',
         'LimpVix\\Infrastructure\\Database\\Migrations\\CreateLedgerTable',
         'LimpVix\\Infrastructure\\Database\\Migrations\\CreateMercadoPagoPayoutsTable',
+        'LimpVix\\Database\\Migrations\\CreateBookneticIntegrationTables', // Mapeamento appointment → order
     ];
 
     foreach ($migrations as $migrationClass) {
