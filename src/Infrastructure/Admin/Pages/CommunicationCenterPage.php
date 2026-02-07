@@ -38,9 +38,6 @@ class CommunicationCenterPage
 
         ?>
         <div class="wrap">
-            <h1>📡 Central de Comunicação</h1>
-            <p class="description">Hub de gerenciamento de mensagens, fluxos e providers</p>
-
             <!-- Status de Providers -->
             <h2>Status dos Providers</h2>
             <div class="limpvix-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 20px 0;">

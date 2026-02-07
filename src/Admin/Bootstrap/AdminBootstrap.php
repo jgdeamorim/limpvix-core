@@ -140,18 +140,6 @@ class AdminBootstrap
             [$this, "renderBriefingsPage"]
         );
 
-        // Submenu: Central de Comunicação (Hub)
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationCenterPage')) {
-            add_submenu_page(
-                self::MENU_SLUG,
-                "Central de Comunicação",
-                "Comunicação",
-                "manage_options",
-                "limpvix-communication-center",
-                [$this, 'renderCommunicationCenterPage']
-            );
-        }
-
         // Submenu: Templates (página 3 - a ser implementada)
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
             add_submenu_page(
@@ -383,6 +371,10 @@ class AdminBootstrap
                    class="nav-tab <?php echo $activeTab === 'conexoes' ? 'nav-tab-active' : ''; ?>">
                     🔌 Conexões
                 </a>
+                <a href="?page=limpvix-settings&tab=comunicacao"
+                   class="nav-tab <?php echo $activeTab === 'comunicacao' ? 'nav-tab-active' : ''; ?>">
+                    📡 Comunicação
+                </a>
                 <a href="?page=limpvix-settings&tab=briefing"
                    class="nav-tab <?php echo $activeTab === 'briefing' ? 'nav-tab-active' : ''; ?>">
                     📋 Briefing
@@ -406,6 +398,9 @@ class AdminBootstrap
             switch ($activeTab) {
                 case 'conexoes':
                     $this->renderConexoesTab();
+                    break;
+                case 'comunicacao':
+                    $this->renderComunicacaoTab();
                     break;
                 case 'briefing':
                     $this->renderBriefingTab();
@@ -591,6 +586,31 @@ class AdminBootstrap
                 <div class="limpvix-card-body">
                     <?php DialogSettings::render(); ?>
                 </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    private function renderComunicacaoTab(): void
+    {
+        ?>
+        <div class="limpvix-card">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-megaphone"></span>
+                    📡 Central de Comunicação
+                </h3>
+                <p>Hub de gerenciamento de mensagens, fluxos e providers</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php
+                if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CommunicationCenterPage')) {
+                    $page = new \LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage();
+                    $page->render();
+                } else {
+                    echo '<div class="notice notice-error inline"><p>❌ Central de Comunicação não encontrada. Verifique se a classe CommunicationCenterPage existe.</p></div>';
+                }
+                ?>
             </div>
         </div>
         <?php
@@ -851,13 +871,14 @@ class AdminBootstrap
         $page->render();
     }
 
+    /**
+     * @deprecated Movido para aba Comunicação em Configurações (renderComunicacaoTab)
+     * @see renderComunicacaoTab()
+     */
     public function renderCommunicationCenterPage(): void {
-        if (!current_user_can('manage_options')) {
-            wp_die("Acesso negado");
-        }
-
-        $page = new CommunicationCenterPage();
-        $page->render();
+        // Redirecionar para nova localização
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=comunicacao'));
+        exit;
     }
 
     /**

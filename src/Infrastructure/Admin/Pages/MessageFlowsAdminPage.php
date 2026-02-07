@@ -53,9 +53,6 @@ class MessageFlowsAdminPage
 
         ?>
         <div class="wrap">
-            <h1>🔄 Gerenciar Fluxos Automáticos</h1>
-            <p class="description">Configure quais fluxos estão ativos e seus timings</p>
-
             <?php if ($message === 'flows_updated'): ?>
                 <div class="notice notice-success is-dismissible">
                     <p><strong>✅ Fluxos atualizados com sucesso!</strong></p>
