@@ -103,6 +103,8 @@ final class AppointmentOrderMapper
     /**
      * Buscar dados do appointment no Booknetic
      *
+     * CORREÇÃO BLC-003: Buscar price do serviço via JOIN
+     *
      * @param int $appointmentId
      * @return array|null
      */
@@ -110,12 +112,47 @@ final class AppointmentOrderMapper
     {
         global $wpdb;
 
+        // JOIN com bkntc_services para buscar preço correto
         $appointment = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bkntc_appointments WHERE id = %d",
+            "SELECT
+                a.*,
+                s.price as service_price,
+                s.name as service_name,
+                s.duration as service_duration
+             FROM {$wpdb->prefix}bkntc_appointments a
+             LEFT JOIN {$wpdb->prefix}bkntc_services s ON a.service_id = s.id
+             WHERE a.id = %d",
             $appointmentId
         ), ARRAY_A);
 
-        return $appointment ?: null;
+        if (!$appointment) {
+            return null;
+        }
+
+        // Calcular total_amount (service + extras se houver)
+        $totalAmount = (float)($appointment['service_price'] ?? 0);
+
+        // Buscar extras do appointment (se existir tabela)
+        $extras = $wpdb->get_results($wpdb->prepare(
+            "SELECT extra_id, quantity, price
+             FROM {$wpdb->prefix}bkntc_appointment_extras
+             WHERE appointment_id = %d",
+            $appointmentId
+        ), ARRAY_A);
+
+        if ($extras) {
+            foreach ($extras as $extra) {
+                $totalAmount += (float)($extra['price'] ?? 0) * (int)($extra['quantity'] ?? 1);
+            }
+        }
+
+        // Adicionar campo calculado 'price' para compatibilidade
+        $appointment['price'] = $totalAmount;
+        $appointment['calculated_extras'] = $extras;
+
+        error_log("[AppointmentOrderMapper] Appointment {$appointmentId} - Service: {$appointment['service_name']}, Price: R\$" . number_format($totalAmount, 2, ',', '.'));
+
+        return $appointment;
     }
 
     /**
