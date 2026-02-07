@@ -107,6 +107,11 @@ class Kernel
         $this->hooks = new Hooks($this->featureFlags);
         $this->hooks->register();
 
+        // Inicializar módulo Briefing
+        if (class_exists('LimpVix\\Core\\BriefingBootstrap')) {
+            BriefingBootstrap::init();
+        }
+
         // Marcar como inicializado
         $this->booted = true;
 
