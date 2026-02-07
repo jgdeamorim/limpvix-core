@@ -55,7 +55,8 @@ class BriefingBootstrap
         }
 
         // Verificar feature flag
-        if (!FeatureFlags::isEnabled('briefing_enabled')) {
+        $featureFlags = new FeatureFlags();
+        if (!$featureFlags->isEnabled('briefing_enabled')) {
             return;
         }
 
