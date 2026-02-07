@@ -10,6 +10,7 @@ use LimpVix\Admin\Capabilities\FinanceCapabilities;
 use LimpVix\Admin\Controllers\OrdersListController;
 use LimpVix\Admin\Controllers\OrderDetailController;
 use LimpVix\Admin\Controllers\AdminActionsController;
+use LimpVix\Admin\Controllers\SyncValidatorController;
 use LimpVix\Admin\Settings\MercadoPagoSettings;
 use LimpVix\Admin\Settings\MercadoPagoDetector;
 use LimpVix\Admin\Settings\GoogleBusinessSettings;
@@ -118,6 +119,16 @@ class AdminBootstrap
             "limpvix_finance_view",
             "limpvix-orders",
             [$this, "renderOrdersPage"]
+        );
+
+        // Submenu: Sync Validator (BLC-004)
+        add_submenu_page(
+            self::MENU_SLUG,
+            "Sync Validator",
+            "Sync Validator",
+            "limpvix_finance_view",
+            "limpvix-sync-validator",
+            [$this, "renderSyncValidatorPage"]
         );
 
         // Submenu: Payouts
@@ -1485,7 +1496,13 @@ class AdminBootstrap
     }
 
     public function renderOrdersPage(): void {
-        echo "<div class='wrap limpvix-admin'><div class='limpvix-page-header'><div><h1><span class='dashicons dashicons-list-view'></span> Orders Financeiras</h1><p class='limpvix-page-subtitle'>Gerenciar orders e fluxo financeiro</p></div></div><div class='limpvix-alert limpvix-alert-info'><div class='limpvix-alert-icon'><span class='dashicons dashicons-info'></span></div><div class='limpvix-alert-content'><div class='limpvix-alert-title'>Página em Desenvolvimento</div><p>A listagem de orders será implementada em breve.</p></div></div></div>";
+        $controller = new OrdersListController();
+        $controller->render();
+    }
+
+    public function renderSyncValidatorPage(): void {
+        $controller = new SyncValidatorController();
+        $controller->render();
     }
 
     public function renderPayoutsPage(): void {
