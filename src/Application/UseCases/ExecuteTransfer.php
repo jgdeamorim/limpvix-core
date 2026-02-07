@@ -97,41 +97,59 @@ class ExecuteTransfer
     /**
      * Executar repasse
      *
+     * CORREÇÃO BLC-000: Usar professional_net_amount ao invés de total_amount
+     *
      * @param string $orderUuid UUID da order
-     * @param float $amount Valor do repasse
      * @param string $receiverMpUserId MP User ID do profissional
      * @param string $description Descrição
      * @return ExecuteTransferResult
      */
     public function execute(
         string $orderUuid,
-        float $amount,
         string $receiverMpUserId,
         string $description
     ): ExecuteTransferResult {
         try {
-            // 1. Verificar se order está AUTHORIZED
-            $currentStatus = $this->orderRepository->getCurrentFinancialStatus($orderUuid);
+            // 1. Buscar Order completa
+            $order = $this->orderRepository->findByUuid($orderUuid);
 
-            if ($currentStatus === null) {
+            if (!$order) {
                 return ExecuteTransferResult::rejected(
                     "Order {$orderUuid} não encontrada"
                 );
             }
 
-            if (!$currentStatus->equals(FinancialStatus::AUTHORIZED())) {
+            // 2. Verificar se order está AUTHORIZED
+            if (!$order->getFinancialStatus()->equals(FinancialStatus::AUTHORIZED())) {
                 return ExecuteTransferResult::rejected(
                     sprintf(
                         "Order não está AUTHORIZED (atual: %s)",
-                        $currentStatus->getValue()
+                        $order->getFinancialStatus()->getValue()
                     )
                 );
             }
 
-            // 2. Gerar payout ID único
+            // 3. Obter valor líquido do profissional (após taxa LimpVix)
+            $amount = $order->getProfessionalNetAmount();
+
+            if ($amount <= 0) {
+                return ExecuteTransferResult::rejected(
+                    "Professional net amount é ZERO ou negativo (R\${$amount})"
+                );
+            }
+
+            error_log(sprintf(
+                "[ExecuteTransfer] Order %s | Total: R$%.2f | Taxa: R$%.2f | Líquido Profissional: R$%.2f",
+                substr($orderUuid, 0, 8),
+                $order->getTotalAmount(),
+                $order->getPlatformFeeAmount(),
+                $amount
+            ));
+
+            // 4. Gerar payout ID único
             $payoutId = $this->generatePayoutId();
 
-            // 3. Verificar idempotência
+            // 5. Verificar idempotência
             if ($this->repasseRepository->exists($payoutId)) {
                 $status = $this->repasseRepository->getStatus($payoutId);
                 return ExecuteTransferResult::rejected(
@@ -139,20 +157,25 @@ class ExecuteTransfer
                 );
             }
 
-            // 4. Construir Payout
+            // 6. Construir Payout (com valor LÍQUIDO)
             $payout = new Payout(
                 payoutId: $payoutId,
                 amount: $amount,
                 receiverMpUserId: $receiverMpUserId,
                 description: $description,
                 currency: 'BRL',
-                metadata: ['order_uuid' => $orderUuid]
+                metadata: [
+                    'order_uuid' => $orderUuid,
+                    'total_amount' => $order->getTotalAmount(),
+                    'platform_fee' => $order->getPlatformFeeAmount(),
+                    'net_amount' => $amount
+                ]
             );
 
-            // 5. Executar via Provider
+            // 7. Executar via Provider
             $result = $this->payoutProvider->transfer($payout);
 
-            // 6. Gravar resultado
+            // 8. Gravar resultado
             if ($result->isSuccess()) {
                 $this->repasseRepository->recordSuccess($payout, $result);
                 $this->logSuccess($orderUuid, $result);
@@ -161,7 +184,7 @@ class ExecuteTransfer
                 $this->logFailure($orderUuid, $result);
             }
 
-            // 7. Se sucesso: transicionar para TRANSFERRED
+            // 9. Se sucesso: transicionar para TRANSFERRED
             if ($result->isSuccess()) {
                 $this->transitionToTransferred($orderUuid, $payoutId);
 

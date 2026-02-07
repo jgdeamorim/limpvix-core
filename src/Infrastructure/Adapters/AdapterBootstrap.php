@@ -37,10 +37,13 @@ use LimpVix\Application\UseCases\ProcessFeedbackReceived;
 use LimpVix\Application\UseCases\ProcessTimerExpired;
 use LimpVix\Application\UseCases\TransitionFinancialStatus;
 use LimpVix\Application\UseCases\AppendLedgerEntry;
+use LimpVix\Application\UseCases\ExecuteTransfer;
 use LimpVix\Application\Services\PlatformFeeCalculator;
 use LimpVix\Domain\Finance\FinancialPolicy;
 use LimpVix\Infrastructure\Persistence\WpLedgerRepository;
 use LimpVix\Infrastructure\Persistence\WpOrderRepository;
+use LimpVix\Infrastructure\Persistence\RepasseRepository;
+use LimpVix\Infrastructure\External\MercadoPago\MercadoPagoPayoutProvider;
 use LimpVix\Infrastructure\Adapters\BookneticBridge;
 
 defined('ABSPATH') || exit;
@@ -98,12 +101,23 @@ class AdapterBootstrap
         $processFeedback = new ProcessFeedbackReceived($transitionUseCase);
         $processTimer = new ProcessTimerExpired($transitionUseCase);
 
+        // BLC-000: Construir Use Case de repasse
+        $repasseRepo = new RepasseRepository();
+        $payoutProvider = new MercadoPagoPayoutProvider();
+        $executeTransfer = new ExecuteTransfer(
+            $orderRepo,
+            $repasseRepo,
+            $payoutProvider,
+            $transitionUseCase
+        );
+
         // 4. Construir Adaptadores
         $wooCommerceAdapter = new WooCommercePaymentAdapter($processPayment, $orderRepo);
         $wooCommerceStatusSync = new WooCommerceStatusSyncAdapter();
         $bookneticAdapter = new BookneticServiceAdapter($processService);
         $feedbackAdapter = new FeedbackAdapter($processFeedback);
         $timerAdapter = new TimerCronAdapter($processTimer, $ledgerRepo);
+        $automaticPayoutDispatcher = new AutomaticPayoutDispatcher($executeTransfer, $orderRepo);
 
         // 5. Registrar adaptadores
         $this->registry->add($wooCommerceAdapter, 'woocommerce_payment');
@@ -111,6 +125,7 @@ class AdapterBootstrap
         $this->registry->add($bookneticAdapter, 'booknetic_service');
         $this->registry->add($feedbackAdapter, 'customer_feedback');
         $this->registry->add($timerAdapter, 'review_timer');
+        $this->registry->add($automaticPayoutDispatcher, 'automatic_payout');
 
         // 6. Registrar todos os hooks
         $this->registry->registerAll();
