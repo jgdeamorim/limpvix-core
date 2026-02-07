@@ -580,6 +580,14 @@ class AdminBootstrap
                          AND post_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
                     );
 
+                    // Contar Feedbacks Negativos C2 (rating < 4, últimos 30 dias)
+                    $feedbacks_c2_count = $wpdb->get_var(
+                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_orders
+                         WHERE customer_rating IS NOT NULL
+                         AND customer_rating < 4
+                         AND updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    );
+
                     // Contar entradas ledger (últimos 7 dias)
                     $ledger_count = $wpdb->get_var(
                         "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_ledger
@@ -607,6 +615,16 @@ class AdminBootstrap
                                 </td>
                             </tr>
                             <tr>
+                                <td><strong>Feedbacks C2 (30 dias)</strong></td>
+                                <td style="text-align: right;">
+                                    <?php if ($feedbacks_c2_count > 0): ?>
+                                        <span class="limpvix-badge limpvix-badge-warning"><?php echo number_format($feedbacks_c2_count); ?></span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-success"><?php echo number_format($feedbacks_c2_count ?: 0); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
                                 <td><strong>Eventos Ledger (7 dias)</strong></td>
                                 <td style="text-align: right;">
                                     <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($ledger_count ?: 0); ?></span>
@@ -631,12 +649,13 @@ class AdminBootstrap
                 </div>
                 <div class="limpvix-card-body">
                     <?php
+                    // Usar métodos isConnected() de cada Settings
                     $integrations = [
-                        'Firebase' => !empty(get_option('limpvix_firebase_project_id')),
-                        'Twilio' => !empty(get_option('limpvix_twilio_account_sid')),
-                        '360Dialog' => !empty(get_option('limpvix_360dialog_api_key')),
-                        'Google Business' => !empty(get_option('limpvix_google_business_api_key')),
-                        'Mercado Pago' => !empty(get_option('limpvix_mercadopago_access_token')),
+                        'Firebase' => FirebaseSettings::isConfigured(),
+                        'Twilio' => TwilioSettings::isConnected(),
+                        '360Dialog' => DialogSettings::isConnected(),
+                        'Google Business' => GoogleBusinessSettings::isConnected(),
+                        'Mercado Pago' => \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected(),
                         'Booknetic' => is_plugin_active('booknetic/init.php'),
                         'WooCommerce' => class_exists('WooCommerce'),
                     ];
