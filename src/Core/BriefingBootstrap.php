@@ -27,7 +27,6 @@ use LimpVix\Infrastructure\API\BriefingApiBootstrap;
 use LimpVix\Infrastructure\Admin\Pages\LimpVixSettingsPage;
 use LimpVix\Infrastructure\Admin\Pages\BriefingManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\BriefingDetailPage;
-use LimpVix\Infrastructure\Admin\Pages\BriefingSettings;
 use LimpVix\Infrastructure\Events\BriefingEventDispatcher;
 use LimpVix\Infrastructure\Integration\ContractActivationListener;
 use LimpVix\Infrastructure\Integration\ScheduleCreationListener;
@@ -151,9 +150,7 @@ class BriefingBootstrap
         $detailPage = new BriefingDetailPage($briefingRepository);
         $detailPage->register();
 
-        // Página de configurações
-        $settingsPage = new BriefingSettings();
-        $settingsPage->register();
+        // NOTA: BriefingSettings agora é aba em LimpVixSettingsPage, não submenu separado
     }
 
     /**
