@@ -37,6 +37,7 @@ use LimpVix\Application\UseCases\ProcessFeedbackReceived;
 use LimpVix\Application\UseCases\ProcessTimerExpired;
 use LimpVix\Application\UseCases\TransitionFinancialStatus;
 use LimpVix\Application\UseCases\AppendLedgerEntry;
+use LimpVix\Application\Services\PlatformFeeCalculator;
 use LimpVix\Domain\Finance\FinancialPolicy;
 use LimpVix\Infrastructure\Persistence\WpLedgerRepository;
 use LimpVix\Infrastructure\Persistence\WpOrderRepository;
@@ -76,6 +77,7 @@ class AdapterBootstrap
         $orderRepo = new WpOrderRepository();
         $ledgerRepo = new WpLedgerRepository();
         $policy = new FinancialPolicy();
+        $feeCalculator = new PlatformFeeCalculator();
 
         // 2. Construir Use Cases
         $appendLedger = new AppendLedgerEntry($ledgerRepo);
@@ -87,7 +89,11 @@ class AdapterBootstrap
         );
 
         // 3. Construir Use Cases específicos
-        $processPayment = new ProcessPaymentConfirmed($transitionUseCase);
+        $processPayment = new ProcessPaymentConfirmed(
+            $transitionUseCase,
+            $orderRepo,
+            $feeCalculator
+        );
         $processService = new ProcessServiceCompleted($transitionUseCase);
         $processFeedback = new ProcessFeedbackReceived($transitionUseCase);
         $processTimer = new ProcessTimerExpired($transitionUseCase);

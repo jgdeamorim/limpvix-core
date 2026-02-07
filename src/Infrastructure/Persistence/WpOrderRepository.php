@@ -72,7 +72,9 @@ class WpOrderRepository implements OrderRepositoryInterface
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $row = $this->wpdb->get_row(
             $this->wpdb->prepare(
-                "SELECT uuid, id, financial_status
+                "SELECT uuid, id, financial_status,
+                        total_amount, platform_fee_percentage,
+                        platform_fee_amount, professional_net_amount
                 FROM {$this->table}
                 WHERE uuid = %s
                 LIMIT 1",
@@ -177,7 +179,47 @@ class WpOrderRepository implements OrderRepositoryInterface
         return new Order(
             uuid: $data['uuid'],
             id: (int) $data['id'],
-            financialStatus: FinancialStatus::fromValue($data['financial_status'])
+            financialStatus: FinancialStatus::fromValue($data['financial_status']),
+            totalAmount: (float) ($data['total_amount'] ?? 0.0),
+            platformFeePercentage: (float) ($data['platform_fee_percentage'] ?? 0.0),
+            platformFeeAmount: (float) ($data['platform_fee_amount'] ?? 0.0),
+            professionalNetAmount: (float) ($data['professional_net_amount'] ?? 0.0)
         );
+    }
+
+    /**
+     * Atualizar cálculo de taxa da order
+     *
+     * @param string $uuid
+     * @param float $feeAmount
+     * @param float $netAmount
+     * @return void
+     * @throws \RuntimeException
+     */
+    public function updateFeeCalculation(string $uuid, float $feeAmount, float $netAmount): void
+    {
+        // Verificar se order existe
+        if (!$this->exists($uuid)) {
+            throw new \RuntimeException("Order {$uuid} não encontrada");
+        }
+
+        // Atualizar valores de taxa
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $result = $this->wpdb->update(
+            $this->table,
+            [
+                'platform_fee_amount' => $feeAmount,
+                'professional_net_amount' => $netAmount
+            ],
+            ['uuid' => $uuid],
+            ['%f', '%f'],
+            ['%s']
+        );
+
+        if ($result === false) {
+            throw new \RuntimeException(
+                "Falha ao atualizar cálculo de taxa: {$this->wpdb->last_error}"
+            );
+        }
     }
 }
