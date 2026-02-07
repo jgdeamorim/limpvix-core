@@ -3,7 +3,7 @@
  * BriefingManagementPage - Página Administrativa de Gerenciamento de Briefings
  *
  * RESPONSABILIDADE:
- * - Menu: LimpVix → Briefings
+ * - Menu principal: Briefings (posição 26, abaixo de Dashboard)
  * - Listar todos os briefings com paginação
  * - Filtros: status, property_type, data criação, usuário
  * - Ações: visualizar detalhes, exportar CSV
@@ -37,13 +37,14 @@ class BriefingManagementPage
 
     public function addMenu(): void
     {
-        add_submenu_page(
-            'limpvix',
-            'Briefings',
+        add_menu_page(
+            'Briefings LimpVix',
             'Briefings',
             'manage_options',
             self::PAGE_SLUG,
-            [$this, 'render']
+            [$this, 'render'],
+            'dashicons-clipboard',
+            26
         );
     }
 
