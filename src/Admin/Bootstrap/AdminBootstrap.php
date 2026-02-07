@@ -379,6 +379,10 @@ class AdminBootstrap
                    class="nav-tab <?php echo $activeTab === 'pagamentos' ? 'nav-tab-active' : ''; ?>">
                     💳 Pagamentos
                 </a>
+                <a href="?page=limpvix-settings&tab=dependencias"
+                   class="nav-tab <?php echo $activeTab === 'dependencias' ? 'nav-tab-active' : ''; ?>">
+                    🔗 Dependências
+                </a>
             </h2>
 
             <?php
@@ -402,6 +406,9 @@ class AdminBootstrap
                 case 'pagamentos':
                     $this->renderPagamentosTab();
                     break;
+                case 'dependencias':
+                    $this->renderDependenciasTab();
+                    break;
                 case 'geral':
                 default:
                     $this->renderGeralTab();
@@ -409,6 +416,243 @@ class AdminBootstrap
             }
             ?>
         </div>
+        <?php
+    }
+
+    private function renderDependenciasTab(): void
+    {
+        $isBookneticActive = is_plugin_active('booknetic/init.php');
+        ?>
+
+        <!-- Status Geral da Dependência -->
+        <div class="limpvix-card <?php echo $isBookneticActive ? 'limpvix-card-success' : 'limpvix-card-danger'; ?>">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-admin-plugins"></span>
+                    Status: Plugin Booknetic
+                </h3>
+                <p>Dependência principal para agendamentos e gestão operacional</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php if ($isBookneticActive): ?>
+                    <div class="notice notice-success inline">
+                        <p><strong>✅ Booknetic ATIVO</strong> - Todas as funcionalidades de integração disponíveis</p>
+                    </div>
+                <?php else: ?>
+                    <div class="notice notice-error inline">
+                        <p><strong>❌ Booknetic INATIVO</strong> - Módulo de agendamentos não funcionará sem o Booknetic instalado e ativo</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Auditoria Completa -->
+        <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
+
+            <!-- O QUE USAMOS -->
+            <div class="limpvix-card limpvix-card-info">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-yes"></span>
+                        ✅ O Que USAMOS do Booknetic
+                    </h3>
+                    <p>Funcionalidades e dados que o LimpVix-Core consome</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <h4 style="margin-top: 0;">📡 Hooks Capturados (10)</h4>
+                    <table class="limpvix-table">
+                        <thead>
+                            <tr>
+                                <th>Hook</th>
+                                <th>Função</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>bkntc_appointment_created</code></td>
+                                <td>Criar order no LimpVix</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_appointment_completed</code></td>
+                                <td>Disparar fluxo financeiro</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_appointment_canceled</code></td>
+                                <td>Cancelar order</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff_updated</code></td>
+                                <td>Sincronizar dados staff</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_after_booking_completed</code></td>
+                                <td>Redirecionar para Briefing</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff_can_access</code></td>
+                                <td>Controle de permissões</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff_can_execute_action</code></td>
+                                <td>Controle de ações</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff_panel_header</code></td>
+                                <td>Avisos personalizados</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff_panel_footer</code></td>
+                                <td>Ocultar abas financeiras</td>
+                            </tr>
+                            <tr>
+                                <td><code>admin_menu</code> (999)</td>
+                                <td>Ocultar menus para staff</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 style="margin-top: 20px;">🗄️ Tabelas Acessadas (4)</h4>
+                    <table class="limpvix-table">
+                        <thead>
+                            <tr>
+                                <th>Tabela</th>
+                                <th>Tipo Acesso</th>
+                                <th>Propósito</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>bkntc_appointments</code></td>
+                                <td>READ</td>
+                                <td>Mapear appointment → order</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_staff</code></td>
+                                <td>READ</td>
+                                <td>Vincular user_id WordPress</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_customers</code></td>
+                                <td>READ</td>
+                                <td>Dados para Google Reviews</td>
+                            </tr>
+                            <tr>
+                                <td><code>bkntc_services</code></td>
+                                <td>READ</td>
+                                <td>Nome do serviço executado</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 style="margin-top: 20px;">📦 Classes/Componentes (6)</h4>
+                    <ul style="list-style: none; padding: 0;">
+                        <li>✅ <strong>BookneticBridge</strong> - Ponte principal de integração</li>
+                        <li>✅ <strong>AppointmentOrderMapper</strong> - Mapeamento 1:1</li>
+                        <li>✅ <strong>StaffAccessGuard</strong> - Controle de acesso</li>
+                        <li>✅ <strong>StaffActionGuard</strong> - Controle de ações</li>
+                        <li>✅ <strong>StaffPanelOverride</strong> - UI customizada</li>
+                        <li>✅ <strong>StaffNotices</strong> - Avisos personalizados</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- O QUE NÃO USAMOS -->
+            <div class="limpvix-card limpvix-card-warning">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-no"></span>
+                        ❌ O Que NÃO Usamos do Booknetic
+                    </h3>
+                    <p>Funcionalidades ignoradas - LimpVix tem implementação própria</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <h4 style="margin-top: 0;">💰 Sistema Financeiro</h4>
+                    <ul>
+                        <li>❌ <strong>Payments do Booknetic</strong> - LimpVix tem sistema próprio</li>
+                        <li>❌ <strong>Invoices do Booknetic</strong> - WooCommerce gerencia</li>
+                        <li>❌ <strong>Staff Payouts</strong> - MercadoPago via LimpVix</li>
+                        <li>❌ <strong>Comissões</strong> - FinancialPolicy próprio</li>
+                    </ul>
+
+                    <h4 style="margin-top: 20px;">📊 Relatórios e Analytics</h4>
+                    <ul>
+                        <li>❌ <strong>Dashboard Booknetic</strong> - LimpVix tem próprio</li>
+                        <li>❌ <strong>Reports do Booknetic</strong> - Não utilizados</li>
+                        <li>❌ <strong>Analytics</strong> - Sistema próprio de métricas</li>
+                    </ul>
+
+                    <h4 style="margin-top: 20px;">📧 Comunicação</h4>
+                    <ul>
+                        <li>❌ <strong>Notifications do Booknetic</strong> - LimpVix gerencia fluxos</li>
+                        <li>❌ <strong>SMS do Booknetic</strong> - Twilio via LimpVix</li>
+                        <li>❌ <strong>WhatsApp do Booknetic</strong> - 360Dialog via LimpVix</li>
+                        <li>❌ <strong>Email templates</strong> - MessageTemplates próprios</li>
+                    </ul>
+
+                    <h4 style="margin-top: 20px;">⚙️ Configurações</h4>
+                    <ul>
+                        <li>❌ <strong>Settings do Booknetic</strong> - Não modificamos</li>
+                        <li>❌ <strong>Custom Fields</strong> - Não utilizamos</li>
+                        <li>❌ <strong>Extras/Add-ons</strong> - Não utilizamos</li>
+                    </ul>
+
+                    <h4 style="margin-top: 20px;">🎨 Interface</h4>
+                    <ul>
+                        <li>❌ <strong>Frontend Booknetic</strong> - Não expomos ao público</li>
+                        <li>❌ <strong>Customer Panel</strong> - Briefing próprio</li>
+                        <li>❌ <strong>Widgets</strong> - Não utilizamos</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Princípios de Integração -->
+        <div class="limpvix-card" style="margin-top: 20px;">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-shield"></span>
+                    🛡️ Princípios da Integração
+                </h3>
+                <p>Como mantemos isolamento e evitamos dependência excessiva</p>
+            </div>
+            <div class="limpvix-card-body">
+                <div class="limpvix-grid limpvix-grid-2">
+                    <div>
+                        <h4>✅ O QUE FAZEMOS:</h4>
+                        <ul>
+                            <li>✅ Interceptamos eventos via hooks do WordPress</li>
+                            <li>✅ Lemos dados das tabelas Booknetic (READ-ONLY)</li>
+                            <li>✅ Mantemos mapeamento 1:1 em tabela própria</li>
+                            <li>✅ Sobrescrevemos UI apenas para staff (Guards)</li>
+                            <li>✅ Validamos permissões antes de cada ação</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>❌ O QUE NÃO FAZEMOS:</h4>
+                        <ul>
+                            <li>❌ NUNCA modificamos código do Booknetic</li>
+                            <li>❌ NUNCA escrevemos em tabelas do Booknetic</li>
+                            <li>❌ NUNCA sobrescrevemos classes do Booknetic</li>
+                            <li>❌ NUNCA dependemos de métodos internos</li>
+                            <li>❌ NUNCA quebramos compatibilidade com updates</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: #f0f6fc; border-left: 4px solid #0073aa;">
+                    <strong>📌 Arquitetura de Isolamento:</strong>
+                    <p style="margin: 10px 0 0 0;">
+                        <code>Booknetic (Engine Operacional)</code> →
+                        <code>BookneticBridge (Interceptação)</code> →
+                        <code>LimpVix (Soberano em Regras/Dinheiro/Compliance)</code>
+                    </p>
+                    <p style="margin: 10px 0 0 0; font-size: 13px; color: #666;">
+                        Esta arquitetura permite que o Booknetic seja substituído no futuro sem quebrar o LimpVix-Core.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <?php
     }
 
