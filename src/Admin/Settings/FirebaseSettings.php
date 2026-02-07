@@ -47,10 +47,32 @@ class FirebaseSettings
 
         ?>
         <div class="limpvix-settings-section">
+            <!-- Status Badge -->
+            <div style="margin-bottom: 20px;">
+                <?php if ($isConfigured): ?>
+                    <span class="limpvix-firebase-status connected">
+                        <span class="dashicons dashicons-yes-alt"></span>
+                        Firebase Configurado
+                    </span>
+                <?php else: ?>
+                    <span class="limpvix-firebase-status disconnected">
+                        <span class="dashicons dashicons-warning"></span>
+                        Firebase não configurado
+                    </span>
+                <?php endif; ?>
+            </div>
+
+            <!-- Sempre mostrar formulário -->
+            <?php self::renderConfigureState($projectId, $apiKey, $authDomain); ?>
+
+            <!-- Botão de teste (só se configurado) -->
             <?php if ($isConfigured): ?>
-                <?php self::renderConnectedState($projectId, $apiKey, $authDomain); ?>
-            <?php else: ?>
-                <?php self::renderConfigureState($projectId, $apiKey, $authDomain); ?>
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    <button type="button" id="limpvix-firebase-test-btn" class="button button-secondary">
+                        <span class="dashicons dashicons-yes"></span> Testar Conexão
+                    </button>
+                    <div id="limpvix-firebase-test-result" style="margin-top: 10px;"></div>
+                </div>
             <?php endif; ?>
         </div>
 
