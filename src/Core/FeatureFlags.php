@@ -106,7 +106,7 @@ class FeatureFlags
         'admin_ui' => false,
 
         // Módulo Briefing (FASE 0-6)
-        'briefing_enabled' => false,
+        'briefing_enabled' => true,
     ];
 
     /**
