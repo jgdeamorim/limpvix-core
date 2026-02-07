@@ -54,14 +54,7 @@ class FirebaseAuthAdapter
      */
     public function __construct(?string $projectId = null)
     {
-        if ($projectId === null) {
-            if (!defined('LIMPVIX_FIREBASE_PROJECT_ID')) {
-                throw new \RuntimeException(
-                    'LIMPVIX_FIREBASE_PROJECT_ID não definido no wp-config.php. ' .
-                    'Adicione: define(\'LIMPVIX_FIREBASE_PROJECT_ID\', \'seu-projeto-id\');'
-                );
-            }
-
+        if ($projectId === null && defined('LIMPVIX_FIREBASE_PROJECT_ID')) {
             $projectId = LIMPVIX_FIREBASE_PROJECT_ID;
         }
 
@@ -80,6 +73,14 @@ class FirebaseAuthAdapter
      */
     public function verifyIdToken(string $idToken): array
     {
+        // 0. Verificar se Firebase foi configurado
+        if (empty($this->projectId)) {
+            throw new \RuntimeException(
+                'Firebase não configurado. Adicione no wp-config.php: ' .
+                'define(\'LIMPVIX_FIREBASE_PROJECT_ID\', \'seu-projeto-id\');'
+            );
+        }
+
         // 1. Validar formato básico
         if (empty($idToken) || !is_string($idToken)) {
             throw new \InvalidArgumentException('ID Token inválido ou vazio');
