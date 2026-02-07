@@ -51,6 +51,30 @@ class BookneticBridge
             10,
             3
         );
+
+        // Hook NATIVO: quando appointment é criado
+        add_action(
+            'bkntc_appointment_created',
+            [$this, 'onAppointmentCreated'],
+            10,
+            2
+        );
+
+        // Hook NATIVO: quando appointment é atualizado
+        add_action(
+            'bkntc_appointment_updated',
+            [$this, 'onAppointmentUpdated'],
+            10,
+            2
+        );
+
+        // Hook NATIVO: quando appointment é cancelado
+        add_action(
+            'bkntc_appointment_cancelled',
+            [$this, 'onAppointmentCancelled'],
+            10,
+            1
+        );
     }
 
     /**
@@ -103,6 +127,103 @@ class BookneticBridge
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log(sprintf(
                     '[LimpVix Bridge ERROR] Failed to dispatch completed event: %s',
+                    $e->getMessage()
+                ));
+            }
+        }
+    }
+
+    /**
+     * Handler: Appointment criado no Booknetic
+     *
+     * @param int $appointmentId ID do appointment
+     * @param array $appointmentData Dados do appointment
+     * @return void
+     */
+    public function onAppointmentCreated(int $appointmentId, array $appointmentData): void
+    {
+        try {
+            // Disparar hook customizado LimpVix
+            do_action('limpvix_booknetic_appointment_created', [
+                'appointment_id' => $appointmentId,
+                'appointment_data' => $appointmentData,
+                'timestamp' => current_time('mysql'),
+            ]);
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge] Appointment #%d created',
+                    $appointmentId
+                ));
+            }
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge ERROR] Failed to dispatch created event: %s',
+                    $e->getMessage()
+                ));
+            }
+        }
+    }
+
+    /**
+     * Handler: Appointment atualizado no Booknetic
+     *
+     * @param int $appointmentId ID do appointment
+     * @param array $oldData Dados anteriores
+     * @return void
+     */
+    public function onAppointmentUpdated(int $appointmentId, array $oldData): void
+    {
+        try {
+            // Disparar hook customizado LimpVix
+            do_action('limpvix_booknetic_appointment_updated', [
+                'appointment_id' => $appointmentId,
+                'old_data' => $oldData,
+                'timestamp' => current_time('mysql'),
+            ]);
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge] Appointment #%d updated',
+                    $appointmentId
+                ));
+            }
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge ERROR] Failed to dispatch updated event: %s',
+                    $e->getMessage()
+                ));
+            }
+        }
+    }
+
+    /**
+     * Handler: Appointment cancelado no Booknetic
+     *
+     * @param int $appointmentId ID do appointment
+     * @return void
+     */
+    public function onAppointmentCancelled(int $appointmentId): void
+    {
+        try {
+            // Disparar hook customizado LimpVix
+            do_action('limpvix_booknetic_appointment_cancelled', [
+                'appointment_id' => $appointmentId,
+                'timestamp' => current_time('mysql'),
+            ]);
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge] Appointment #%d cancelled',
+                    $appointmentId
+                ));
+            }
+        } catch (\Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[LimpVix Bridge ERROR] Failed to dispatch cancelled event: %s',
                     $e->getMessage()
                 ));
             }
