@@ -152,18 +152,6 @@ class AdminBootstrap
             );
         }
 
-        // Submenu: Gerenciar Fluxos
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageFlowsAdminPage')) {
-            add_submenu_page(
-                self::MENU_SLUG,
-                "Gerenciar Fluxos Automáticos",
-                "Fluxos",
-                "manage_options",
-                "limpvix-message-flows",
-                [$this, 'renderMessageFlowsPage']
-            );
-        }
-
         // Submenu: Templates (página 3 - a ser implementada)
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage')) {
             add_submenu_page(
@@ -403,6 +391,10 @@ class AdminBootstrap
                    class="nav-tab <?php echo $activeTab === 'templates' ? 'nav-tab-active' : ''; ?>">
                     📝 Templates
                 </a>
+                <a href="?page=limpvix-settings&tab=fluxos"
+                   class="nav-tab <?php echo $activeTab === 'fluxos' ? 'nav-tab-active' : ''; ?>">
+                    🔄 Fluxos
+                </a>
                 <a href="?page=limpvix-settings&tab=pagamentos"
                    class="nav-tab <?php echo $activeTab === 'pagamentos' ? 'nav-tab-active' : ''; ?>">
                     💳 Pagamentos
@@ -420,6 +412,9 @@ class AdminBootstrap
                     break;
                 case 'templates':
                     $this->renderTemplatesTab();
+                    break;
+                case 'fluxos':
+                    $this->renderFluxosTab();
                     break;
                 case 'pagamentos':
                     $this->renderPagamentosTab();
@@ -743,6 +738,31 @@ class AdminBootstrap
         }
     }
 
+    private function renderFluxosTab(): void
+    {
+        ?>
+        <div class="limpvix-card">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-update"></span>
+                    🔄 Gerenciar Fluxos Automáticos
+                </h3>
+                <p>Configurar e monitorar fluxos de comunicação automáticos do sistema</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php
+                if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageFlowsAdminPage')) {
+                    $page = new \LimpVix\Infrastructure\Admin\Pages\MessageFlowsAdminPage();
+                    $page->render();
+                } else {
+                    echo '<div class="notice notice-error inline"><p>❌ Página de Fluxos não encontrada. Verifique se a classe MessageFlowsAdminPage existe.</p></div>';
+                }
+                ?>
+            </div>
+        </div>
+        <?php
+    }
+
     private function renderPagamentosTab(): void
     {
         ?>
@@ -840,13 +860,14 @@ class AdminBootstrap
         $page->render();
     }
 
+    /**
+     * @deprecated Movido para aba Fluxos em Configurações (renderFluxosTab)
+     * @see renderFluxosTab()
+     */
     public function renderMessageFlowsPage(): void {
-        if (!current_user_can('manage_options')) {
-            wp_die("Acesso negado");
-        }
-
-        $page = new MessageFlowsAdminPage();
-        $page->render();
+        // Redirecionar para nova localização
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=fluxos'));
+        exit;
     }
 
     public function renderMessageTemplatesPage(): void {
