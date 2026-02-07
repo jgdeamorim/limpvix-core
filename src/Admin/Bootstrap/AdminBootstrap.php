@@ -358,6 +358,15 @@ class AdminBootstrap
         if (!FinanceCapabilities::canManage()) {
             wp_die("Acesso negado");
         }
+
+        // Determinar aba ativa
+        $activeTab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'geral';
+
+        // Processar salvamento da aba Briefing
+        if ($activeTab === 'briefing' && isset($_POST['limpvix_save_briefing_settings']) && check_admin_referer('limpvix_briefing_settings')) {
+            $this->handleBriefingSave();
+        }
+
         ?>
         <div class="wrap limpvix-admin">
             <div class="limpvix-page-header">
@@ -370,160 +379,414 @@ class AdminBootstrap
                 </div>
             </div>
 
-            <div class="limpvix-grid limpvix-grid-2">
-                <!-- Feature Flags Card -->
-                <div class="limpvix-card limpvix-card-primary">
-                    <div class="limpvix-card-header">
-                        <h3>
-                            <span class="dashicons dashicons-flag"></span>
-                            Feature Flags
-                        </h3>
-                        <p>Controle das funcionalidades ativas do sistema</p>
-                    </div>
-                    <div class="limpvix-card-body">
-                        <?php
-                        $flags = new \LimpVix\Core\FeatureFlags();
-                        $all_flags = $flags->getAll();
-                        $important_flags = [
-                            "financial_workflow" => "Workflow Financeiro",
-                            "payout_engine" => "Motor de Payouts",
-                            "admin_interface" => "Interface Admin",
-                            "audit_logging" => "Logs de Auditoria",
-                        ];
-                        ?>
-                        <table class="limpvix-table">
-                            <thead>
-                                <tr>
-                                    <th>Funcionalidade</th>
-                                    <th style="text-align: center;">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($important_flags as $flag => $label): ?>
-                                <tr>
-                                    <td><strong><?php echo esc_html($label); ?></strong></td>
-                                    <td style="text-align: center;">
-                                        <?php if (isset($all_flags[$flag]) && $all_flags[$flag]): ?>
-                                            <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Habilitado</span>
-                                        <?php else: ?>
-                                            <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">Desabilitado</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+            <?php if (isset($_GET['updated'])): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p>✅ Configurações salvas com sucesso!</p>
                 </div>
+            <?php endif; ?>
 
-                <!-- Health Check Card -->
-                <div class="limpvix-card limpvix-card-success">
-                    <div class="limpvix-card-header">
-                        <h3>
-                            <span class="dashicons dashicons-heart"></span>
-                            Health Check
-                        </h3>
-                        <p>Status e saúde do sistema</p>
-                    </div>
-                    <div class="limpvix-card-body">
-                        <?php
-                        $kernel = \LimpVix\Core\Kernel::getInstance();
-                        $health = $kernel->healthCheck();
-                        ?>
-                        <table class="limpvix-table">
-                            <tbody>
-                                <tr>
-                                    <td><strong>Versão do Plugin</strong></td>
-                                    <td>
-                                        <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($health["version"]); ?></span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Kernel LimpVix</strong></td>
-                                    <td>
-                                        <?php if ($health["booted"]): ?>
-                                            <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Inicializado</span>
-                                        <?php else: ?>
-                                            <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Não inicializado</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Integração Booknetic</strong></td>
-                                    <td>
-                                        <?php if ($health["booknetic_active"]): ?>
-                                            <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
-                                        <?php else: ?>
-                                            <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Inativo</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <!-- Sistema de Abas -->
+            <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
+                <a href="?page=limpvix-settings&tab=geral"
+                   class="nav-tab <?php echo $activeTab === 'geral' ? 'nav-tab-active' : ''; ?>">
+                    🏠 Geral
+                </a>
+                <a href="?page=limpvix-settings&tab=conexoes"
+                   class="nav-tab <?php echo $activeTab === 'conexoes' ? 'nav-tab-active' : ''; ?>">
+                    🔌 Conexões
+                </a>
+                <a href="?page=limpvix-settings&tab=briefing"
+                   class="nav-tab <?php echo $activeTab === 'briefing' ? 'nav-tab-active' : ''; ?>">
+                    📋 Briefing
+                </a>
+                <a href="?page=limpvix-settings&tab=pagamentos"
+                   class="nav-tab <?php echo $activeTab === 'pagamentos' ? 'nav-tab-active' : ''; ?>">
+                    💳 Pagamentos
+                </a>
+            </h2>
 
-            <!-- Mercado Pago Settings (Full Width) -->
-            <div class="limpvix-card">
+            <?php
+            // Renderizar aba ativa
+            switch ($activeTab) {
+                case 'conexoes':
+                    $this->renderConexoesTab();
+                    break;
+                case 'briefing':
+                    $this->renderBriefingTab();
+                    break;
+                case 'pagamentos':
+                    $this->renderPagamentosTab();
+                    break;
+                case 'geral':
+                default:
+                    $this->renderGeralTab();
+                    break;
+            }
+            ?>
+        </div>
+        <?php
+    }
+
+    private function renderGeralTab(): void
+    {
+        ?>
+        <div class="limpvix-grid limpvix-grid-2">
+            <!-- Feature Flags Card -->
+            <div class="limpvix-card limpvix-card-primary">
                 <div class="limpvix-card-header">
                     <h3>
-                        <span class="dashicons dashicons-admin-generic"></span>
-                        Integrações e Pagamentos
+                        <span class="dashicons dashicons-flag"></span>
+                        Feature Flags
                     </h3>
-                    <p>Configurações de integração com Mercado Pago e outros serviços</p>
+                    <p>Controle das funcionalidades ativas do sistema</p>
                 </div>
                 <div class="limpvix-card-body">
-                    <?php MercadoPagoSettings::render(); ?>
+                    <?php
+                    $flags = new \LimpVix\Core\FeatureFlags();
+                    $all_flags = $flags->getAll();
+                    $important_flags = [
+                        "briefing_enabled" => "Módulo Briefing",
+                        "financial_workflow" => "Workflow Financeiro",
+                        "payout_engine" => "Motor de Payouts",
+                        "admin_interface" => "Interface Admin",
+                        "audit_logging" => "Logs de Auditoria",
+                    ];
+                    ?>
+                    <table class="limpvix-table">
+                        <thead>
+                            <tr>
+                                <th>Funcionalidade</th>
+                                <th style="text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($important_flags as $flag => $label): ?>
+                            <tr>
+                                <td><strong><?php echo esc_html($label); ?></strong></td>
+                                <td style="text-align: center;">
+                                    <?php if (isset($all_flags[$flag]) && $all_flags[$flag]): ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Habilitado</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">Desabilitado</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- Google Business Settings (Full Width) -->
-            <div class="limpvix-card">
+            <!-- Health Check Card -->
+            <div class="limpvix-card limpvix-card-success">
                 <div class="limpvix-card-header">
                     <h3>
-                        <span class="dashicons dashicons-google"></span>
-                        Google Meu Negócio
+                        <span class="dashicons dashicons-heart"></span>
+                        Health Check
                     </h3>
-                    <p>Configurações de integração com Google My Business para convites de avaliação</p>
+                    <p>Status e saúde do sistema</p>
                 </div>
                 <div class="limpvix-card-body">
-                    <?php GoogleBusinessSettings::render(); ?>
-                </div>
-            </div>
-
-            <!-- Communication Providers Grid -->
-            <div class="limpvix-grid limpvix-grid-2">
-                <!-- Twilio SMS Settings -->
-                <div class="limpvix-card">
-                    <div class="limpvix-card-header">
-                        <h3>
-                            <span class="dashicons dashicons-smartphone"></span>
-                            Twilio SMS
-                        </h3>
-                        <p>Configurações de envio de SMS via Twilio</p>
-                    </div>
-                    <div class="limpvix-card-body">
-                        <?php TwilioSettings::render(); ?>
-                    </div>
-                </div>
-
-                <!-- 360Dialog WhatsApp Settings -->
-                <div class="limpvix-card">
-                    <div class="limpvix-card-header">
-                        <h3>
-                            <span class="dashicons dashicons-whatsapp"></span>
-                            360Dialog WhatsApp
-                        </h3>
-                        <p>Configurações de envio de WhatsApp via 360Dialog</p>
-                    </div>
-                    <div class="limpvix-card-body">
-                        <?php DialogSettings::render(); ?>
-                    </div>
+                    <?php
+                    $kernel = \LimpVix\Core\Kernel::getInstance();
+                    $health = $kernel->healthCheck();
+                    ?>
+                    <table class="limpvix-table">
+                        <tbody>
+                            <tr>
+                                <td><strong>Versão do Plugin</strong></td>
+                                <td>
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($health["version"]); ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kernel LimpVix</strong></td>
+                                <td>
+                                    <?php if ($health["booted"]): ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Inicializado</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Não inicializado</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Integração Booknetic</strong></td>
+                                <td>
+                                    <?php if ($health["booknetic_active"]): ?>
+                                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Inativo</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
         <?php
+    }
+
+    private function renderConexoesTab(): void
+    {
+        ?>
+        <!-- Firebase Authentication -->
+        <div class="limpvix-card">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-admin-network"></span>
+                    🔥 Firebase Authentication (SMS OTP)
+                </h3>
+                <p>Configuração de autenticação via SMS para verificação de telefone no Briefing</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php FirebaseSettings::render(); ?>
+            </div>
+        </div>
+
+        <!-- Google Meu Negócio -->
+        <div class="limpvix-card">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-google"></span>
+                    Google Meu Negócio
+                </h3>
+                <p>Configurações de integração com Google My Business para convites de avaliação</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php GoogleBusinessSettings::render(); ?>
+            </div>
+        </div>
+
+        <!-- Communication Providers Grid -->
+        <div class="limpvix-grid limpvix-grid-2">
+            <!-- Twilio SMS Settings -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-smartphone"></span>
+                        Twilio SMS
+                    </h3>
+                    <p>Configurações de envio de SMS via Twilio</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php TwilioSettings::render(); ?>
+                </div>
+            </div>
+
+            <!-- 360Dialog WhatsApp Settings -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-whatsapp"></span>
+                        360Dialog WhatsApp
+                    </h3>
+                    <p>Configurações de envio de WhatsApp via 360Dialog</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php DialogSettings::render(); ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    private function renderBriefingTab(): void
+    {
+        $m2Table = $this->getM2Table();
+        $timeFactors = $this->getTimeFactors();
+        $bufferMinutes = get_option('limpvix_briefing_buffer_minutes', 30);
+        $pricePerM2 = get_option('limpvix_briefing_price_per_m2', 15.00);
+
+        ?>
+        <form method="post" action="">
+            <?php wp_nonce_field('limpvix_briefing_settings'); ?>
+
+            <!-- Tabela m² -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-home"></span>
+                        📏 Tabela de m² por Cômodo
+                    </h3>
+                    <p>Valores usados para cálculo de área estimada do briefing</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Quarto:</th>
+                            <td><input type="number" name="m2_bedroom" value="<?php echo esc_attr($m2Table['bedroom']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Banheiro:</th>
+                            <td><input type="number" name="m2_bathroom" value="<?php echo esc_attr($m2Table['bathroom']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Sala:</th>
+                            <td><input type="number" name="m2_living_room" value="<?php echo esc_attr($m2Table['living_room']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Cozinha:</th>
+                            <td><input type="number" name="m2_kitchen" value="<?php echo esc_attr($m2Table['kitchen']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Escritório:</th>
+                            <td><input type="number" name="m2_office" value="<?php echo esc_attr($m2Table['office']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Área Externa:</th>
+                            <td><input type="number" name="m2_external_area" value="<?php echo esc_attr($m2Table['external_area']); ?>" step="0.1" class="small-text"> m²</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Fatores de Tempo -->
+            <div class="limpvix-card" style="margin-top: 20px;">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-clock"></span>
+                        ⏱️ Fatores de Tempo por Tipo de Limpeza
+                    </h3>
+                    <p>Multiplicadores aplicados ao tempo base (ex: 0.40 = +40% de tempo)</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Limpeza Pesada:</th>
+                            <td>
+                                <input type="number" name="time_factor_limpeza_pesada" value="<?php echo esc_attr($timeFactors['limpeza_pesada']); ?>" step="0.01" class="small-text">
+                                <span class="description">(+40% padrão)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Pós-Obra:</th>
+                            <td>
+                                <input type="number" name="time_factor_pos_obra" value="<?php echo esc_attr($timeFactors['pos_obra']); ?>" step="0.01" class="small-text">
+                                <span class="description">(+70% padrão)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Pré-Mudança:</th>
+                            <td>
+                                <input type="number" name="time_factor_pre_mudanca" value="<?php echo esc_attr($timeFactors['pre_mudanca']); ?>" step="0.01" class="small-text">
+                                <span class="description">(+30% padrão)</span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Outros Parâmetros -->
+            <div class="limpvix-card" style="margin-top: 20px;">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-generic"></span>
+                        ⚙️ Outros Parâmetros
+                    </h3>
+                </div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Buffer Operacional:</th>
+                            <td>
+                                <input type="number" name="buffer_minutes" value="<?php echo esc_attr($bufferMinutes); ?>" class="small-text"> minutos
+                                <p class="description">Tempo adicional para deslocamento e preparação</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Preço por m²:</th>
+                            <td>
+                                R$ <input type="number" name="price_per_m2" value="<?php echo esc_attr($pricePerM2); ?>" step="0.01" class="small-text">
+                                <p class="description">Valor base para cálculo de preço</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <p class="submit">
+                <button type="submit" name="limpvix_save_briefing_settings" class="button button-primary button-large">
+                    💾 Salvar Configurações do Briefing
+                </button>
+            </p>
+        </form>
+        <?php
+    }
+
+    private function renderPagamentosTab(): void
+    {
+        ?>
+        <!-- Mercado Pago Settings -->
+        <div class="limpvix-card">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-admin-generic"></span>
+                    Integrações e Pagamentos
+                </h3>
+                <p>Configurações de integração com Mercado Pago e outros serviços</p>
+            </div>
+            <div class="limpvix-card-body">
+                <?php MercadoPagoSettings::render(); ?>
+            </div>
+        </div>
+        <?php
+    }
+
+    private function getM2Table(): array
+    {
+        $defaults = [
+            'bedroom' => 12,
+            'bathroom' => 4,
+            'living_room' => 20,
+            'kitchen' => 10,
+            'office' => 10,
+            'external_area' => 25
+        ];
+
+        return get_option('limpvix_briefing_m2_table', $defaults);
+    }
+
+    private function getTimeFactors(): array
+    {
+        $defaults = [
+            'limpeza_pesada' => 0.40,
+            'pos_obra' => 0.70,
+            'pre_mudanca' => 0.30
+        ];
+
+        return get_option('limpvix_briefing_time_factors', $defaults);
+    }
+
+    private function handleBriefingSave(): void
+    {
+        // Salvar tabela m²
+        $m2Table = [
+            'bedroom' => (float) ($_POST['m2_bedroom'] ?? 12),
+            'bathroom' => (float) ($_POST['m2_bathroom'] ?? 4),
+            'living_room' => (float) ($_POST['m2_living_room'] ?? 20),
+            'kitchen' => (float) ($_POST['m2_kitchen'] ?? 10),
+            'office' => (float) ($_POST['m2_office'] ?? 10),
+            'external_area' => (float) ($_POST['m2_external_area'] ?? 25)
+        ];
+        update_option('limpvix_briefing_m2_table', $m2Table);
+
+        // Salvar fatores de tempo
+        $timeFactors = [
+            'limpeza_pesada' => (float) ($_POST['time_factor_limpeza_pesada'] ?? 0.40),
+            'pos_obra' => (float) ($_POST['time_factor_pos_obra'] ?? 0.70),
+            'pre_mudanca' => (float) ($_POST['time_factor_pre_mudanca'] ?? 0.30)
+        ];
+        update_option('limpvix_briefing_time_factors', $timeFactors);
+
+        // Salvar buffer
+        update_option('limpvix_briefing_buffer_minutes', (int) ($_POST['buffer_minutes'] ?? 30));
+
+        // Salvar preço por m²
+        update_option('limpvix_briefing_price_per_m2', (float) ($_POST['price_per_m2'] ?? 15.00));
+
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=briefing&updated=1'));
+        exit;
     }
 
     public function renderOrdersPage(): void {
