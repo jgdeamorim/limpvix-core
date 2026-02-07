@@ -24,8 +24,6 @@ use LimpVix\Infrastructure\Persistence\WpBriefingRepository;
 use LimpVix\Infrastructure\Adapters\FirebaseAuthAdapter;
 use LimpVix\Infrastructure\Adapters\BriefingPaymentAdapter;
 use LimpVix\Infrastructure\API\BriefingApiBootstrap;
-use LimpVix\Infrastructure\Admin\Pages\LimpVixSettingsPage;
-use LimpVix\Infrastructure\Admin\Pages\BriefingManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\BriefingDetailPage;
 use LimpVix\Infrastructure\Events\BriefingEventDispatcher;
 use LimpVix\Infrastructure\Integration\ContractActivationListener;
@@ -135,22 +133,15 @@ class BriefingBootstrap
             return;
         }
 
-        // PRIMEIRO: Criar menu principal LimpVix
-        $settingsMainPage = new LimpVixSettingsPage();
-        $settingsMainPage->register();
-
         $briefingRepository = new WpBriefingRepository();
 
-        // DEPOIS: Registrar submenus do Briefing
-        // Página de gerenciamento
-        $managementPage = new BriefingManagementPage($briefingRepository);
-        $managementPage->register();
+        // NOTA: BriefingManagementPage agora é registrado em AdminBootstrap.php como submenu de limpvix-finance
+        // NOTA: LimpVixSettingsPage foi removido - configurações agora em AdminBootstrap.php
+        // NOTA: BriefingSettings agora é aba em limpvix-settings (AdminBootstrap)
 
-        // Página de detalhes
+        // Página de detalhes (oculta, acessível via query string)
         $detailPage = new BriefingDetailPage($briefingRepository);
         $detailPage->register();
-
-        // NOTA: BriefingSettings agora é aba em LimpVixSettingsPage, não submenu separado
     }
 
     /**

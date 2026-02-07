@@ -15,6 +15,7 @@ use LimpVix\Admin\Settings\MercadoPagoDetector;
 use LimpVix\Admin\Settings\GoogleBusinessSettings;
 use LimpVix\Admin\Settings\TwilioSettings;
 use LimpVix\Admin\Settings\DialogSettings;
+use LimpVix\Admin\Settings\FirebaseSettings;
 use LimpVix\Admin\Settings\TestVendorsManager;
 use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 use LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage;
@@ -45,6 +46,7 @@ class AdminBootstrap
         GoogleBusinessSettings::registerHooks();
         TwilioSettings::registerHooks();
         DialogSettings::registerHooks();
+        FirebaseSettings::registerHooks();
         // TestVendorsManager::registerHooks(); // DESABILITADO;
         MercadoPagoDetector::registerSyncHooks();
 
@@ -126,6 +128,16 @@ class AdminBootstrap
             "limpvix_finance_view",
             "limpvix-payouts",
             [$this, "renderPayoutsPage"]
+        );
+
+        // Submenu: Briefings
+        add_submenu_page(
+            self::MENU_SLUG,
+            "Gerenciar Briefings",
+            "Briefings",
+            "manage_options",
+            "limpvix-briefings",
+            [$this, "renderBriefingsPage"]
         );
 
         // Submenu: Central de Comunicação (Hub)
@@ -563,6 +575,18 @@ class AdminBootstrap
 
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
             $page = new \LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage();
+            $page->render();
+        }
+    }
+
+    public function renderBriefingsPage(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die("Acesso negado");
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\BriefingManagementPage')) {
+            $briefingRepository = new \LimpVix\Infrastructure\Persistence\WpBriefingRepository();
+            $page = new \LimpVix\Infrastructure\Admin\Pages\BriefingManagementPage($briefingRepository);
             $page->render();
         }
     }
