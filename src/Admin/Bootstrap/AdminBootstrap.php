@@ -254,78 +254,8 @@ class AdminBootstrap
 
     public function renderDashboardPage(): void
     {
-        if (!FinanceCapabilities::canView()) {
-            wp_die("Acesso negado");
-        }
-        ?>
-        <div class="wrap limpvix-admin">
-            <div class="limpvix-page-header">
-                <div>
-                    <h1>
-                        <span class="dashicons dashicons-chart-line"></span>
-                        Dashboard LimpVix
-                    </h1>
-                    <p class="limpvix-page-subtitle">Visão geral do sistema de gestão</p>
-                </div>
-            </div>
-
-            <!-- Grid de Métricas -->
-            <div class="limpvix-grid limpvix-grid-3">
-                <div class="limpvix-stat-box">
-                    <div class="limpvix-stat-icon limpvix-stat-icon-primary">
-                        <span class="dashicons dashicons-money-alt"></span>
-                    </div>
-                    <div class="limpvix-stat-content">
-                        <div class="limpvix-stat-label">Orders Financeiras</div>
-                        <div class="limpvix-stat-value">0</div>
-                        <div class="limpvix-stat-change positive">
-                            <span class="dashicons dashicons-arrow-up-alt"></span>
-                            Em desenvolvimento
-                        </div>
-                    </div>
-                </div>
-
-                <div class="limpvix-stat-box">
-                    <div class="limpvix-stat-icon limpvix-stat-icon-success">
-                        <span class="dashicons dashicons-megaphone"></span>
-                    </div>
-                    <div class="limpvix-stat-content">
-                        <div class="limpvix-stat-label">Mensagens Enviadas</div>
-                        <div class="limpvix-stat-value">0</div>
-                        <div class="limpvix-stat-change positive">
-                            <span class="dashicons dashicons-arrow-up-alt"></span>
-                            Sistema ativo
-                        </div>
-                    </div>
-                </div>
-
-                <div class="limpvix-stat-box">
-                    <div class="limpvix-stat-icon limpvix-stat-icon-warning">
-                        <span class="dashicons dashicons-admin-users"></span>
-                    </div>
-                    <div class="limpvix-stat-content">
-                        <div class="limpvix-stat-label">Profissionais Ativos</div>
-                        <div class="limpvix-stat-value">0</div>
-                        <div class="limpvix-stat-change">
-                            <span class="dashicons dashicons-minus"></span>
-                            Aguardando dados
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Alertas -->
-            <div class="limpvix-alert limpvix-alert-info">
-                <div class="limpvix-alert-icon">
-                    <span class="dashicons dashicons-info"></span>
-                </div>
-                <div class="limpvix-alert-content">
-                    <div class="limpvix-alert-title">Dashboard em Desenvolvimento</div>
-                    <p>As métricas e funcionalidades do dashboard serão implementadas nas próximas versões.</p>
-                </div>
-            </div>
-        </div>
-        <?php
+        $controller = new \LimpVix\Admin\Controllers\DashboardController();
+        $controller->render();
     }
 
     public function renderSettingsPage(): void
