@@ -246,6 +246,14 @@ class TransitionFinancialStatus
             'actor' => $event->getActor(),
             'occurred_at' => $event->getOccurredAt()->format('Y-m-d H:i:s')
         ]);
+
+        // Evento específico para sincronização de status (BLC-002)
+        do_action(
+            'limpvix_financial_status_changed',
+            $event->getOrderUuid(),
+            $event->getFrom()->getValue(),
+            $event->getTo()->getValue()
+        );
     }
 
     /**

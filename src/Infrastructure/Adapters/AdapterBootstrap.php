@@ -94,12 +94,14 @@ class AdapterBootstrap
 
         // 4. Construir Adaptadores
         $wooCommerceAdapter = new WooCommercePaymentAdapter($processPayment, $orderRepo);
+        $wooCommerceStatusSync = new WooCommerceStatusSyncAdapter();
         $bookneticAdapter = new BookneticServiceAdapter($processService);
         $feedbackAdapter = new FeedbackAdapter($processFeedback);
         $timerAdapter = new TimerCronAdapter($processTimer, $ledgerRepo);
 
         // 5. Registrar adaptadores
         $this->registry->add($wooCommerceAdapter, 'woocommerce_payment');
+        $this->registry->add($wooCommerceStatusSync, 'woocommerce_status_sync');
         $this->registry->add($bookneticAdapter, 'booknetic_service');
         $this->registry->add($feedbackAdapter, 'customer_feedback');
         $this->registry->add($timerAdapter, 'review_timer');
