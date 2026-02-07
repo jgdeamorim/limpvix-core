@@ -37,10 +37,8 @@ namespace LimpVix\Application\UseCases;
 
 use LimpVix\Domain\Order\OrderRepositoryInterface;
 use LimpVix\Domain\Finance\FinancialStatus;
-use LimpVix\Modules\Payouts\PayoutProviderInterface;
-use LimpVix\Modules\Payouts\MercadoPago\Payout;
-use LimpVix\Modules\Payouts\MercadoPago\PayoutResult;
-use LimpVix\Modules\Payouts\MercadoPago\RepasseRepository;
+use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
+use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 
 defined('ABSPATH') || exit;
 
@@ -54,16 +52,16 @@ class ExecuteTransfer
     private $orderRepository;
 
     /**
-     * Repasse Repository
+     * Payout Repository
      *
-     * @var RepasseRepository
+     * @var WpPayoutRepository
      */
-    private $repasseRepository;
+    private $payoutRepository;
 
     /**
      * Payout Provider
      *
-     * @var PayoutProviderInterface
+     * @var MercadoPagoPayoutProvider
      */
     private $payoutProvider;
 
@@ -78,18 +76,18 @@ class ExecuteTransfer
      * Construtor
      *
      * @param OrderRepositoryInterface $orderRepository
-     * @param RepasseRepository $repasseRepository
-     * @param PayoutProviderInterface $payoutProvider
+     * @param WpPayoutRepository $payoutRepository
+     * @param MercadoPagoPayoutProvider $payoutProvider
      * @param TransitionFinancialStatus $transitionUseCase
      */
     public function __construct(
         OrderRepositoryInterface $orderRepository,
-        RepasseRepository $repasseRepository,
-        PayoutProviderInterface $payoutProvider,
+        WpPayoutRepository $payoutRepository,
+        MercadoPagoPayoutProvider $payoutProvider,
         TransitionFinancialStatus $transitionUseCase
     ) {
         $this->orderRepository = $orderRepository;
-        $this->repasseRepository = $repasseRepository;
+        $this->payoutRepository = $payoutRepository;
         $this->payoutProvider = $payoutProvider;
         $this->transitionUseCase = $transitionUseCase;
     }
@@ -100,7 +98,7 @@ class ExecuteTransfer
      * CORREÇÃO BLC-000: Usar professional_net_amount ao invés de total_amount
      *
      * @param string $orderUuid UUID da order
-     * @param string $receiverMpUserId MP User ID do profissional
+     * @param string $receiverMpUserId MP User ID do profissional (não usado diretamente)
      * @param string $description Descrição
      * @return ExecuteTransferResult
      */
@@ -130,83 +128,105 @@ class ExecuteTransfer
             }
 
             // 3. Obter valor líquido do profissional (após taxa LimpVix)
-            $amount = $order->getProfessionalNetAmount();
+            $netAmount = $order->getProfessionalNetAmount();
 
-            if ($amount <= 0) {
+            if ($netAmount <= 0) {
                 return ExecuteTransferResult::rejected(
-                    "Professional net amount é ZERO ou negativo (R\${$amount})"
+                    "Professional net amount é ZERO ou negativo (R\${$netAmount})"
                 );
             }
 
             error_log(sprintf(
-                "[ExecuteTransfer] Order %s | Total: R$%.2f | Taxa: R$%.2f | Líquido Profissional: R$%.2f",
+                "[ExecuteTransfer] Order %s | Total: R$%.2f | Taxa: R$%.2f (%.1f%%) | Líquido Profissional: R$%.2f",
                 substr($orderUuid, 0, 8),
                 $order->getTotalAmount(),
                 $order->getPlatformFeeAmount(),
-                $amount
+                $order->getPlatformFeePercentage(),
+                $netAmount
             ));
 
-            // 4. Gerar payout ID único
-            $payoutId = $this->generatePayoutId();
+            // 4. Buscar dados do profissional
+            $professionalData = $this->getProfessionalData($order);
 
-            // 5. Verificar idempotência
-            if ($this->repasseRepository->exists($payoutId)) {
-                $status = $this->repasseRepository->getStatus($payoutId);
+            if (!$professionalData) {
                 return ExecuteTransferResult::rejected(
-                    "Payout já foi executado (status: {$status})"
+                    "Dados do profissional não encontrados"
                 );
             }
 
-            // 6. Construir Payout (com valor LÍQUIDO)
-            $payout = new Payout(
-                payoutId: $payoutId,
-                amount: $amount,
-                receiverMpUserId: $receiverMpUserId,
-                description: $description,
-                currency: 'BRL',
-                metadata: [
-                    'order_uuid' => $orderUuid,
-                    'total_amount' => $order->getTotalAmount(),
-                    'platform_fee' => $order->getPlatformFeeAmount(),
-                    'net_amount' => $amount
-                ]
-            );
+            // 5. Verificar idempotência (já existe payout para esta order?)
+            global $wpdb;
+            $existingPayout = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, status, gateway_transfer_id FROM {$wpdb->prefix}limpvix_payouts
+                 WHERE order_id = %d",
+                $order->getId()
+            ), ARRAY_A);
 
-            // 7. Executar via Provider
-            $result = $this->payoutProvider->transfer($payout);
-
-            // 8. Gravar resultado
-            if ($result->isSuccess()) {
-                $this->repasseRepository->recordSuccess($payout, $result);
-                $this->logSuccess($orderUuid, $result);
-            } else {
-                $this->repasseRepository->recordFailure($payout, $result);
-                $this->logFailure($orderUuid, $result);
+            if ($existingPayout) {
+                return ExecuteTransferResult::rejected(
+                    sprintf(
+                        "Payout já existe para esta order (ID: %d, Status: %s)",
+                        $existingPayout['id'],
+                        $existingPayout['status']
+                    )
+                );
             }
+
+            // 6. Criar payout no banco (status: approved)
+            $payoutId = $this->payoutRepository->create([
+                'order_id' => $order->getId(),
+                'professional_id' => $order->getProfessionalId(),
+                'gross_amount' => $order->getTotalAmount(),
+                'platform_fee' => $order->getPlatformFeeAmount(),
+                'net_amount' => $netAmount,
+                'status' => 'approved',
+                'gateway' => 'mercadopago',
+                'recipient_type' => $professionalData['recipient_type'],
+                'recipient_key' => $professionalData['recipient_key'],
+                'recipient_name' => $professionalData['recipient_name'],
+                'recipient_document' => $professionalData['recipient_document'],
+            ]);
+
+            if (!$payoutId) {
+                return ExecuteTransferResult::rejected(
+                    "Falha ao criar payout no banco"
+                );
+            }
+
+            error_log("[ExecuteTransfer] Payout #{$payoutId} criado - executando via Mercado Pago...");
+
+            // 7. Executar via MercadoPagoPayoutProvider
+            $success = $this->payoutProvider->createPayout($payoutId);
+
+            if (!$success) {
+                error_log("[ExecuteTransfer] ❌ Payout #{$payoutId} falhou");
+                return ExecuteTransferResult::rejected(
+                    "Falha ao executar payout via Mercado Pago"
+                );
+            }
+
+            // 8. Buscar dados atualizados do payout
+            $payoutData = $this->payoutRepository->getById($payoutId);
+            $mpTransferId = $payoutData['gateway_transfer_id'] ?? null;
+
+            error_log(sprintf(
+                "[ExecuteTransfer] ✅ Payout #{$payoutId} executado com sucesso! MP Transfer ID: %s",
+                $mpTransferId ?? 'N/A'
+            ));
 
             // 9. Se sucesso: transicionar para TRANSFERRED
-            if ($result->isSuccess()) {
-                $this->transitionToTransferred($orderUuid, $payoutId);
+            $this->transitionToTransferred($orderUuid, $payoutId);
 
-                return ExecuteTransferResult::success(
-                    $orderUuid,
-                    $payoutId,
-                    $result->getMpTransferId(),
-                    $amount
-                );
-            }
-
-            // 8. Se falha: retornar rejected
-            return ExecuteTransferResult::rejected(
-                sprintf(
-                    'Payout falhou: %s - %s',
-                    $result->getErrorCode(),
-                    $result->getErrorMessage()
-                )
+            return ExecuteTransferResult::success(
+                $orderUuid,
+                (string) $payoutId,
+                $mpTransferId ?? 'unknown',
+                $netAmount
             );
 
         } catch (\Exception $e) {
-            $this->logError($orderUuid, $e);
+            error_log("[ExecuteTransfer] ❌ EXCEPTION: " . $e->getMessage());
+            error_log("[ExecuteTransfer] Stack trace: " . $e->getTraceAsString());
 
             return ExecuteTransferResult::rejected(
                 sprintf('Erro ao executar repasse: %s', $e->getMessage())
@@ -215,27 +235,47 @@ class ExecuteTransfer
     }
 
     /**
-     * Gerar payout ID único
+     * Buscar dados do profissional para payout
      *
-     * @return string UUID v4
+     * @param object $order Order entity
+     * @return array|null
      */
-    private function generatePayoutId(): string
+    private function getProfessionalData($order): ?array
     {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        $professionalId = $order->getProfessionalId();
 
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+        if (!$professionalId) {
+            return null;
+        }
+
+        // Buscar configurações de payout do profissional (user meta)
+        // TODO: Migrar para tabela limpvix_professionals quando implementada
+        $recipientType = get_user_meta($professionalId, '_limpvix_payout_recipient_type', true);
+        $recipientKey = get_user_meta($professionalId, '_limpvix_payout_recipient_key', true);
+        $recipientName = get_user_meta($professionalId, '_limpvix_payout_recipient_name', true);
+        $recipientDocument = get_user_meta($professionalId, '_limpvix_payout_recipient_document', true);
+
+        if (empty($recipientType) || empty($recipientKey)) {
+            error_log("[ExecuteTransfer] ⚠️  Profissional #{$professionalId} sem dados de payout configurados");
+            return null;
+        }
+
+        return [
+            'recipient_type' => $recipientType,
+            'recipient_key' => $recipientKey,
+            'recipient_name' => $recipientName ?: 'Nome não informado',
+            'recipient_document' => $recipientDocument ?: '',
+        ];
     }
 
     /**
      * Transicionar para TRANSFERRED
      *
      * @param string $orderUuid
-     * @param string $payoutId
+     * @param int $payoutId
      * @return void
      */
-    private function transitionToTransferred(string $orderUuid, string $payoutId): void
+    private function transitionToTransferred(string $orderUuid, int $payoutId): void
     {
         $command = new \LimpVix\Application\Commands\TransitionFinancialStatusCommand(
             orderUuid: $orderUuid,
@@ -247,67 +287,14 @@ class ExecuteTransfer
         );
 
         $this->transitionUseCase->execute($command);
-    }
 
-    /**
-     * Log de sucesso
-     *
-     * @param string $orderUuid
-     * @param PayoutResult $result
-     * @return void
-     */
-    private function logSuccess(string $orderUuid, PayoutResult $result): void
-    {
-        if (!function_exists('do_action')) {
-            return;
+        // Disparar evento de sucesso
+        if (function_exists('do_action')) {
+            do_action('limpvix_payout_success', [
+                'order_uuid' => $orderUuid,
+                'payout_id' => $payoutId
+            ]);
         }
-
-        do_action('limpvix_payout_success', [
-            'order_uuid' => $orderUuid,
-            'mp_transfer_id' => $result->getMpTransferId(),
-            'http_status' => $result->getHttpStatusCode()
-        ]);
-    }
-
-    /**
-     * Log de falha
-     *
-     * @param string $orderUuid
-     * @param PayoutResult $result
-     * @return void
-     */
-    private function logFailure(string $orderUuid, PayoutResult $result): void
-    {
-        if (!function_exists('do_action')) {
-            return;
-        }
-
-        do_action('limpvix_payout_failure', [
-            'order_uuid' => $orderUuid,
-            'error_code' => $result->getErrorCode(),
-            'error_message' => $result->getErrorMessage(),
-            'http_status' => $result->getHttpStatusCode()
-        ]);
-    }
-
-    /**
-     * Log de erro
-     *
-     * @param string $orderUuid
-     * @param \Exception $exception
-     * @return void
-     */
-    private function logError(string $orderUuid, \Exception $exception): void
-    {
-        if (!function_exists('do_action')) {
-            return;
-        }
-
-        do_action('limpvix_payout_error', [
-            'order_uuid' => $orderUuid,
-            'error' => $exception->getMessage(),
-            'trace' => $exception->getTraceAsString()
-        ]);
     }
 }
 

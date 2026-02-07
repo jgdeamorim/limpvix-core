@@ -42,8 +42,8 @@ use LimpVix\Application\Services\PlatformFeeCalculator;
 use LimpVix\Domain\Finance\FinancialPolicy;
 use LimpVix\Infrastructure\Persistence\WpLedgerRepository;
 use LimpVix\Infrastructure\Persistence\WpOrderRepository;
-use LimpVix\Infrastructure\Persistence\RepasseRepository;
-use LimpVix\Infrastructure\External\MercadoPago\MercadoPagoPayoutProvider;
+use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
+use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 use LimpVix\Infrastructure\Adapters\BookneticBridge;
 
 defined('ABSPATH') || exit;
@@ -102,11 +102,11 @@ class AdapterBootstrap
         $processTimer = new ProcessTimerExpired($transitionUseCase);
 
         // BLC-000: Construir Use Case de repasse
-        $repasseRepo = new RepasseRepository();
+        $payoutRepo = new WpPayoutRepository();
         $payoutProvider = new MercadoPagoPayoutProvider();
         $executeTransfer = new ExecuteTransfer(
             $orderRepo,
-            $repasseRepo,
+            $payoutRepo,
             $payoutProvider,
             $transitionUseCase
         );
