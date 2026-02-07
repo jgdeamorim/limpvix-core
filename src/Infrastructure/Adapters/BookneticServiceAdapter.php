@@ -74,29 +74,41 @@ class BookneticServiceAdapter
      */
     public function handleAppointmentCompleted(int $appointmentId, array $appointmentData = []): void
     {
+        error_log("[BookneticServiceAdapter] Hook recebido! Appointment ID: {$appointmentId}");
+
         try {
             // 1. Obter UUID da order vinculada
             $orderUuid = $this->getOrderUuidFromAppointment($appointmentId);
 
             if ($orderUuid === null) {
+                error_log("[BookneticServiceAdapter] ERRO: Appointment {$appointmentId} não tem order vinculada");
                 $this->logWarning("Appointment {$appointmentId} não tem order vinculada");
                 return;
             }
 
+            error_log("[BookneticServiceAdapter] UUID encontrado: {$orderUuid}");
+
             // 2. Obter professional ID
             $professionalId = $appointmentData['staff_id'] ?? $this->getProfessionalId($appointmentId);
+            error_log("[BookneticServiceAdapter] Professional ID: " . ($professionalId ?? 'NULL'));
 
             // 3. Executar Use Case
+            error_log("[BookneticServiceAdapter] Executando ProcessServiceCompleted...");
             $result = $this->useCase->execute($orderUuid, $professionalId);
+            error_log("[BookneticServiceAdapter] Use Case retornou: " . ($result->isSuccess() ? 'SUCCESS' : 'FAILED'));
 
             // 4. Log do resultado
             if ($result->isSuccess()) {
+                error_log("[BookneticServiceAdapter] Transição realizada: {$result->getFromStatus()->getValue()} → {$result->getToStatus()->getValue()}");
                 $this->logSuccess($appointmentId, $orderUuid, $result);
             } else {
+                error_log("[BookneticServiceAdapter] Transição rejeitada: " . $result->getRejectReason());
                 $this->logRejection($appointmentId, $orderUuid, $result);
             }
 
         } catch (\Exception $e) {
+            error_log("[BookneticServiceAdapter] EXCEPTION: " . $e->getMessage());
+            error_log("[BookneticServiceAdapter] Stack trace: " . $e->getTraceAsString());
             $this->logError($appointmentId, $e);
         }
     }
