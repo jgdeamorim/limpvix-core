@@ -72,7 +72,7 @@ class WpOrderRepository implements OrderRepositoryInterface
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $row = $this->wpdb->get_row(
             $this->wpdb->prepare(
-                "SELECT uuid, order_id, financial_status
+                "SELECT uuid, id, financial_status
                 FROM {$this->table}
                 WHERE uuid = %s
                 LIMIT 1",
@@ -176,7 +176,7 @@ class WpOrderRepository implements OrderRepositoryInterface
     {
         return new Order(
             uuid: $data['uuid'],
-            id: (int) $data['order_id'],
+            id: (int) $data['id'],
             financialStatus: FinancialStatus::fromValue($data['financial_status'])
         );
     }

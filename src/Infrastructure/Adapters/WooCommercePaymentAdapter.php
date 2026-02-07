@@ -84,29 +84,41 @@ class WooCommercePaymentAdapter
      */
     public function handlePaymentComplete(int $orderId): void
     {
+        error_log("[WooCommercePaymentAdapter] Hook recebido! WC Order ID: {$orderId}");
+
         try {
             // 1. Obter UUID da order
             $orderUuid = $this->getOrderUuid($orderId);
 
             if ($orderUuid === null) {
+                error_log("[WooCommercePaymentAdapter] ERRO: Order {$orderId} não tem UUID mapeado");
                 $this->logWarning("Order {$orderId} não tem UUID mapeado");
                 return;
             }
 
+            error_log("[WooCommercePaymentAdapter] UUID encontrado: {$orderUuid}");
+
             // 2. Obter customer ID
             $customerId = $this->getCustomerId($orderId);
+            error_log("[WooCommercePaymentAdapter] Customer ID: " . ($customerId ?? 'NULL'));
 
             // 3. Executar Use Case
+            error_log("[WooCommercePaymentAdapter] Executando ProcessPaymentConfirmed...");
             $result = $this->useCase->execute($orderUuid, $customerId);
+            error_log("[WooCommercePaymentAdapter] Use Case retornou: " . ($result->isSuccess() ? 'SUCCESS' : 'FAILED'));
 
             // 4. Log do resultado
             if ($result->isSuccess()) {
+                error_log("[WooCommercePaymentAdapter] Transição realizada com sucesso!");
                 $this->logSuccess($orderId, $orderUuid, $result);
             } else {
+                error_log("[WooCommercePaymentAdapter] Transição rejeitada: " . $result->getRejectReason());
                 $this->logRejection($orderId, $orderUuid, $result);
             }
 
         } catch (\Exception $e) {
+            error_log("[WooCommercePaymentAdapter] EXCEPTION: " . $e->getMessage());
+            error_log("[WooCommercePaymentAdapter] Stack trace: " . $e->getTraceAsString());
             $this->logError($orderId, $e);
         }
     }
@@ -114,24 +126,31 @@ class WooCommercePaymentAdapter
     /**
      * Obter UUID da order a partir do WC order ID
      *
-     * @param int $orderId
-     * @return string|null
+     * CORRIGIDO: Busca UUID via meta do WC_Order ao invés de query SQL
+     * (tabela limpvix_orders não tem coluna order_id)
+     *
+     * @param int $orderId WooCommerce Order ID
+     * @return string|null UUID da Order LimpVix
      */
     private function getOrderUuid(int $orderId): ?string
     {
-        global $wpdb;
+        // Buscar WC Order
+        $wc_order = wc_get_order($orderId);
 
-        $table = $wpdb->prefix . 'limpvix_orders';
+        if (!$wc_order) {
+            $this->logWarning("WC Order {$orderId} não encontrado");
+            return null;
+        }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $uuid = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT uuid FROM {$table} WHERE order_id = %d LIMIT 1",
-                $orderId
-            )
-        );
+        // Buscar UUID no meta
+        $uuid = $wc_order->get_meta('_limpvix_order_uuid');
 
-        return $uuid ?: null;
+        if (empty($uuid)) {
+            $this->logWarning("WC Order {$orderId} não tem meta _limpvix_order_uuid");
+            return null;
+        }
+
+        return $uuid;
     }
 
     /**
