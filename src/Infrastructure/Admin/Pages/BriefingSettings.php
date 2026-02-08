@@ -238,6 +238,102 @@ class BriefingSettings
                     </p>
                 </div>
 
+                <!-- Alocação de Profissionais -->
+                <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
+                    <h2>👥 Alocação de Profissionais</h2>
+                    <p>Configure os thresholds (limites) para alocação automática de múltiplos profissionais.</p>
+
+                    <?php
+                    $allocationConfig = get_option('limpvix_professional_allocation_config', []);
+                    $basePerProfessional = $allocationConfig['base_duration_per_professional'] ?? 300;
+                    $largeAreaThreshold = $allocationConfig['large_area_threshold'] ?? 150;
+                    $veryLargeAreaThreshold = $allocationConfig['very_large_area_threshold'] ?? 200;
+                    $complexMinProfessionals = $allocationConfig['complex_min_professionals'] ?? 2;
+                    $premiumMinProfessionals = $allocationConfig['premium_min_professionals'] ?? 2;
+                    $maxProfessionalsAllowed = $allocationConfig['max_professionals_allowed'] ?? 5;
+                    ?>
+
+                    <table class="form-table">
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px">
+                                <strong>Regras de Duração</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Duração base por profissional:</th>
+                            <td>
+                                <input type="number" name="allocation_base_duration_per_professional" value="<?php echo esc_attr($basePerProfessional); ?>" step="1" style="width:80px"> minutos
+                                <small style="margin-left:10px;color:#646970">Padrão: 300min (5h) - Acima disso, requer profissional adicional</small>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px;border-top:1px solid #ddd">
+                                <strong>Regras de Área</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Área grande (m²):</th>
+                            <td>
+                                <input type="number" name="allocation_large_area_threshold" value="<?php echo esc_attr($largeAreaThreshold); ?>" step="1" style="width:80px"> m²
+                                <small style="margin-left:10px;color:#646970">Padrão: 150m² - Usado com complexity Complex para requerer mínimo 2 profissionais</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Área muito grande (m²):</th>
+                            <td>
+                                <input type="number" name="allocation_very_large_area_threshold" value="<?php echo esc_attr($veryLargeAreaThreshold); ?>" step="1" style="width:80px"> m²
+                                <small style="margin-left:10px;color:#646970">Padrão: 200m² - Sempre força múltiplos profissionais</small>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px;border-top:1px solid #ddd">
+                                <strong>Regras de Complexity e Package</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Complexity Complex (mínimo):</th>
+                            <td>
+                                <input type="number" name="allocation_complex_min_professionals" value="<?php echo esc_attr($complexMinProfessionals); ?>" step="1" style="width:80px" min="1" max="5"> profissionais
+                                <small style="margin-left:10px;color:#646970">Padrão: 2 - Quando complexity = Complex + área grande</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Package Premium (mínimo):</th>
+                            <td>
+                                <input type="number" name="allocation_premium_min_professionals" value="<?php echo esc_attr($premiumMinProfessionals); ?>" step="1" style="width:80px" min="1" max="5"> profissionais
+                                <small style="margin-left:10px;color:#646970">Padrão: 2 - Pacote Premium sempre requer qualidade premium</small>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px;border-top:1px solid #ddd">
+                                <strong>Limites Gerais</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Máximo de profissionais permitido:</th>
+                            <td>
+                                <input type="number" name="allocation_max_professionals_allowed" value="<?php echo esc_attr($maxProfessionalsAllowed); ?>" step="1" style="width:80px" min="1" max="10"> profissionais
+                                <small style="margin-left:10px;color:#646970">Padrão: 5 - Limite absoluto de profissionais alocados</small>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p style="margin-top:15px">
+                        <small>
+                            <strong>Regras de Alocação Automática:</strong><br>
+                            1. <strong>Duração:</strong> > 5h (300min) → 1 profissional adicional a cada 5h<br>
+                            2. <strong>Área muito grande:</strong> > 200m² → sempre múltiplos profissionais (mínimo 2)<br>
+                            3. <strong>Complexity Complex + área grande:</strong> > 150m² → mínimo 2 profissionais<br>
+                            4. <strong>Package Premium:</strong> → mínimo 2 profissionais para qualidade premium<br>
+                            5. <strong>Pós-obra:</strong> → sempre múltiplos profissionais (mínimo 2)<br>
+                            6. <strong>Cap:</strong> Limitado ao máximo configurado (padrão: 5 profissionais)
+                        </small>
+                    </p>
+                </div>
+
                 <!-- Firebase -->
                 <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
                     <h2>Firebase Configuration</h2>
@@ -291,6 +387,19 @@ class BriefingSettings
 
         // Salvar preço por m²
         update_option('limpvix_briefing_price_per_m2', (float) $_POST['price_per_m2']);
+
+        // Salvar configuração de alocação de profissionais
+        if (isset($_POST['allocation_base_duration_per_professional'])) {
+            $allocationConfig = [
+                'base_duration_per_professional' => (int) $_POST['allocation_base_duration_per_professional'],
+                'large_area_threshold' => (int) $_POST['allocation_large_area_threshold'],
+                'very_large_area_threshold' => (int) $_POST['allocation_very_large_area_threshold'],
+                'complex_min_professionals' => (int) $_POST['allocation_complex_min_professionals'],
+                'premium_min_professionals' => (int) $_POST['allocation_premium_min_professionals'],
+                'max_professionals_allowed' => (int) $_POST['allocation_max_professionals_allowed']
+            ];
+            update_option('limpvix_professional_allocation_config', $allocationConfig);
+        }
 
         wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&updated=1'));
         exit;

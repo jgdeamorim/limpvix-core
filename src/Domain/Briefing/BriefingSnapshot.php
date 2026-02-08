@@ -385,20 +385,10 @@ class BriefingSnapshot
             $complexityMultiplier = $package->getMultiplier();
         }
 
-        // Determinar se requer múltiplos profissionais
-        $requiresMultipleProfessionals = false;
-        $requiredProfessionalsCount = 1;
-
-        if ($package) {
-            $requiredProfessionalsCount = $package->determineProfessionalsCount($totalEstimatedDuration);
-            $requiresMultipleProfessionals = $requiredProfessionalsCount > 1;
-        } else {
-            // Fallback: > 5h (300min) = 2 profissionais
-            if ($totalEstimatedDuration > 300) {
-                $requiresMultipleProfessionals = true;
-                $requiredProfessionalsCount = (int) ceil($totalEstimatedDuration / 300);
-            }
-        }
+        // Determinar profissionais necessários via Policy (usa Complexity + Package + Duration)
+        $allocation = ProfessionalAllocationPolicy::calculate($briefing);
+        $requiredProfessionalsCount = $allocation->getRequiredCount();
+        $requiresMultipleProfessionals = $allocation->requiresMultiple();
 
         // Pricing breakdown
         $pricePerM2 = (float) get_option('limpvix_briefing_price_per_m2', 15.0);
