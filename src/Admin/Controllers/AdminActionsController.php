@@ -13,11 +13,8 @@
  * - JSON response
  *
  * AÇÕES:
- * - block_order ✅
- * - unblock_order ✅
- * - manual_authorize ✅
- * - refund_order ✅
- * - execute_payout ✅
+ * - execute_payout ✅ (usa ExecutePayout Use Case)
+ * - block_order, unblock_order, manual_authorize, refund_order (implementação simplificada)
  *
  * PASSO 5.6.1 - Infraestrutura Admin (Esqueleto)
  * PASSO 5.6.4 - Controles Administrativos (Implementação completa) ✅
@@ -29,29 +26,15 @@ namespace LimpVix\Admin\Controllers;
 
 use LimpVix\Admin\Capabilities\FinanceCapabilities;
 use LimpVix\Application\UseCases\Financial\ExecutePayout;
-use LimpVix\Infrastructure\Persistence\WpFinancialRepository;
-use LimpVix\Infrastructure\Persistence\WpOrderRepository;
 use LimpVix\Infrastructure\Persistence\WpFinancialLedgerRepository;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
-use LimpVix\Infrastructure\Finance\PaymentProviders\MercadoPagoProvider;
+use LimpVix\Infrastructure\Finance\PaymentProviders\MercadoPagoPayoutProvider;
+use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
 
 defined('ABSPATH') || exit;
 
 class AdminActionsController
 {
-    private WpOrderRepository $orderRepository;
-    private WpFinancialRepository $financialRepository;
-    private WpFinancialLedgerRepository $ledgerRepository;
-    private WpPayoutRepository $payoutRepository;
-
-    public function __construct()
-    {
-        $this->orderRepository = new WpOrderRepository();
-        $this->financialRepository = new WpFinancialRepository();
-        $this->ledgerRepository = new WpFinancialLedgerRepository();
-        $this->payoutRepository = new WpPayoutRepository();
-    }
-
     /**
      * Registrar hooks AJAX
      *
@@ -72,8 +55,6 @@ class AdminActionsController
     /**
      * Handler: Bloquear order
      *
-     * Transiciona Financial para HELD (hold)
-     *
      * @return void
      */
     public function handleBlockOrder(): void
@@ -85,7 +66,8 @@ class AdminActionsController
         }
 
         try {
-            // 1. Validar parâmetros
+            global $wpdb;
+
             $orderUuid = sanitize_text_field($_POST['order_uuid'] ?? '');
             $reason = sanitize_textarea_field($_POST['reason'] ?? 'Bloqueio administrativo');
 
@@ -94,22 +76,23 @@ class AdminActionsController
                 return;
             }
 
-            // 2. Buscar Financial
-            $financial = $this->financialRepository->findByOrderUuid($orderUuid);
+            // Atualizar status financeiro para HELD
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'limpvix_orders',
+                ['financial_status' => 'HELD'],
+                ['uuid' => $orderUuid],
+                ['%s'],
+                ['%s']
+            );
 
-            if (!$financial) {
-                wp_send_json_error(['message' => 'Financial não encontrado'], 404);
+            if ($updated === false) {
+                wp_send_json_error(['message' => 'Erro ao bloquear order'], 500);
                 return;
             }
 
-            // 3. Aplicar hold
-            $financial->holdPayment($reason);
-
-            // 4. Salvar
-            $this->financialRepository->save($financial);
-
-            // 5. Registrar no ledger
-            $this->ledgerRepository->append([
+            // Registrar no ledger
+            $ledgerRepo = new WpFinancialLedgerRepository();
+            $ledgerRepo->append([
                 'order_uuid' => $orderUuid,
                 'event_type' => 'admin_block_order',
                 'event_data' => json_encode([
@@ -135,8 +118,6 @@ class AdminActionsController
     /**
      * Handler: Liberar order
      *
-     * Remove hold da Financial
-     *
      * @return void
      */
     public function handleUnblockOrder(): void
@@ -148,7 +129,8 @@ class AdminActionsController
         }
 
         try {
-            // 1. Validar parâmetros
+            global $wpdb;
+
             $orderUuid = sanitize_text_field($_POST['order_uuid'] ?? '');
 
             if (empty($orderUuid)) {
@@ -156,30 +138,36 @@ class AdminActionsController
                 return;
             }
 
-            // 2. Buscar Financial
-            $financial = $this->financialRepository->findByOrderUuid($orderUuid);
+            // Verificar status atual
+            $currentStatus = $wpdb->get_var($wpdb->prepare(
+                "SELECT financial_status FROM {$wpdb->prefix}limpvix_orders WHERE uuid = %s",
+                $orderUuid
+            ));
 
-            if (!$financial) {
-                wp_send_json_error(['message' => 'Financial não encontrado'], 404);
-                return;
-            }
-
-            // 3. Verificar se está em HELD
-            if (!$financial->getStatus()->isHeld()) {
+            if ($currentStatus !== 'HELD') {
                 wp_send_json_error([
-                    'message' => 'Order não está bloqueada (status atual: ' . $financial->getStatus()->value . ')'
+                    'message' => 'Order não está bloqueada (status atual: ' . $currentStatus . ')'
                 ], 400);
                 return;
             }
 
-            // 4. Liberar hold (transicionar para AUTHORIZED)
-            $financial->authorizePayment();
+            // Liberar para AUTHORIZED
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'limpvix_orders',
+                ['financial_status' => 'AUTHORIZED'],
+                ['uuid' => $orderUuid],
+                ['%s'],
+                ['%s']
+            );
 
-            // 5. Salvar
-            $this->financialRepository->save($financial);
+            if ($updated === false) {
+                wp_send_json_error(['message' => 'Erro ao liberar order'], 500);
+                return;
+            }
 
-            // 6. Registrar no ledger
-            $this->ledgerRepository->append([
+            // Registrar no ledger
+            $ledgerRepo = new WpFinancialLedgerRepository();
+            $ledgerRepo->append([
                 'order_uuid' => $orderUuid,
                 'event_type' => 'admin_unblock_order',
                 'event_data' => json_encode([
@@ -204,9 +192,6 @@ class AdminActionsController
     /**
      * Handler: Autorizar manualmente
      *
-     * Força transição para AUTHORIZED (bypassing validações normais)
-     * USO: Apenas para casos excepcionais (disputas, compensações)
-     *
      * @return void
      */
     public function handleManualAuthorize(): void
@@ -218,9 +203,10 @@ class AdminActionsController
         }
 
         try {
-            // 1. Validar parâmetros
+            global $wpdb;
+
             $orderUuid = sanitize_text_field($_POST['order_uuid'] ?? '');
-            $reason = sanitize_textarea_field($_POST['reason'] ?? 'Autorização manual administrativa');
+            $reason = sanitize_textarea_field($_POST['reason'] ?? '');
 
             if (empty($orderUuid)) {
                 wp_send_json_error(['message' => 'order_uuid é obrigatório'], 400);
@@ -232,37 +218,42 @@ class AdminActionsController
                 return;
             }
 
-            // 2. Buscar Financial
-            $financial = $this->financialRepository->findByOrderUuid($orderUuid);
+            // Verificar status atual
+            $currentStatus = $wpdb->get_var($wpdb->prepare(
+                "SELECT financial_status FROM {$wpdb->prefix}limpvix_orders WHERE uuid = %s",
+                $orderUuid
+            ));
 
-            if (!$financial) {
-                wp_send_json_error(['message' => 'Financial não encontrado'], 404);
-                return;
-            }
-
-            // 3. Verificar se já está AUTHORIZED ou PAID
-            $currentStatus = $financial->getStatus();
-            if ($currentStatus->isAuthorized() || $currentStatus->isPaid()) {
+            if (in_array($currentStatus, ['AUTHORIZED', 'PAID', 'TRANSFERRED'])) {
                 wp_send_json_error([
-                    'message' => 'Order já está autorizada ou paga (status: ' . $currentStatus->value . ')'
+                    'message' => 'Order já está autorizada ou paga (status: ' . $currentStatus . ')'
                 ], 400);
                 return;
             }
 
-            // 4. Forçar autorização
-            $financial->authorizePayment();
+            // Forçar autorização
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'limpvix_orders',
+                ['financial_status' => 'AUTHORIZED'],
+                ['uuid' => $orderUuid],
+                ['%s'],
+                ['%s']
+            );
 
-            // 5. Salvar
-            $this->financialRepository->save($financial);
+            if ($updated === false) {
+                wp_send_json_error(['message' => 'Erro ao autorizar order'], 500);
+                return;
+            }
 
-            // 6. Registrar no ledger (CRÍTICO para auditoria)
-            $this->ledgerRepository->append([
+            // Registrar no ledger (CRÍTICO para auditoria)
+            $ledgerRepo = new WpFinancialLedgerRepository();
+            $ledgerRepo->append([
                 'order_uuid' => $orderUuid,
                 'event_type' => 'admin_manual_authorize',
                 'event_data' => json_encode([
                     'reason' => $reason,
                     'admin_user' => get_current_user_id(),
-                    'previous_status' => $currentStatus->value,
+                    'previous_status' => $currentStatus,
                     'timestamp' => current_time('mysql')
                 ]),
                 'resolved' => 0
@@ -298,7 +289,6 @@ class AdminActionsController
         }
 
         try {
-            // 1. Validar parâmetros
             $payoutId = intval($_POST['payout_id'] ?? 0);
 
             if ($payoutId <= 0) {
@@ -306,16 +296,20 @@ class AdminActionsController
                 return;
             }
 
-            // 2. Executar payout via Use Case (Golden Rule protegido)
-            $mercadoPagoProvider = new MercadoPagoProvider();
+            // Executar payout via Use Case (Golden Rule protegido)
+            $executionRepo = new WpExecutionRepository();
+            $payoutProvider = new MercadoPagoPayoutProvider();
+            $payoutRepo = new WpPayoutRepository();
+
             $useCase = new ExecutePayout(
-                $this->payoutRepository,
-                $mercadoPagoProvider
+                $executionRepo,
+                $payoutProvider,
+                $payoutRepo
             );
 
             $result = $useCase->execute($payoutId);
 
-            // 3. Retornar resultado
+            // Retornar resultado
             if ($result->isOk()) {
                 wp_send_json_success([
                     'message' => 'Payout executado com sucesso',
@@ -338,8 +332,6 @@ class AdminActionsController
     /**
      * Handler: Reembolsar order
      *
-     * Transiciona Financial para REFUNDED
-     *
      * @return void
      */
     public function handleRefundOrder(): void
@@ -351,7 +343,8 @@ class AdminActionsController
         }
 
         try {
-            // 1. Validar parâmetros
+            global $wpdb;
+
             $orderUuid = sanitize_text_field($_POST['order_uuid'] ?? '');
             $reason = sanitize_textarea_field($_POST['reason'] ?? 'Reembolso administrativo');
             $amount = floatval($_POST['amount'] ?? 0);
@@ -361,30 +354,36 @@ class AdminActionsController
                 return;
             }
 
-            // 2. Buscar Financial
-            $financial = $this->financialRepository->findByOrderUuid($orderUuid);
+            // Verificar status atual
+            $currentStatus = $wpdb->get_var($wpdb->prepare(
+                "SELECT financial_status FROM {$wpdb->prefix}limpvix_orders WHERE uuid = %s",
+                $orderUuid
+            ));
 
-            if (!$financial) {
-                wp_send_json_error(['message' => 'Financial não encontrado'], 404);
-                return;
-            }
-
-            // 3. Verificar se pode reembolsar (deve estar PAID)
-            if (!$financial->getStatus()->isPaid()) {
+            if ($currentStatus !== 'PAID') {
                 wp_send_json_error([
-                    'message' => 'Apenas orders pagas podem ser reembolsadas (status atual: ' . $financial->getStatus()->value . ')'
+                    'message' => 'Apenas orders pagas podem ser reembolsadas (status atual: ' . $currentStatus . ')'
                 ], 400);
                 return;
             }
 
-            // 4. Aplicar refund
-            $financial->refundPayment($reason);
+            // Aplicar refund
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'limpvix_orders',
+                ['financial_status' => 'REFUNDED'],
+                ['uuid' => $orderUuid],
+                ['%s'],
+                ['%s']
+            );
 
-            // 5. Salvar
-            $this->financialRepository->save($financial);
+            if ($updated === false) {
+                wp_send_json_error(['message' => 'Erro ao reembolsar order'], 500);
+                return;
+            }
 
-            // 6. Registrar no ledger
-            $this->ledgerRepository->append([
+            // Registrar no ledger
+            $ledgerRepo = new WpFinancialLedgerRepository();
+            $ledgerRepo->append([
                 'order_uuid' => $orderUuid,
                 'event_type' => 'admin_refund_order',
                 'event_data' => json_encode([
