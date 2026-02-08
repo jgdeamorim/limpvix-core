@@ -1,7 +1,12 @@
 # LimpVix Core
 
-**Versão:** 0.1.0
-**Requer:** WordPress 5.8+, PHP 7.4+, Booknetic 4.8.5
+[![Tests](https://github.com/jgdeamorim/wp_limpvix-core/actions/workflows/tests.yml/badge.svg)](https://github.com/jgdeamorim/wp_limpvix-core/actions/workflows/tests.yml)
+[![Code Quality](https://github.com/jgdeamorim/wp_limpvix-core/actions/workflows/code-quality.yml/badge.svg)](https://github.com/jgdeamorim/wp_limpvix-core/actions/workflows/code-quality.yml)
+[![PHP Version](https://img.shields.io/badge/PHP-7.4%20%7C%208.0%20%7C%208.1%20%7C%208.2-blue.svg)](https://www.php.net/)
+[![WordPress Version](https://img.shields.io/badge/WordPress-6.4%2B-blue.svg)](https://wordpress.org/)
+
+**Versão:** 0.5.0
+**Requer:** WordPress 6.4+, PHP 7.4+, Booknetic 4.8.5
 
 ## 📋 Descrição
 
@@ -200,6 +205,82 @@ Documentação arquitetural completa em:
 **Causa:** Autoloader não carregado
 - **Solução:** Rodar `composer install`
 
+## 🧪 Testes
+
+### Cobertura de Testes (FASES 4-5)
+
+| Tipo | Testes | Tempo | Status |
+|------|--------|-------|--------|
+| **Unitários** | 64 | ~1min | ✅ |
+| **Integração** | 25 | ~2min | ✅ |
+| **E2E** | 3 | ~1.5min | ✅ |
+| **TOTAL** | **92** | **~4.5min** | ✅ **100%** |
+
+### Rodando os Testes
+
+```bash
+# Instalar PHPUnit (se não instalado)
+composer require --dev phpunit/phpunit:^9.5
+
+# Apenas unitários (RÁPIDO: ~1min)
+./vendor/bin/phpunit --exclude-group integration,e2e
+
+# Apenas integração (~2min)
+./vendor/bin/phpunit --testsuite "Integration Tests"
+
+# Apenas E2E (~1.5min)
+./vendor/bin/phpunit --testsuite "E2E Tests"
+
+# TODOS os testes (~4.5min)
+./vendor/bin/phpunit
+
+# Com cobertura HTML
+./vendor/bin/phpunit --coverage-html coverage-report
+```
+
+### Documentação de Testes
+
+- [Testes Unitários](tests/README.md)
+- [Testes de Integração e E2E](tests/INTEGRATION_TESTS.md)
+- [Validação FASES 1-4](../../../docs-limpvix/FASES_1-4_VALIDATION.md)
+- [Validação FASE 5](../../../docs-limpvix/FASE_5_VALIDATION.md)
+
+## 🔄 CI/CD (FASE 6)
+
+### GitHub Actions
+
+O projeto possui workflows automatizados para garantir qualidade:
+
+**1. Tests Workflow** (`.github/workflows/tests.yml`):
+- ✅ Unit Tests em PHP 7.4, 8.0, 8.1, 8.2
+- ✅ Integration Tests em WordPress 6.4, 6.5
+- ✅ E2E Tests
+- ✅ Coverage Report (Codecov)
+
+**2. Code Quality Workflow** (`.github/workflows/code-quality.yml`):
+- ✅ PHPCS (PSR-12 compliance)
+- ✅ PHPStan (Static Analysis level 5)
+- ✅ PHP Syntax Check
+- ✅ Composer Validate
+- ✅ Security Audit
+
+### Status dos Checks
+
+Todos os PRs e pushes para `main`/`develop` passam por:
+
+- ✅ 92 testes (unit + integration + E2E)
+- ✅ Validação de sintaxe em 4 versões de PHP
+- ✅ Análise estática (PHPStan level 5)
+- ✅ Code style (PSR-12)
+- ✅ Security audit
+- ✅ Composer validation
+
+### Ver Status
+
+Acompanhe o status em:
+- **GitHub Actions**: https://github.com/jgdeamorim/wp_limpvix-core/actions
+- **Badges**: No topo deste README
+
 ## 📝 Licença
 
 Proprietário - LimpVix © 2026
@@ -208,3 +289,4 @@ Proprietário - LimpVix © 2026
 
 **Documentação:** [docs-limpvix/README.md](../../../docs-limpvix/README.md)
 **Suporte:** Equipe técnica LimpVix
+**Última atualização:** 2026-02-08 (v0.5.0 - FASE 6 completa)
