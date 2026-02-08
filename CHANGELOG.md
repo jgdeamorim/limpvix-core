@@ -5,6 +5,80 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.5] - 2026-02-08
+
+### 🔐 CRITICAL FIX — Golden Rule Protection (P0-001)
+
+**GO LIVE Blocker corrigido** — Sistema pronto para produção.
+
+### 🐛 Corrigido
+
+#### Golden Rule Enforcement (CRÍTICO)
+
+- **Correção P0-001: PayoutsPage bypassa Use Case**
+  - **Problema**: `PayoutsPage::handleProcessPayout()` chamava `MercadoPagoPayoutProvider` DIRETO
+  - **Impacto**: Golden Rule quebrada — payout possível SEM `Execution::VALIDATED`
+  - **Risco**: Repasse financeiro sem garantias do domínio
+  - **Correção**: Criado Use Case `ExecutePayout` com validação obrigatória
+  - **Resultado**: Payout SÓ executa se `Execution::VALIDATED` (check-in + checkout + evidence)
+  - Arquivos:
+    - NEW: `src/Application/UseCases/Financial/ExecutePayout.php`
+    - MOD: `src/Infrastructure/Admin/Pages/PayoutsPage.php` (refatorado para usar Use Case)
+
+### 📋 Auditoria GO LIVE
+
+#### Auditoria Completa Realizada (13 documentos externos)
+
+**Resultado**: 1 P0 (corrigido), 2 P1 (não bloqueadores), 2 P2 (aceitáveis)
+
+**Categorias Auditadas**:
+- ✅ **Admin Dashboard** — P0 corrigido, sistema seguro
+- ✅ **WooCommerce Integration** — Não controla Order state (correto)
+- ✅ **Booknetic Integration** — Apenas observa (correto)
+- ✅ **MercadoPago Payment** — Webhook → Use Case → Domain (correto)
+- ✅ **MercadoPago Payout** — Golden Rule protegida (corrigido)
+- ✅ **Messaging System** — Event-driven, reativo (correto)
+- ✅ **Briefing Flow** — Cálculo de preço validado (correto)
+
+**Achados**:
+- P0-001: PayoutsPage bypassa Use Case ✅ **CORRIGIDO**
+- P1-001: AdminActionsController não implementado (não bloqueia GO LIVE)
+- P1-002: OrderDetailController skeleton (não bloqueia GO LIVE)
+- P2-001: SQL direto em PayoutsPage (apenas leitura — aceitável)
+- P2-002: SQL direto em WooCommerceStatusSyncAdapter (HPOS support — aceitável)
+
+**Invariantes Validadas**:
+- ✅ Golden Rule: Payout SÓ se Execution::VALIDATED
+- ✅ Domain Layer puro (99 testes, 100% pass)
+- ✅ Use Cases sem lógica de negócio
+- ✅ Result Pattern em toda Application Layer
+- ✅ WooCommerce não controla Order state
+- ✅ Booknetic apenas observa (não controla)
+- ✅ Mensagens são event-driven (não controlam estado)
+
+**Decisão Técnica**: ✅ **GO LIVE AUTORIZADO**
+
+### 📊 Sprint 1 — Execution Aggregate (Completo)
+
+Scorecard: **82/100** (+7 pontos vs Sprint 0)
+
+**Deliverables**:
+- Execution Aggregate Root com State Machine completa
+- 6 estados (CREATED → CLOSED)
+- 5 Value Objects (GeoLocation, Evidence, TimeWindow, SlaViolation)
+- 3 Use Cases (PerformCheckIn, PerformCheckOut, ValidateExecution)
+- Repository + Persistence (WpExecutionRepository)
+- 99 testes (100% pass)
+- Integração com Order + Financial validada
+
+### 🔄 Commits
+
+- `a1a5af5` — fix(payout): enforce Golden Rule with ExecutePayout Use Case (P0-001)
+- `461dcfa` — docs(sprint1): final report and closure (Sprint 1)
+- `46d2621` — feat(application): implement Execution Use Cases (Sprint 1 - Dia 6)
+
+---
+
 ## [0.1.4] - 2026-02-06
 
 ### 🎉 BLOCO E — Comunicação & Fluxos Admin UI (FINALIZADO)
