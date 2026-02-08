@@ -155,6 +155,16 @@ class AdminBootstrap
             [$this, "renderPayoutsPage"]
         );
 
+        // Submenu: Relatório Financeiro
+        add_submenu_page(
+            self::MENU_SLUG,
+            "Relatório Financeiro",
+            "Relatório Financeiro",
+            "limpvix_finance_view",
+            "limpvix-financial-report",
+            [$this, "renderFinancialReportPage"]
+        );
+
         // Submenu: Briefings
         add_submenu_page(
             self::MENU_SLUG,
@@ -1524,6 +1534,15 @@ class AdminBootstrap
             $page = new \LimpVix\Infrastructure\Admin\Pages\BriefingManagementPage($briefingRepository);
             $page->render();
         }
+    }
+
+    public function renderFinancialReportPage(): void {
+        if (!FinanceCapabilities::canView()) {
+            wp_die("Acesso negado");
+        }
+
+        $controller = new \LimpVix\Admin\Controllers\FinancialReportController();
+        $controller->render();
     }
 
     public function deactivate(): void {
