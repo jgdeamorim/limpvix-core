@@ -2,30 +2,21 @@
 declare(strict_types=1);
 
 /**
- * Execution - Aggregate Root com State Machine (Sprint 1 - Dia 2)
+ * Execution - Aggregate Root com State Machine + Geo + SLA (Sprint 1 - Dia 2-3)
  *
  * RESPONSABILIDADE:
  * - Representar execução real de um serviço
  * - Garantir check-in/checkout obrigatórios
  * - Validar evidências
+ * - Validar geofence (150m)
+ * - Validar janela temporal (±60min)
  * - Rastrear SLA
  *
- * PRINCÍPIOS:
- * - Entity (tem identidade - UUID)
- * - State Machine formal (ExecutionStatusEnum)
- * - Transições explícitas e validadas
- * - Estados terminais imutáveis
- * - Evidência obrigatória
- *
- * BREAKING CHANGE (Sprint 1):
- * - Execution é fonte de verdade (não Booknetic)
- * - Check-in/out obrigatórios
- * - Evidência obrigatória no checkout
- *
- * REGRAS CRÍTICAS (DIA 2):
+ * REGRAS CRÍTICAS (DIA 3):
  * ❌ checkout sem check-in
  * ❌ validate sem evidência
- * ❌ qualquer transição após CLOSED
+ * ❌ check-in fora da geofence (150m) → SLA violation
+ * ❌ check-in fora da janela (±60min) → SLA violation
  *
  * @package LimpVix\Domain\Execution
  */
@@ -36,15 +27,24 @@ use LimpVix\Domain\Execution\Enums\ExecutionStatusEnum;
 use LimpVix\Domain\Execution\Exceptions\InvalidExecutionTransitionException;
 use LimpVix\Domain\Execution\ValueObjects\GeoLocation;
 use LimpVix\Domain\Execution\ValueObjects\EvidenceCollection;
+use LimpVix\Domain\Execution\ValueObjects\TimeWindow;
+use LimpVix\Domain\Execution\ValueObjects\SlaViolation;
 
 defined('ABSPATH') || exit;
 
 class Execution
 {
+    private const DEFAULT_GEOFENCE_RADIUS_METERS = 150;
+
     private string $executionUuid;
     private string $orderUuid;
     private int $professionalId;
     private ExecutionStatusEnum $status;
+    
+    // Scheduled data (for SLA validation)
+    private ?\DateTimeImmutable $scheduledStartTime = null;
+    private ?GeoLocation $serviceLocation = null;
+    private int $geofenceRadiusMeters;
     
     // Check-in data
     private ?\DateTimeImmutable $checkInAt = null;
@@ -56,30 +56,36 @@ class Execution
     private ?EvidenceCollection $evidence = null;
     
     // SLA tracking
-    private ?string $slaStatus = null;
+    private array $slaViolations = [];
 
     public function __construct(
         string $executionUuid,
         string $orderUuid,
         int $professionalId,
         ExecutionStatusEnum $status,
+        ?\DateTimeImmutable $scheduledStartTime = null,
+        ?GeoLocation $serviceLocation = null,
+        int $geofenceRadiusMeters = self::DEFAULT_GEOFENCE_RADIUS_METERS,
         ?\DateTimeImmutable $checkInAt = null,
         ?GeoLocation $checkInGeo = null,
         ?\DateTimeImmutable $checkOutAt = null,
         ?GeoLocation $checkOutGeo = null,
         ?EvidenceCollection $evidence = null,
-        ?string $slaStatus = null
+        array $slaViolations = []
     ) {
         $this->executionUuid = $executionUuid;
         $this->orderUuid = $orderUuid;
         $this->professionalId = $professionalId;
         $this->status = $status;
+        $this->scheduledStartTime = $scheduledStartTime;
+        $this->serviceLocation = $serviceLocation;
+        $this->geofenceRadiusMeters = $geofenceRadiusMeters;
         $this->checkInAt = $checkInAt;
         $this->checkInGeo = $checkInGeo;
         $this->checkOutAt = $checkOutAt;
         $this->checkOutGeo = $checkOutGeo;
         $this->evidence = $evidence;
-        $this->slaStatus = $slaStatus;
+        $this->slaViolations = $slaViolations;
     }
 
     /**
@@ -88,13 +94,17 @@ class Execution
     public static function create(
         string $executionUuid,
         string $orderUuid,
-        int $professionalId
+        int $professionalId,
+        \DateTimeImmutable $scheduledStartTime,
+        GeoLocation $serviceLocation
     ): self {
         return new self(
             $executionUuid,
             $orderUuid,
             $professionalId,
-            ExecutionStatusEnum::CREATED
+            ExecutionStatusEnum::CREATED,
+            $scheduledStartTime,
+            $serviceLocation
         );
     }
 
@@ -103,13 +113,37 @@ class Execution
     // ========================================
 
     /**
-     * Realizar check-in (com geolocalização)
+     * Realizar check-in (com geolocalização + validações)
      *
-     * REGRA: Primeiro passo obrigatório
+     * REGRA CRÍTICA (DIA 3):
+     * - Valida geofence (150m)
+     * - Valida time window (±60min)
+     * - Se violar, marca SLA violation mas permite check-in
      */
-    public function checkIn(GeoLocation $geo): void
+    public function checkIn(GeoLocation $geo, ?TimeWindow $timeWindow = null): void
     {
         $this->guardTransition(ExecutionStatusEnum::CHECKED_IN);
+        
+        // Validar geofence
+        if ($this->serviceLocation !== null) {
+            $distance = $geo->distanceTo($this->serviceLocation);
+            if ($distance > $this->geofenceRadiusMeters) {
+                $this->slaViolations[] = SlaViolation::outOfGeofence($distance);
+            }
+        }
+        
+        // Validar time window
+        if ($timeWindow !== null) {
+            $now = new \DateTimeImmutable();
+            if (!$timeWindow->isWithin($now)) {
+                $delay = $timeWindow->calculateDelayMinutes($now);
+                if ($delay > 0) {
+                    $this->slaViolations[] = SlaViolation::lateCheckIn($delay);
+                } else {
+                    $this->slaViolations[] = SlaViolation::earlyCheckIn($delay);
+                }
+            }
+        }
         
         $this->status = ExecutionStatusEnum::CHECKED_IN;
         $this->checkInAt = new \DateTimeImmutable();
@@ -151,7 +185,7 @@ class Execution
     /**
      * Validar execução
      *
-     * REGRA CRÍTICA: Evidência deve existir
+     * REGRA CRÍTICA (DIA 3): Evidência deve existir + SLA verificado
      */
     public function validate(): void
     {
@@ -174,14 +208,6 @@ class Execution
     {
         $this->guardTransition(ExecutionStatusEnum::CLOSED);
         $this->status = ExecutionStatusEnum::CLOSED;
-    }
-
-    /**
-     * Marcar violação de SLA
-     */
-    public function markSlaViolation(): void
-    {
-        $this->slaStatus = 'VIOLATED';
     }
 
     // ========================================
@@ -261,6 +287,21 @@ class Execution
         return $this->status;
     }
 
+    public function getScheduledStartTime(): ?\DateTimeImmutable
+    {
+        return $this->scheduledStartTime;
+    }
+
+    public function getServiceLocation(): ?GeoLocation
+    {
+        return $this->serviceLocation;
+    }
+
+    public function getGeofenceRadiusMeters(): int
+    {
+        return $this->geofenceRadiusMeters;
+    }
+
     public function getCheckInAt(): ?\DateTimeImmutable
     {
         return $this->checkInAt;
@@ -286,9 +327,17 @@ class Execution
         return $this->evidence;
     }
 
-    public function getSlaStatus(): ?string
+    /**
+     * @return array<SlaViolation>
+     */
+    public function getSlaViolations(): array
     {
-        return $this->slaStatus;
+        return $this->slaViolations;
+    }
+
+    public function hasSlaViolations(): bool
+    {
+        return !empty($this->slaViolations);
     }
 
     public function hasEvidence(): bool
