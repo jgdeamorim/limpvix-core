@@ -241,6 +241,14 @@ class PayoutsPage
 
     /**
      * Handler: Processar payout
+     *
+     * ✅ CORREÇÃO P0-001: Agora usa Use Case ExecutePayout
+     * - ANTES: Chamava $this->mpProvider->createPayout() direto (BYPASS)
+     * - AGORA: Usa ExecutePayout que valida Execution::VALIDATED (GOLDEN RULE)
+     *
+     * GOLDEN RULE:
+     * - Payout SÓ executa se Execution::VALIDATED
+     * - Se não validado, admin vê mensagem de erro clara
      */
     public function handleProcessPayout(): void
     {
@@ -252,18 +260,31 @@ class PayoutsPage
             wp_die('Sem permissão');
         }
 
-        $success = $this->mpProvider->createPayout($payout_id);
+        // ✅ CORREÇÃO: Usar Use Case ao invés de chamar provider direto
+        $executionRepository = new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();
+        $payoutRepository = new \LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository();
 
-        if ($success) {
+        $useCase = new \LimpVix\Application\UseCases\Financial\ExecutePayout(
+            $executionRepository,
+            $this->mpProvider,
+            $payoutRepository
+        );
+
+        $result = $useCase->execute($payout_id);
+
+        if ($result->isOk()) {
             wp_redirect(add_query_arg([
                 'page' => 'limpvix-payouts',
                 'message' => 'payout_processed'
             ], admin_url('admin.php')));
         } else {
-            wp_redirect(add_query_arg([
-                'page' => 'limpvix-payouts',
-                'message' => 'payout_failed'
-            ], admin_url('admin.php')));
+            // ✅ Agora mostra ERRO se Execution não validada (Golden Rule)
+            wp_die(
+                '<h1>Erro ao Processar Payout</h1>' .
+                '<p><strong>Motivo:</strong> ' . esc_html($result->error()) . '</p>' .
+                '<p><a href="' . admin_url('admin.php?page=limpvix-payouts') . '">← Voltar para Payouts</a></p>',
+                'Erro - Payout Bloqueado'
+            );
         }
         exit;
     }
