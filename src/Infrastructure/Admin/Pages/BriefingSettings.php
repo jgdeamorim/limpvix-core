@@ -140,6 +140,26 @@ class BriefingSettings
                     </table>
                 </div>
 
+                <!-- Pacotes de Serviço -->
+                <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
+                    <h2>📦 Pacotes de Serviço</h2>
+                    <p>Configure os pacotes disponíveis para os clientes selecionarem. Cada pacote tem um percentual de aumento no preço base.</p>
+
+                    <?php $this->renderPackagesTable(); ?>
+
+                    <p style="margin-top:15px">
+                        <small>
+                            <strong>Como funciona:</strong><br>
+                            • Preço Base = m² × Preço por m² (R$ <?php echo number_format($pricePerM2, 2, ',', '.'); ?>)<br>
+                            • Preço Final = Preço Base × (1 + Percentual do Pacote)<br>
+                            • Exemplo: 100m² × R$ 15,00 = R$ 1.500,00 (base)<br>
+                            &nbsp;&nbsp;→ Básico: R$ 1.500,00 (0%)<br>
+                            &nbsp;&nbsp;→ Padrão: R$ 1.725,00 (+15%)<br>
+                            &nbsp;&nbsp;→ Premium: R$ 1.950,00 (+30%)
+                        </small>
+                    </p>
+                </div>
+
                 <!-- Firebase -->
                 <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
                     <h2>Firebase Configuration</h2>
@@ -221,5 +241,84 @@ class BriefingSettings
         ];
 
         return get_option('limpvix_briefing_time_factors', $defaults);
+    }
+
+    /**
+     * Renderizar tabela de pacotes
+     *
+     * @return void
+     */
+    private function renderPackagesTable(): void
+    {
+        global $wpdb;
+
+        $packages = $wpdb->get_results(
+            "SELECT * FROM {$wpdb->prefix}limpvix_package_configs ORDER BY percentage_increase ASC",
+            ARRAY_A
+        );
+
+        if (empty($packages)) {
+            echo '<p><em>Nenhum pacote configurado.</em></p>';
+            return;
+        }
+
+        ?>
+        <table class="wp-list-table widefat fixed striped" style="margin-top:10px">
+            <thead>
+                <tr>
+                    <th style="width:15%">Tipo</th>
+                    <th style="width:15%">Nome</th>
+                    <th style="width:30%">Descrição</th>
+                    <th style="width:10%">% Aumento</th>
+                    <th style="width:10%">Profissionais</th>
+                    <th style="width:10%">Skills</th>
+                    <th style="width:10%">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($packages as $pkg): ?>
+                    <?php
+                    $skills = json_decode($pkg['required_skills'], true) ?: [];
+                    $percentage = (float) $pkg['percentage_increase'] * 100;
+                    $isActive = (bool) $pkg['is_active'];
+                    ?>
+                    <tr style="<?php echo $isActive ? '' : 'opacity:0.5'; ?>">
+                        <td><code><?php echo esc_html($pkg['package_type']); ?></code></td>
+                        <td><strong><?php echo esc_html($pkg['display_name']); ?></strong></td>
+                        <td><?php echo esc_html($pkg['description']); ?></td>
+                        <td>
+                            <?php if ($percentage > 0): ?>
+                                <span style="color:#d63638">+<?php echo number_format($percentage, 0); ?>%</span>
+                            <?php else: ?>
+                                <span style="color:#2271b1">0%</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($pkg['min_professionals']); ?>-<?php echo esc_html($pkg['max_professionals']); ?></td>
+                        <td>
+                            <span title="<?php echo esc_attr(implode(', ', $skills)); ?>" style="cursor:help">
+                                <?php echo count($skills); ?> skills
+                            </span>
+                        </td>
+                        <td>
+                            <?php if ($isActive): ?>
+                                <span style="color:#00a32a">● Ativo</span>
+                            <?php else: ?>
+                                <span style="color:#dba617">○ Inativo</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <p style="margin-top:15px">
+            <a href="<?php echo admin_url('admin.php?page=limpvix-package-editor'); ?>" class="button">
+                Editar Pacotes
+            </a>
+            <small style="margin-left:10px">
+                <em>Para criar, editar ou desativar pacotes, use o editor de pacotes.</em>
+            </small>
+        </p>
+        <?php
     }
 }

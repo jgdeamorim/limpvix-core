@@ -26,6 +26,8 @@ use LimpVix\Domain\Briefing\PropertyType;
 use LimpVix\Domain\Briefing\PropertyStructure;
 use LimpVix\Domain\Briefing\Frequency;
 use LimpVix\Domain\Briefing\EstimatedMetrics;
+use LimpVix\Domain\Briefing\Package;
+use LimpVix\Domain\Briefing\PackageType;
 use LimpVix\Domain\Briefing\BriefingRepositoryInterface;
 
 defined('ABSPATH') || exit;
@@ -346,6 +348,12 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             );
         }
 
+        // Package (pode ser null)
+        $package = null;
+        if (!empty($mainRow['package_type'])) {
+            $package = $this->hydratePackage($mainRow['package_type'], $mainRow['package_percentage']);
+        }
+
         // Construir Briefing
         return new Briefing(
             uuid: $mainRow['uuid'],
@@ -356,6 +364,7 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             structure: $structure,
             frequency: $frequency,
             metrics: $metrics,
+            package: $package,
             phoneVerified: (bool) $mainRow['phone_verified'],
             version: $mainRow['version'],
             createdAt: new \DateTimeImmutable($mainRow['created_at']),
@@ -373,6 +382,14 @@ class WpBriefingRepository implements BriefingRepositoryInterface
     private function dehydrateMain(Briefing $briefing): array
     {
         $metrics = $briefing->getMetrics();
+        $package = $briefing->getPackage();
+
+        // Calcular required_professionals_count
+        $requiredProfessionals = 1;
+        if ($package && $metrics) {
+            $totalDuration = $metrics->getDurationMinutes() + $metrics->getBufferMinutes();
+            $requiredProfessionals = $package->determineProfessionalsCount($totalDuration);
+        }
 
         return [
             'uuid' => $briefing->getUuid(),
@@ -383,6 +400,9 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             'estimated_m2' => $metrics ? $metrics->getM2() : null,
             'estimated_duration_minutes' => $metrics ? $metrics->getDurationMinutes() : null,
             'buffer_minutes' => $metrics ? $metrics->getBufferMinutes() : 30,
+            'package_type' => $package ? $package->getType()->getValue() : null,
+            'package_percentage' => $package ? $package->getPercentageIncrease() : null,
+            'required_professionals_count' => $requiredProfessionals,
             'requires_contract' => $briefing->requiresContract(),
             'phone_verified' => $briefing->isPhoneVerified(),
             'version' => $briefing->getVersion(),
@@ -429,6 +449,9 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             '%f', // estimated_m2
             '%d', // estimated_duration_minutes
             '%d', // buffer_minutes
+            '%s', // package_type
+            '%f', // package_percentage
+            '%d', // required_professionals_count
             '%d', // requires_contract
             '%d', // phone_verified
             '%s', // version
@@ -436,5 +459,53 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             '%s', // updated_at
             '%s'  // locked_at
         ];
+    }
+
+    /**
+     * Hidratar Package a partir dos dados do banco
+     *
+     * @param string $packageType
+     * @param float|null $packagePercentage
+     * @return Package|null
+     */
+    private function hydratePackage(string $packageType, ?float $packagePercentage): ?Package
+    {
+        try {
+            // Tentar buscar configuração do banco
+            $config = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT
+                    package_type AS type,
+                    percentage_increase,
+                    min_professionals,
+                    max_professionals,
+                    required_skills,
+                    description
+                FROM {$this->wpdb->prefix}limpvix_package_configs
+                WHERE package_type = %s
+                AND is_active = 1",
+                $packageType
+            ), ARRAY_A);
+
+            if ($config) {
+                $config['required_skills'] = json_decode($config['required_skills'], true) ?: [];
+                return Package::fromConfig($config);
+            }
+
+            // Fallback: usar factory methods padrão
+            switch ($packageType) {
+                case 'basic':
+                    return Package::basic();
+                case 'standard':
+                    return Package::standard();
+                case 'premium':
+                    return Package::premium();
+                default:
+                    return null;
+            }
+
+        } catch (\Exception $e) {
+            error_log("WpBriefingRepository::hydratePackage error: " . $e->getMessage());
+            return null;
+        }
     }
 }

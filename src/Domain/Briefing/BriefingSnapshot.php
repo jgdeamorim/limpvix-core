@@ -370,19 +370,57 @@ class BriefingSnapshot
             $metrics = $briefing->calculateMetrics();
         }
 
+        $package = $briefing->getPackage();
+        $estimatedM2 = $metrics ? $metrics->getEstimatedM2() : 0;
+        $baseDurationMinutes = $metrics ? $metrics->getDurationMinutes() : 0;
+        $bufferMinutes = $metrics ? $metrics->getBufferMinutes() : 30;
+        $totalEstimatedDuration = $baseDurationMinutes + $bufferMinutes;
+
+        // Complexity multiplier baseado no pacote
+        $complexityMultiplier = $package ? $package->getMultiplier() : 1.0;
+
+        // Determinar se requer múltiplos profissionais
+        $requiresMultipleProfessionals = false;
+        $requiredProfessionalsCount = 1;
+
+        if ($package) {
+            $requiredProfessionalsCount = $package->determineProfessionalsCount($totalEstimatedDuration);
+            $requiresMultipleProfessionals = $requiredProfessionalsCount > 1;
+        } else {
+            // Fallback: > 5h (300min) = 2 profissionais
+            if ($totalEstimatedDuration > 300) {
+                $requiresMultipleProfessionals = true;
+                $requiredProfessionalsCount = (int) ceil($totalEstimatedDuration / 300);
+            }
+        }
+
+        // Pricing breakdown
+        $pricePerM2 = (float) get_option('limpvix_briefing_price_per_m2', 15.0);
+        $basePrice = $estimatedM2 * $pricePerM2;
+
+        $packagesPrice = 0.0;
+        $totalPrice = $basePrice;
+
+        if ($package) {
+            $totalPrice = $package->calculateFinalPrice($basePrice);
+            $packagesPrice = $totalPrice - $basePrice;
+        }
+
         return [
-            'estimated_m2' => $metrics ? $metrics->getEstimatedM2() : 0,
-            'base_duration_minutes' => $metrics ? $metrics->getDurationMinutes() : 0,
-            'complexity_multiplier' => 1.0,  // TODO: Calcular baseado em complexity
-            'estimated_duration_minutes' => $metrics ? $metrics->getDurationMinutes() : 0,
-            'buffer_minutes' => $metrics ? $metrics->getBufferMinutes() : 30,
-            'total_estimated_duration' => $metrics ? ($metrics->getDurationMinutes() + $metrics->getBufferMinutes()) : 0,
-            'requires_multiple_professionals' => false,  // TODO: Calcular baseado em duração
-            'required_professionals_count' => 1,
+            'estimated_m2' => $estimatedM2,
+            'base_duration_minutes' => $baseDurationMinutes,
+            'complexity_multiplier' => $complexityMultiplier,
+            'estimated_duration_minutes' => $baseDurationMinutes,
+            'buffer_minutes' => $bufferMinutes,
+            'total_estimated_duration' => $totalEstimatedDuration,
+            'requires_multiple_professionals' => $requiresMultipleProfessionals,
+            'required_professionals_count' => $requiredProfessionalsCount,
             'pricing_breakdown' => [
-                'base_price' => 0.0,  // TODO: Integrar com pricing calculator
-                'packages_price' => 0.0,
-                'total_price' => 0.0,
+                'base_price' => $basePrice,
+                'package_increase' => $packagesPrice,
+                'total_price' => $totalPrice,
+                'package_type' => $package ? $package->getType()->getValue() : null,
+                'package_percentage' => $package ? $package->getPercentageDisplay() : '0%',
             ],
         ];
     }

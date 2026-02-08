@@ -90,6 +90,14 @@ class Briefing
     private $metrics;
 
     /**
+     * Pacote de serviço selecionado (basic, standard, premium)
+     * Null até ser selecionado
+     *
+     * @var Package|null
+     */
+    private $package;
+
+    /**
      * Telefone verificado via Firebase OTP?
      *
      * @var bool
@@ -136,6 +144,7 @@ class Briefing
      * @param PropertyStructure|null $structure Estrutura do imóvel
      * @param Frequency|null $frequency Frequência
      * @param EstimatedMetrics|null $metrics Métricas calculadas
+     * @param Package|null $package Pacote de serviço selecionado
      * @param bool $phoneVerified Telefone verificado?
      * @param string $version Versão do schema
      * @param \DateTimeImmutable|null $createdAt Data criação
@@ -151,6 +160,7 @@ class Briefing
         ?PropertyStructure $structure = null,
         ?Frequency $frequency = null,
         ?EstimatedMetrics $metrics = null,
+        ?Package $package = null,
         bool $phoneVerified = false,
         string $version = '1.0',
         ?\DateTimeImmutable $createdAt = null,
@@ -174,6 +184,7 @@ class Briefing
         $this->structure = $structure;
         $this->frequency = $frequency;
         $this->metrics = $metrics;
+        $this->package = $package;
         $this->phoneVerified = $phoneVerified;
         $this->version = $version;
         $this->createdAt = $createdAt ?? new \DateTimeImmutable();
@@ -239,6 +250,11 @@ class Briefing
     public function getMetrics(): ?EstimatedMetrics
     {
         return $this->metrics;
+    }
+
+    public function getPackage(): ?Package
+    {
+        return $this->package;
     }
 
     public function isPhoneVerified(): bool
@@ -389,6 +405,20 @@ class Briefing
     }
 
     /**
+     * Selecionar pacote de serviço
+     *
+     * @param Package $package
+     * @return void
+     * @throws \DomainException Se locked
+     */
+    public function selectPackage(Package $package): void
+    {
+        $this->assertNotLocked();
+        $this->package = $package;
+        $this->touch();
+    }
+
+    /**
      * Calcular métricas baseado na estrutura atual
      *
      * Método simplificado - cálculo completo está em BriefingMetricsCalculator
@@ -461,6 +491,7 @@ class Briefing
             'structure' => $this->structure ? $this->structure->toArray() : null,
             'frequency' => $this->frequency ? $this->frequency->toArray() : null,
             'metrics' => $this->metrics ? $this->metrics->toArray() : null,
+            'package' => $this->package ? $this->package->toArray() : null,
             'phone_verified' => $this->phoneVerified,
             'requires_contract' => $this->requiresContract(),
             'version' => $this->version,
