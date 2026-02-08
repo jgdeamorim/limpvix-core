@@ -156,9 +156,11 @@ class OrdersListController
                             <tr>
                                 <td><strong><?php echo esc_html($order['id']); ?></strong></td>
                                 <td>
-                                    <code title="<?php echo esc_attr($order['uuid']); ?>">
-                                        <?php echo esc_html(substr($order['uuid'], 0, 8)); ?>...
-                                    </code>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-order-detail&uuid=' . urlencode($order['uuid']))); ?>" title="Ver detalhes da order">
+                                        <code style="cursor: pointer; text-decoration: underline;">
+                                            <?php echo esc_html(substr($order['uuid'], 0, 8)); ?>...
+                                        </code>
+                                    </a>
                                 </td>
                                 <td>
                                     <span class="limpvix-status limpvix-status-<?php echo esc_attr(strtolower($order['financial_status'])); ?>">

@@ -53,6 +53,10 @@ class AdminBootstrap
 
         $this->initializeControllers();
 
+        // Registrar AJAX handlers do AdminActionsController
+        $adminActionsController = new AdminActionsController();
+        $adminActionsController->registerAjaxHandlers();
+
         // Registrar páginas de payouts
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PayoutsPage')) {
             PayoutsPage::register();
@@ -119,6 +123,16 @@ class AdminBootstrap
             "limpvix_finance_view",
             "limpvix-orders",
             [$this, "renderOrdersPage"]
+        );
+
+        // Submenu: Order Detail (hidden - accessed via query param)
+        add_submenu_page(
+            null, // Hidden menu
+            "Detalhes da Order",
+            "Detalhes da Order",
+            "limpvix_finance_view",
+            "limpvix-order-detail",
+            [$this, "renderOrderDetailPage"]
         );
 
         // Submenu: Sync Validator (BLC-004)
@@ -1428,6 +1442,21 @@ class AdminBootstrap
     public function renderOrdersPage(): void {
         $controller = new OrdersListController();
         $controller->render();
+    }
+
+    public function renderOrderDetailPage(): void {
+        if (!FinanceCapabilities::canView()) {
+            wp_die("Acesso negado");
+        }
+
+        $orderUuid = isset($_GET['uuid']) ? sanitize_text_field($_GET['uuid']) : '';
+
+        if (empty($orderUuid)) {
+            wp_die('UUID da order não fornecido', 'UUID não fornecido', ['back_link' => true]);
+        }
+
+        $controller = new OrderDetailController();
+        $controller->render($orderUuid);
     }
 
     public function renderSyncValidatorPage(): void {
