@@ -1,99 +1,51 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Order - Entidade de Domínio para Order
+ * Order - Aggregate Root com State Machine (Sprint 0 - Dia 2)
  *
  * RESPONSABILIDADE:
- * - Representar uma order no contexto financeiro
- * - Aggregation Root mínima
- * - Apenas dados necessários para decisões financeiras
+ * - Representar ciclo de vida completo de uma Order
+ * - Garantir transições válidas via State Machine
+ * - Aggregation Root com invariantes protegidas
  *
  * PRINCÍPIOS:
  * - Entity (tem identidade - UUID)
- * - Imutável (após criação)
- * - Sem lógica de negócio (está em Policy)
- * - Minimal Entity (apenas o necessário)
+ * - State Machine formal (OrderStatusEnum)
+ * - Transições explícitas e validadas
+ * - Estados terminais imutáveis
  *
- * IMPORTANTE:
- * - Esta não é uma representação completa de WC_Order
- * - É um Domain Model focado em finanças
- * - Status financeiro aqui é CACHE (ledger = verdade)
- *
- * PASSO 5.3 - Use Cases de Decisão
+ * BREAKING CHANGE (Sprint 0):
+ * - setStatus() REMOVIDO
+ * - Status agora é OrderStatusEnum (não string)
+ * - Transições via métodos explícitos apenas
  *
  * @package LimpVix\Domain\Order
  */
 
 namespace LimpVix\Domain\Order;
 
+use LimpVix\Domain\Order\Enums\OrderStatusEnum;
+use LimpVix\Domain\Order\Exceptions\InvalidOrderTransitionException;
 use LimpVix\Domain\Finance\FinancialStatus;
 
 defined('ABSPATH') || exit;
 
 class Order
 {
-    /**
-     * UUID da order
-     *
-     * @var string
-     */
-    private $uuid;
+    private string $uuid;
+    private int $id;
+    private OrderStatusEnum $status;
+    private FinancialStatus $financialStatus;
+    private float $totalAmount;
+    private float $platformFeePercentage;
+    private float $platformFeeAmount;
+    private float $professionalNetAmount;
 
-    /**
-     * ID interno (WooCommerce order ID)
-     *
-     * @var int
-     */
-    private $id;
-
-    /**
-     * Status financeiro (CACHE)
-     *
-     * @var FinancialStatus
-     */
-    private $financialStatus;
-
-    /**
-     * Valor total da order (pago pelo cliente)
-     *
-     * @var float
-     */
-    private $totalAmount;
-
-    /**
-     * Percentual de taxa da plataforma
-     *
-     * @var float
-     */
-    private $platformFeePercentage;
-
-    /**
-     * Valor em reais da taxa da plataforma
-     *
-     * @var float
-     */
-    private $platformFeeAmount;
-
-    /**
-     * Valor líquido do profissional (após taxa)
-     *
-     * @var float
-     */
-    private $professionalNetAmount;
-
-    /**
-     * Construtor
-     *
-     * @param string $uuid
-     * @param int $id
-     * @param FinancialStatus $financialStatus
-     * @param float $totalAmount
-     * @param float $platformFeePercentage
-     * @param float $platformFeeAmount
-     * @param float $professionalNetAmount
-     */
     public function __construct(
         string $uuid,
         int $id,
+        OrderStatusEnum $status,
         FinancialStatus $financialStatus,
         float $totalAmount = 0.0,
         float $platformFeePercentage = 0.0,
@@ -102,6 +54,7 @@ class Order
     ) {
         $this->uuid = $uuid;
         $this->id = $id;
+        $this->status = $status;
         $this->financialStatus = $financialStatus;
         $this->totalAmount = $totalAmount;
         $this->platformFeePercentage = $platformFeePercentage;
@@ -110,81 +63,216 @@ class Order
     }
 
     /**
-     * Obter UUID
-     *
-     * @return string
+     * Factory: Criar Order em estado inicial
      */
+    public static function create(
+        string $uuid,
+        int $id,
+        FinancialStatus $financialStatus,
+        float $totalAmount = 0.0,
+        float $platformFeePercentage = 0.0,
+        float $platformFeeAmount = 0.0,
+        float $professionalNetAmount = 0.0
+    ): self {
+        return new self(
+            $uuid,
+            $id,
+            OrderStatusEnum::CREATED,
+            $financialStatus,
+            $totalAmount,
+            $platformFeePercentage,
+            $platformFeeAmount,
+            $professionalNetAmount
+        );
+    }
+
+    // ========================================
+    // STATE MACHINE - MÉTODOS DE TRANSIÇÃO
+    // ========================================
+
+    /**
+     * Confirmar Order (payment captured)
+     */
+    public function confirm(): void
+    {
+        $this->guardTransition(OrderStatusEnum::CONFIRMED);
+        $this->status = OrderStatusEnum::CONFIRMED;
+    }
+
+    /**
+     * Agendar Order (briefing locked)
+     */
+    public function schedule(): void
+    {
+        $this->guardTransition(OrderStatusEnum::SCHEDULED);
+        $this->status = OrderStatusEnum::SCHEDULED;
+    }
+
+    /**
+     * Iniciar execução (check-in performed)
+     */
+    public function startExecution(): void
+    {
+        $this->guardTransition(OrderStatusEnum::IN_EXECUTION);
+        $this->status = OrderStatusEnum::IN_EXECUTION;
+    }
+
+    /**
+     * Completar Order (check-out performed)
+     */
+    public function complete(): void
+    {
+        $this->guardTransition(OrderStatusEnum::COMPLETED);
+        $this->status = OrderStatusEnum::COMPLETED;
+    }
+
+    /**
+     * Fechar Order (feedback submitted)
+     */
+    public function close(): void
+    {
+        $this->guardTransition(OrderStatusEnum::CLOSED);
+        $this->status = OrderStatusEnum::CLOSED;
+    }
+
+    /**
+     * Cancelar Order (before execution)
+     */
+    public function cancel(): void
+    {
+        $this->guardTransition(OrderStatusEnum::CANCELLED);
+        $this->status = OrderStatusEnum::CANCELLED;
+    }
+
+    /**
+     * Disputar Order (customer initiated)
+     */
+    public function dispute(): void
+    {
+        $this->guardTransition(OrderStatusEnum::DISPUTED);
+        $this->status = OrderStatusEnum::DISPUTED;
+    }
+
+    /**
+     * Resolver disputa (admin resolved)
+     */
+    public function resolveDispute(): void
+    {
+        if ($this->status !== OrderStatusEnum::DISPUTED) {
+            throw InvalidOrderTransitionException::forbidden(
+                $this->status,
+                OrderStatusEnum::COMPLETED,
+                'Can only resolve from DISPUTED status'
+            );
+        }
+        $this->status = OrderStatusEnum::COMPLETED;
+    }
+
+    // ========================================
+    // GUARD TRANSITION (STATE MACHINE CORE)
+    // ========================================
+
+    /**
+     * Valida se transição é permitida
+     */
+    private function guardTransition(OrderStatusEnum $to): void
+    {
+        $from = $this->status;
+
+        // Estados terminais não permitem transições
+        if ($from->isTerminal()) {
+            throw InvalidOrderTransitionException::terminalState($from);
+        }
+
+        // Validar transições permitidas
+        $allowed = $this->getAllowedTransitions();
+
+        if (!in_array($to, $allowed, true)) {
+            throw InvalidOrderTransitionException::forbidden(
+                $from,
+                $to,
+                'Transition not allowed by State Machine rules'
+            );
+        }
+    }
+
+    /**
+     * Retorna transições permitidas a partir do estado atual
+     */
+    private function getAllowedTransitions(): array
+    {
+        return match ($this->status) {
+            OrderStatusEnum::CREATED => [
+                OrderStatusEnum::CONFIRMED,
+                OrderStatusEnum::CANCELLED,
+            ],
+            OrderStatusEnum::CONFIRMED => [
+                OrderStatusEnum::SCHEDULED,
+                OrderStatusEnum::CANCELLED,
+            ],
+            OrderStatusEnum::SCHEDULED => [
+                OrderStatusEnum::IN_EXECUTION,
+                OrderStatusEnum::CANCELLED,
+            ],
+            OrderStatusEnum::IN_EXECUTION => [
+                OrderStatusEnum::COMPLETED,
+                OrderStatusEnum::DISPUTED,
+            ],
+            OrderStatusEnum::COMPLETED => [
+                OrderStatusEnum::CLOSED,
+            ],
+            OrderStatusEnum::DISPUTED => [
+                OrderStatusEnum::COMPLETED,
+            ],
+            OrderStatusEnum::CLOSED => [],
+            OrderStatusEnum::CANCELLED => [],
+        };
+    }
+
+    // ========================================
+    // GETTERS
+    // ========================================
+
     public function getUuid(): string
     {
         return $this->uuid;
     }
 
-    /**
-     * Obter ID interno
-     *
-     * @return int
-     */
     public function getId(): int
     {
         return $this->id;
     }
 
-    /**
-     * Obter status financeiro (CACHE)
-     *
-     * @return FinancialStatus
-     */
+    public function getStatus(): OrderStatusEnum
+    {
+        return $this->status;
+    }
+
     public function getFinancialStatus(): FinancialStatus
     {
         return $this->financialStatus;
     }
 
-    /**
-     * Obter valor total da order
-     *
-     * @return float
-     */
     public function getTotalAmount(): float
     {
         return $this->totalAmount;
     }
 
-    /**
-     * Obter percentual da taxa da plataforma
-     *
-     * @return float
-     */
     public function getPlatformFeePercentage(): float
     {
         return $this->platformFeePercentage;
     }
 
-    /**
-     * Obter valor da taxa da plataforma
-     *
-     * @return float
-     */
     public function getPlatformFeeAmount(): float
     {
         return $this->platformFeeAmount;
     }
 
-    /**
-     * Obter valor líquido do profissional
-     *
-     * @return float
-     */
     public function getProfessionalNetAmount(): float
     {
         return $this->professionalNetAmount;
     }
 
-    /**
-     * Verificar igualdade
-     *
-     * @param Order $other
-     * @return bool
-     */
     public function equals(Order $other): bool
     {
         return $this->uuid === $other->uuid;
