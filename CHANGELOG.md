@@ -5,6 +5,101 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.6] - 2026-02-08
+
+### 🚨 CRITICAL FIX — P0 Oculto: Financial Ledger Inexistente
+
+**Bloqueador P0 Oculto descoberto e corrigido** — Tabela crítica não existia no banco.
+
+### 🐛 Corrigido
+
+#### Tabela Inexistente + Violação Arquitetural (CRÍTICO)
+
+- **Problema Descoberto**: Tabela `wp_limpvix_financial_ledger` NÃO EXISTIA
+  - 6 arquivos tentavam INSERT/SELECT em tabela inexistente
+  - Nenhuma migration criou esta tabela
+  - Código nunca funcionou em produção
+  - Queries falhavam silenciosamente
+
+- **Arquivos Afetados**:
+  - `src/Application/UseCases/Briefing/RegisterBriefingAcceptance.php` (SQL direto em 4 métodos)
+  - `src/Domain/Staff/StaffFinancialStatusResolver.php` (SQL direto em 4 métodos)
+  - `src/Integration/Booknetic/UI/StaffPanelOverride.php`
+  - `src/Integration/Booknetic/UI/StaffNotices.php`
+  - `src/Integration/Booknetic/Guards/StaffActionGuard.php`
+  - `src/Integration/Booknetic/Guards/StaffAccessGuard.php`
+
+- **Correção Aplicada**:
+  - ✅ **Criado Migration 010**: `database-migrations/010_create_financial_ledger_table.sql`
+  - ✅ **Criado Repository**: `src/Infrastructure/Persistence/WpFinancialLedgerRepository.php` (284 linhas)
+  - ✅ **Refatorado RegisterBriefingAcceptance**: Removido SQL direto, injetado WpFinancialLedgerRepository
+  - ✅ **15/15 testes passando**: `diagnostics/test-financial-ledger-repository.php`
+
+- **Tabela Criada**:
+  ```sql
+  wp_limpvix_financial_ledger (10 colunas, 7 índices)
+  - Campos: id, ledger_uuid, order_uuid, customer_id, professional_id, appointment_id, event_type, event_data, resolved, created_at
+  - Índices: PK, unique ledger_uuid, idx_order_uuid, idx_professional_id, idx_event_type, idx_professional_event, idx_dispute_resolved
+  ```
+
+### ✨ Adicionado
+
+#### WpFinancialLedgerRepository (Hexagonal Architecture)
+
+- **Novo Repository**: `src/Infrastructure/Persistence/WpFinancialLedgerRepository.php`
+  - Métodos:
+    - `append(array $data): int` — Adicionar evento ao ledger
+    - `hasEvent(string $orderUuid, string $eventType): bool` — Verificar evento existente
+    - `findLatestEvent(string $orderUuid, string $eventType): ?array` — Buscar último evento
+    - `findByOrder(string $orderUuid): array` — Buscar todos eventos de order
+    - `countByProfessional(int $professionalId, string $eventType, ?bool $resolved = null): int` — Contar eventos
+    - `findLatestByProfessional(int $professionalId, string $eventType): ?array` — Último evento de profissional
+    - `getDisputeStats(int $professionalId): array` — Estatísticas de disputas
+  - Princípios: Append-only, Idempotência, Decodificação automática de JSON
+  - 284 linhas, totalmente testado
+
+#### RegisterBriefingAcceptance Refatorado
+
+- **Removido**: SQL direto (4 métodos, 68 linhas)
+- **Adicionado**: Injeção de dependência WpFinancialLedgerRepository (testável)
+- **Simplificado**: Métodos agora delegam para Repository
+- **Métodos afetados**:
+  - `hasExistingAcceptance()` — Usa `$ledgerRepository->hasEvent()`
+  - `recordAcceptance()` — Usa `$ledgerRepository->append()`
+  - `getBriefingData()` — Usa `$ledgerRepository->findLatestEvent()`
+
+### 🧪 Testes
+
+- **Novo Teste**: `diagnostics/test-financial-ledger-repository.php` (281 linhas)
+  - 15/15 testes passando
+  - Valida Repository funciona corretamente
+  - Valida RegisterBriefingAcceptance usa Repository
+  - Valida idempotência (não duplica aceites)
+
+### 📊 Impacto
+
+**Antes**:
+- ❌ Tabela inexistente → queries falhavam
+- ❌ SQL direto em Use Case (violação DDD)
+- ❌ Código nunca funcionou
+- ❌ Impossível testar (acoplamento ao banco)
+
+**Depois**:
+- ✅ Tabela criada e funcional
+- ✅ Repository encapsula acesso SQL
+- ✅ Use Case arquiteturalmente correto
+- ✅ Testável (injeção de dependência)
+- ✅ Decodificação automática de JSON
+- ✅ Queries otimizadas (índices)
+
+### 🔄 Commits
+
+- `fix(database): create financial_ledger table (Migration 010) - P0 Blocker`
+- `feat(infrastructure): add WpFinancialLedgerRepository - Hexagonal Architecture`
+- `refactor(briefing): remove SQL direct from RegisterBriefingAcceptance - Use Repository`
+
+---
+
 ## [0.1.5] - 2026-02-08
 
 ### 🔐 CRITICAL FIX — Golden Rule Protection (P0-001)

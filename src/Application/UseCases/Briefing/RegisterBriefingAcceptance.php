@@ -19,10 +19,29 @@
 
 namespace LimpVix\Application\UseCases\Briefing;
 
+use LimpVix\Infrastructure\Persistence\WpFinancialLedgerRepository;
+
 defined('ABSPATH') || exit;
 
 final class RegisterBriefingAcceptance
 {
+    /**
+     * Financial Ledger Repository
+     *
+     * @var WpFinancialLedgerRepository
+     */
+    private $ledgerRepository;
+
+    /**
+     * Construtor
+     *
+     * @param WpFinancialLedgerRepository|null $ledgerRepository
+     */
+    public function __construct(?WpFinancialLedgerRepository $ledgerRepository = null)
+    {
+        $this->ledgerRepository = $ledgerRepository ?? new WpFinancialLedgerRepository();
+    }
+
     /**
      * Executar registro de aceite
      *
@@ -97,15 +116,7 @@ final class RegisterBriefingAcceptance
      */
     private function hasExistingAcceptance(string $orderUuid): bool
     {
-        global $wpdb;
-
-        $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_financial_ledger 
-             WHERE order_uuid = %s AND event_type = 'briefing_accepted'",
-            $orderUuid
-        ));
-
-        return $count > 0;
+        return $this->ledgerRepository->hasEvent($orderUuid, 'briefing_accepted');
     }
 
     /**
@@ -116,28 +127,19 @@ final class RegisterBriefingAcceptance
      */
     private function recordAcceptance(array $data): int
     {
-        global $wpdb;
-
-        $wpdb->insert(
-            $wpdb->prefix . 'limpvix_financial_ledger',
-            [
-                'order_uuid' => $data['order_uuid'],
-                'event_type' => 'briefing_accepted',
-                'customer_id' => $data['customer_id'],
-                'appointment_id' => $data['appointment_id'],
-                'event_data' => json_encode([
-                    'accepted_terms' => true,
-                    'ip_address' => $this->getClientIP(),
-                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-                    'timestamp' => time(),
-                    'version_terms' => '1.0', // Versão dos termos aceitos
-                ]),
-                'created_at' => current_time('mysql'),
+        return $this->ledgerRepository->append([
+            'order_uuid' => $data['order_uuid'],
+            'event_type' => 'briefing_accepted',
+            'customer_id' => $data['customer_id'],
+            'appointment_id' => $data['appointment_id'],
+            'event_data' => [
+                'accepted_terms' => true,
+                'ip_address' => $this->getClientIP(),
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
+                'timestamp' => time(),
+                'version_terms' => '1.0', // Versão dos termos aceitos
             ],
-            ['%s', '%s', '%d', '%d', '%s', '%s']
-        );
-
-        return $wpdb->insert_id;
+        ]);
     }
 
     /**
@@ -210,14 +212,7 @@ final class RegisterBriefingAcceptance
      */
     public function getBriefingData(string $orderUuid): ?array
     {
-        global $wpdb;
-
-        $ledgerEntry = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}limpvix_financial_ledger 
-             WHERE order_uuid = %s AND event_type = 'briefing_accepted'
-             ORDER BY id DESC LIMIT 1",
-            $orderUuid
-        ), ARRAY_A);
+        $ledgerEntry = $this->ledgerRepository->findLatestEvent($orderUuid, 'briefing_accepted');
 
         if (!$ledgerEntry) {
             return null;
@@ -227,7 +222,7 @@ final class RegisterBriefingAcceptance
             'ledger_id' => $ledgerEntry['id'],
             'order_uuid' => $ledgerEntry['order_uuid'],
             'customer_id' => $ledgerEntry['customer_id'],
-            'event_data' => json_decode($ledgerEntry['event_data'], true),
+            'event_data' => $ledgerEntry['event_data'], // Já decodificado pelo repository
             'created_at' => $ledgerEntry['created_at'],
         ];
     }
