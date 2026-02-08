@@ -9,16 +9,27 @@
          beStrictAboutTodoAnnotatedTests="true">
 
     <testsuites>
-        <testsuite name="Domain Tests">
+        <testsuite name="Unit Tests">
             <directory>tests/Domain</directory>
-        </testsuite>
-        <testsuite name="Application Tests">
             <directory>tests/Application</directory>
         </testsuite>
-        <testsuite name="Infrastructure Tests">
-            <directory>tests/Infrastructure</directory>
+        <testsuite name="Integration Tests">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <testsuite name="E2E Tests">
+            <directory>tests/E2E</directory>
+        </testsuite>
+        <testsuite name="All Tests">
+            <directory>tests</directory>
         </testsuite>
     </testsuites>
+
+    <groups>
+        <exclude>
+            <group>integration</group>
+            <group>e2e</group>
+        </exclude>
+    </groups>
 
     <coverage processUncoveredFiles="true">
         <include>
