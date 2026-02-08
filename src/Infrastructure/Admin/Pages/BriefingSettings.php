@@ -160,6 +160,84 @@ class BriefingSettings
                     </p>
                 </div>
 
+                <!-- Níveis de Complexidade -->
+                <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
+                    <h2>🎯 Níveis de Complexidade</h2>
+                    <p>Configure os thresholds (limites) para detecção automática de complexidade e seus multipliers de tempo.</p>
+
+                    <table class="form-table">
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px">
+                                <strong>Thresholds de Detecção</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Simple máximo (m²):</th>
+                            <td>
+                                <input type="number" name="complexity_simple_max_m2" value="80" step="1" style="width:80px"> m²
+                                <small style="margin-left:10px;color:#646970">Até este valor = Simple</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Simple máximo (duração):</th>
+                            <td>
+                                <input type="number" name="complexity_simple_max_duration" value="180" step="1" style="width:80px"> minutos (3h)
+                                <small style="margin-left:10px;color:#646970">Até este valor = Simple</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Medium máximo (m²):</th>
+                            <td>
+                                <input type="number" name="complexity_medium_max_m2" value="150" step="1" style="width:80px"> m²
+                                <small style="margin-left:10px;color:#646970">Até este valor = Medium</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Medium máximo (duração):</th>
+                            <td>
+                                <input type="number" name="complexity_medium_max_duration" value="300" step="1" style="width:80px"> minutos (5h)
+                                <small style="margin-left:10px;color:#646970">Até este valor = Medium</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th colspan="2" style="background:#f0f0f1;padding:10px;border-top:1px solid #ddd">
+                                <strong>Multipliers de Tempo</strong>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>Simple multiplier:</th>
+                            <td>
+                                <input type="number" name="complexity_simple_multiplier" value="1.0" step="0.1" style="width:80px">
+                                <small style="margin-left:10px;color:#646970">Padrão: 1.0x (sem ajuste)</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Medium multiplier:</th>
+                            <td>
+                                <input type="number" name="complexity_medium_multiplier" value="1.3" step="0.1" style="width:80px">
+                                <small style="margin-left:10px;color:#646970">Padrão: 1.3x (+30% no tempo)</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Complex multiplier:</th>
+                            <td>
+                                <input type="number" name="complexity_complex_multiplier" value="1.5" step="0.1" style="width:80px">
+                                <small style="margin-left:10px;color:#646970">Padrão: 1.5x (+50% no tempo)</small>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p style="margin-top:15px">
+                        <small>
+                            <strong>Regras de Detecção:</strong><br>
+                            • <strong>Simple:</strong> Limpeza básica, ≤ 80m², ≤ 3h → multiplier 1.0x<br>
+                            • <strong>Medium:</strong> Limpeza completa, 80-150m², 3-5h → multiplier 1.3x<br>
+                            • <strong>Complex:</strong> Limpeza pesada/pós-obra, > 150m², > 5h → multiplier 1.5x<br>
+                            • Serviços como "limpeza_pesada" ou "pos_obra" são <strong>sempre</strong> Complex
+                        </small>
+                    </p>
+                </div>
+
                 <!-- Firebase -->
                 <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
                     <h2>Firebase Configuration</h2>

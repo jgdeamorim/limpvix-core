@@ -98,6 +98,14 @@ class Briefing
     private $package;
 
     /**
+     * Complexidade do serviço (simple, medium, complex)
+     * Null até ser calculada
+     *
+     * @var Complexity|null
+     */
+    private $complexity;
+
+    /**
      * Telefone verificado via Firebase OTP?
      *
      * @var bool
@@ -145,6 +153,7 @@ class Briefing
      * @param Frequency|null $frequency Frequência
      * @param EstimatedMetrics|null $metrics Métricas calculadas
      * @param Package|null $package Pacote de serviço selecionado
+     * @param Complexity|null $complexity Complexidade do serviço
      * @param bool $phoneVerified Telefone verificado?
      * @param string $version Versão do schema
      * @param \DateTimeImmutable|null $createdAt Data criação
@@ -161,6 +170,7 @@ class Briefing
         ?Frequency $frequency = null,
         ?EstimatedMetrics $metrics = null,
         ?Package $package = null,
+        ?Complexity $complexity = null,
         bool $phoneVerified = false,
         string $version = '1.0',
         ?\DateTimeImmutable $createdAt = null,
@@ -185,6 +195,7 @@ class Briefing
         $this->frequency = $frequency;
         $this->metrics = $metrics;
         $this->package = $package;
+        $this->complexity = $complexity;
         $this->phoneVerified = $phoneVerified;
         $this->version = $version;
         $this->createdAt = $createdAt ?? new \DateTimeImmutable();
@@ -255,6 +266,11 @@ class Briefing
     public function getPackage(): ?Package
     {
         return $this->package;
+    }
+
+    public function getComplexity(): ?Complexity
+    {
+        return $this->complexity;
     }
 
     public function isPhoneVerified(): bool
@@ -419,6 +435,20 @@ class Briefing
     }
 
     /**
+     * Avaliar complexidade do serviço
+     *
+     * @param Complexity $complexity
+     * @return void
+     * @throws \DomainException Se locked
+     */
+    public function assessComplexity(Complexity $complexity): void
+    {
+        $this->assertNotLocked();
+        $this->complexity = $complexity;
+        $this->touch();
+    }
+
+    /**
      * Calcular métricas baseado na estrutura atual
      *
      * Método simplificado - cálculo completo está em BriefingMetricsCalculator
@@ -492,6 +522,7 @@ class Briefing
             'frequency' => $this->frequency ? $this->frequency->toArray() : null,
             'metrics' => $this->metrics ? $this->metrics->toArray() : null,
             'package' => $this->package ? $this->package->toArray() : null,
+            'complexity' => $this->complexity ? $this->complexity->toArray() : null,
             'phone_verified' => $this->phoneVerified,
             'requires_contract' => $this->requiresContract(),
             'version' => $this->version,

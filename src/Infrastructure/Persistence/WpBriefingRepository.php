@@ -28,6 +28,8 @@ use LimpVix\Domain\Briefing\Frequency;
 use LimpVix\Domain\Briefing\EstimatedMetrics;
 use LimpVix\Domain\Briefing\Package;
 use LimpVix\Domain\Briefing\PackageType;
+use LimpVix\Domain\Briefing\Complexity;
+use LimpVix\Domain\Briefing\ComplexityLevel;
 use LimpVix\Domain\Briefing\BriefingRepositoryInterface;
 
 defined('ABSPATH') || exit;
@@ -354,6 +356,12 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             $package = $this->hydratePackage($mainRow['package_type'], $mainRow['package_percentage']);
         }
 
+        // Complexity (pode ser null)
+        $complexity = null;
+        if (!empty($mainRow['complexity_level'])) {
+            $complexity = $this->hydrateComplexity($mainRow['complexity_level'], $mainRow['complexity_multiplier']);
+        }
+
         // Construir Briefing
         return new Briefing(
             uuid: $mainRow['uuid'],
@@ -365,6 +373,7 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             frequency: $frequency,
             metrics: $metrics,
             package: $package,
+            complexity: $complexity,
             phoneVerified: (bool) $mainRow['phone_verified'],
             version: $mainRow['version'],
             createdAt: new \DateTimeImmutable($mainRow['created_at']),
@@ -383,6 +392,7 @@ class WpBriefingRepository implements BriefingRepositoryInterface
     {
         $metrics = $briefing->getMetrics();
         $package = $briefing->getPackage();
+        $complexity = $briefing->getComplexity();
 
         // Calcular required_professionals_count
         $requiredProfessionals = 1;
@@ -403,6 +413,8 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             'package_type' => $package ? $package->getType()->getValue() : null,
             'package_percentage' => $package ? $package->getPercentageIncrease() : null,
             'required_professionals_count' => $requiredProfessionals,
+            'complexity_level' => $complexity ? $complexity->getLevel()->getValue() : null,
+            'complexity_multiplier' => $complexity ? $complexity->getMultiplier() : null,
             'requires_contract' => $briefing->requiresContract(),
             'phone_verified' => $briefing->isPhoneVerified(),
             'version' => $briefing->getVersion(),
@@ -452,6 +464,8 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             '%s', // package_type
             '%f', // package_percentage
             '%d', // required_professionals_count
+            '%s', // complexity_level
+            '%f', // complexity_multiplier
             '%d', // requires_contract
             '%d', // phone_verified
             '%s', // version
@@ -505,6 +519,27 @@ class WpBriefingRepository implements BriefingRepositoryInterface
 
         } catch (\Exception $e) {
             error_log("WpBriefingRepository::hydratePackage error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Hidratar Complexity a partir dos dados do banco
+     *
+     * @param string $complexityLevel
+     * @param float|null $complexityMultiplier
+     * @return Complexity|null
+     */
+    private function hydrateComplexity(string $complexityLevel, ?float $complexityMultiplier): ?Complexity
+    {
+        try {
+            $level = ComplexityLevel::fromString($complexityLevel);
+            $multiplier = $complexityMultiplier ?? $level->getDefaultMultiplier();
+
+            return new Complexity($level, $multiplier, []);
+
+        } catch (\Exception $e) {
+            error_log("WpBriefingRepository::hydrateComplexity error: " . $e->getMessage());
             return null;
         }
     }

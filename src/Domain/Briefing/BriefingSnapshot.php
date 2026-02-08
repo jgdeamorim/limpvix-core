@@ -371,13 +371,19 @@ class BriefingSnapshot
         }
 
         $package = $briefing->getPackage();
+        $complexity = $briefing->getComplexity();
         $estimatedM2 = $metrics ? $metrics->getEstimatedM2() : 0;
         $baseDurationMinutes = $metrics ? $metrics->getDurationMinutes() : 0;
         $bufferMinutes = $metrics ? $metrics->getBufferMinutes() : 30;
         $totalEstimatedDuration = $baseDurationMinutes + $bufferMinutes;
 
-        // Complexity multiplier baseado no pacote
-        $complexityMultiplier = $package ? $package->getMultiplier() : 1.0;
+        // Complexity multiplier baseado na complexidade (ou fallback para package)
+        $complexityMultiplier = 1.0;
+        if ($complexity) {
+            $complexityMultiplier = $complexity->getMultiplier();
+        } elseif ($package) {
+            $complexityMultiplier = $package->getMultiplier();
+        }
 
         // Determinar se requer múltiplos profissionais
         $requiresMultipleProfessionals = false;
