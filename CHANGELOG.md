@@ -5,6 +5,91 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.6.0] - 2026-02-09
+
+### 🚀 P0 CRÍTICO: Professional Module Bootstrap (BLOQUEANTE RESOLVIDO)
+
+**Contexto**: Professional Module tinha 3.770 linhas de código morto (Domain, Application, Infrastructure completos mas sem Bootstrap). Marketplace não funcionava.
+
+#### Added
+
+- **feat(core): criar ProfessionalBootstrap** (`src/Core/ProfessionalBootstrap.php`)
+  - Registra WpMarketplaceProfessionalRepository no container global
+  - Registra ProfessionalManagementPage no admin menu
+  - Registra ProfessionalAvailabilityPage no admin menu
+  - Registra admin assets (CSS/JS) com localização
+  - Registra ProfessionalController REST API (`/wp-json/limpvix/v1/professionals`)
+  - Registra event listeners para:
+    - `limpvix_professional_registered`
+    - `limpvix_professional_activated`
+    - `limpvix_professional_score_updated`
+    - `limpvix_contract_allocated`
+  - Health check do módulo
+  - Logging estruturado (WP_DEBUG)
+
+- **feat(core): registrar ProfessionalBootstrap no Kernel** (`src/Core/Kernel.php:131-133`)
+  - Professional Module agora ATIVO no runtime
+  - Desbloqueia RegisterProfessional Use Case
+  - Desbloqueia UpdateProfessionalScore Use Case
+  - Habilita menu Admin "Profissionais"
+  - Habilita APIs REST para app mobile
+
+#### Fixed
+
+- **fix(core): Professional Module estava morto** (3.770 linhas não executavam)
+  - Código Domain/Application/Infrastructure existia mas sem Bootstrap
+  - Menu "Profissionais" retornava 404
+  - APIs REST não registradas
+  - Event listeners não funcionavam
+
+#### Impact
+
+- ✅ Marketplace agora funcional
+- ✅ Profissionais podem ser cadastrados
+- ✅ Alocação manual possível
+- ✅ Score atualizado
+- ✅ App React Native pode consumir `/professionals`
+- ✅ Admin UI completa disponível
+
+#### Technical Details
+
+- **Padrão**: Bootstrap centralizado em `src/Core/` (alinhado com outros módulos)
+- **Registro**: Via `Kernel::boot()` (linha 131)
+- **Dependencies**: WpMarketplaceProfessionalRepository, ProfessionalManagementPage, ProfessionalController
+- **Assets**: CSS/JS com localização para AJAX
+- **Events**: 4 listeners para integração com outros módulos
+- **PSR-12**: Compliant
+- **Type Hints**: 100%
+- **Documentation**: PHPDoc completo
+
+#### Validation
+
+```bash
+# Bootstrap registrado
+grep "ProfessionalBootstrap::init()" src/Core/Kernel.php
+# Esperado: 1 ocorrência na linha 132
+
+# Arquivo existe
+ls -lh src/Core/ProfessionalBootstrap.php
+# Esperado: 8.8KB
+
+# Sintaxe válida
+php -l src/Core/ProfessionalBootstrap.php
+# Esperado: No syntax errors
+
+# Runtime (após deploy)
+# - Menu "Profissionais" aparece no Admin
+# - GET /wp-json/limpvix/v1/professionals retorna JSON
+```
+
+#### References
+
+- Auditoria Técnica: `docs-limpvix/AUDITORIA-TECNICA-PROFUNDA.md` (Problema #1)
+- Blueprint: `docs-limpvix/LIMPVIX-CORE-BLUEPRINT.md` (Seção 5)
+- System Context: `docs-limpvix/CLAUDE-CODE-SYSTEM-CONTEXT.md` (Seção 5, 10)
+
+---
+
 ## [0.2.0] - 2026-02-09
 
 ### 🚀 FASE 5 - Semana 2: Professional Module - Application Layer

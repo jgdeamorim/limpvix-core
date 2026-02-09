@@ -127,6 +127,11 @@ class Kernel
             SchedulingBootstrap::init();
         }
 
+        // Inicializar módulo Professional (CRÍTICO: desbloqueia marketplace)
+        if (class_exists('LimpVix\\Core\\ProfessionalBootstrap')) {
+            ProfessionalBootstrap::init();
+        }
+
         // Inicializar automação de contratos
         if (class_exists('LimpVix\\Infrastructure\\Automation\\ContractAutomation')) {
             \LimpVix\Infrastructure\Automation\ContractAutomation::init();
