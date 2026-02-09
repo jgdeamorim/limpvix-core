@@ -96,7 +96,7 @@ final class ProfessionalBootstrap
         // Página de disponibilidade
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\ProfessionalAvailabilityPage')) {
             $availabilityPage = new ProfessionalAvailabilityPage();
-            $availabilityPage->register();
+            $availabilityPage->registerMenu(); // Método correto: registerMenu() não register()
 
             self::logInfo('ProfessionalAvailabilityPage registered');
         }
