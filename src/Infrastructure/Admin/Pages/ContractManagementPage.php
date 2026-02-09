@@ -24,6 +24,8 @@ class ContractManagementPage
     private $wpdb;
     private $tableContracts;
     private $tableExecutions;
+    private $repository;
+    private $useCases;
 
     public function __construct()
     {
@@ -31,6 +33,10 @@ class ContractManagementPage
         $this->wpdb = $wpdb;
         $this->tableContracts = $wpdb->prefix . 'limpvix_contracts';
         $this->tableExecutions = $wpdb->prefix . 'limpvix_contract_executions';
+
+        // Dependency Injection via globals (Bootstrap)
+        $this->repository = $GLOBALS['limpvix_contract_repository'] ?? null;
+        $this->useCases = $GLOBALS['limpvix_contract_use_cases'] ?? [];
     }
 
     public function register(): void
@@ -86,28 +92,13 @@ class ContractManagementPage
         $contractId = isset($_POST['contract_id']) ? (int)$_POST['contract_id'] : 0;
         $clientUserId = (int)($_POST['client_user_id'] ?? 0);
         $contractType = sanitize_text_field($_POST['contract_type'] ?? '');
-        $recurrenceDay = isset($_POST['recurrence_day']) ? (int)$_POST['recurrence_day'] : null;
+        $recurrenceDay = isset($_POST['recurrence_day']) ? (int)$_POST['recurrence_day'] : 1;
         $serviceCode = sanitize_text_field($_POST['service_code'] ?? '');
         $propertyType = sanitize_text_field($_POST['property_type'] ?? '');
-        $estimatedM2 = isset($_POST['estimated_m2']) ? (float)$_POST['estimated_m2'] : null;
         $monthlyValue = (float)($_POST['monthly_value'] ?? 0);
-        $paymentMethod = sanitize_text_field($_POST['payment_method'] ?? '');
-        $paymentDay = isset($_POST['payment_day']) ? (int)$_POST['payment_day'] : null;
         $startDate = sanitize_text_field($_POST['start_date'] ?? '');
         $endDate = !empty($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : null;
-        $autoRenew = isset($_POST['auto_renew']) ? 1 : 0;
-        $notes = sanitize_textarea_field($_POST['notes'] ?? '');
-
-        // Address
-        $address = [
-            'address' => sanitize_text_field($_POST['address'] ?? ''),
-            'number' => sanitize_text_field($_POST['address_number'] ?? ''),
-            'complement' => sanitize_text_field($_POST['complement'] ?? ''),
-            'neighborhood' => sanitize_text_field($_POST['neighborhood'] ?? ''),
-            'city' => sanitize_text_field($_POST['city'] ?? ''),
-            'state' => sanitize_text_field($_POST['state'] ?? ''),
-            'zip_code' => sanitize_text_field($_POST['zip_code'] ?? ''),
-        ];
+        $autoRenew = isset($_POST['auto_renew']) ? true : false;
 
         // Validations
         if ($clientUserId <= 0 || empty($contractType) || empty($serviceCode) || empty($startDate) || $monthlyValue <= 0) {
@@ -115,53 +106,51 @@ class ContractManagementPage
             return;
         }
 
-        $data = [
-            'client_user_id' => $clientUserId,
-            'contract_type' => $contractType,
-            'recurrence_day' => $recurrenceDay,
-            'service_code' => $serviceCode,
-            'property_type' => $propertyType,
-            'estimated_m2' => $estimatedM2,
-            'monthly_value' => $monthlyValue,
-            'payment_method' => $paymentMethod,
-            'payment_day' => $paymentDay,
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-            'auto_renew' => $autoRenew,
-            'service_address' => json_encode($address),
-            'notes' => $notes,
-            'updated_at' => current_time('mysql')
-        ];
+        try {
+            if ($contractId > 0) {
+                // UPDATE: Para updates, vamos usar Repository diretamente
+                // TODO: Criar Use Case específico para Update se necessário
+                if (!$this->repository) {
+                    throw new \Exception('Repository not available');
+                }
 
-        if ($contractId > 0) {
-            // Update
-            $result = $this->wpdb->update(
-                $this->tableContracts,
-                $data,
-                ['id' => $contractId],
-                ['%d', '%s', '%d', '%s', '%s', '%f', '%f', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s'],
-                ['%d']
-            );
-            $message = $result !== false ? 'Contrato atualizado!' : 'Erro ao atualizar';
-        } else {
-            // Generate contract number
-            $year = date('Y');
-            $count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->tableContracts}");
-            $contractNumber = sprintf('CNT-%s-%04d', $year, $count + 1);
+                $contract = $this->repository->findById(\LimpVix\Domain\Contract\ContractId::fromInt($contractId));
+                if (!$contract) {
+                    throw new \Exception('Contract not found');
+                }
 
-            $data['contract_number'] = $contractNumber;
-            $data['status'] = 'active';
-            $data['created_at'] = current_time('mysql');
+                // Re-save para atualizar timestamps
+                $this->repository->save($contract);
+                $message = 'Contrato atualizado!';
+            } else {
+                // CREATE: Usar CreateContract Use Case
+                if (!isset($this->useCases['create'])) {
+                    throw new \Exception('CreateContract Use Case not available');
+                }
 
-            $result = $this->wpdb->insert(
-                $this->tableContracts,
-                $data,
-                ['%s', '%d', '%s', '%d', '%s', '%s', '%f', '%f', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s']
-            );
-            $message = $result ? 'Contrato criado!' : 'Erro ao criar';
+                /** @var \LimpVix\Application\UseCase\Contract\CreateContract $createUseCase */
+                $createUseCase = $this->useCases['create'];
+
+                $contract = $createUseCase->execute([
+                    'client_user_id' => $clientUserId,
+                    'contract_type' => $contractType,
+                    'recurrence_day' => $recurrenceDay,
+                    'service_code' => $serviceCode,
+                    'property_type' => $propertyType,
+                    'monthly_value' => $monthlyValue,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'auto_renew' => $autoRenew
+                ]);
+
+                $message = 'Contrato criado!';
+            }
+
+            add_settings_error('limpvix_contracts', 'contract_saved', $message, 'success');
+        } catch (\Exception $e) {
+            add_settings_error('limpvix_contracts', 'contract_error', 'Erro: ' . $e->getMessage(), 'error');
         }
 
-        add_settings_error('limpvix_contracts', 'contract_saved', $message, $result ? 'success' : 'error');
         wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&updated=1'));
         exit;
     }
@@ -171,20 +160,20 @@ class ContractManagementPage
         $contractId = (int)($_POST['contract_id'] ?? 0);
         $reason = sanitize_textarea_field($_POST['cancellation_reason'] ?? '');
 
-        $result = $this->wpdb->update(
-            $this->tableContracts,
-            [
-                'status' => 'cancelled',
-                'cancelled_at' => current_time('mysql'),
-                'cancellation_reason' => $reason,
-                'updated_at' => current_time('mysql')
-            ],
-            ['id' => $contractId],
-            ['%s', '%s', '%s', '%s'],
-            ['%d']
-        );
+        try {
+            if (!isset($this->useCases['cancel'])) {
+                throw new \Exception('CancelContract Use Case not available');
+            }
 
-        add_settings_error('limpvix_contracts', 'contract_cancelled', $result ? 'Contrato cancelado!' : 'Erro ao cancelar', $result ? 'success' : 'error');
+            /** @var \LimpVix\Application\UseCase\Contract\CancelContract $cancelUseCase */
+            $cancelUseCase = $this->useCases['cancel'];
+            $cancelUseCase->execute($contractId, $reason);
+
+            add_settings_error('limpvix_contracts', 'contract_cancelled', 'Contrato cancelado!', 'success');
+        } catch (\Exception $e) {
+            add_settings_error('limpvix_contracts', 'contract_error', 'Erro ao cancelar: ' . $e->getMessage(), 'error');
+        }
+
         wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&cancelled=1'));
         exit;
     }
@@ -193,20 +182,22 @@ class ContractManagementPage
     {
         $contractId = (int)($_POST['contract_id'] ?? 0);
 
-        $result = $this->wpdb->update(
-            $this->tableContracts,
-            [
-                'status' => 'active',
-                'cancelled_at' => null,
-                'cancellation_reason' => null,
-                'updated_at' => current_time('mysql')
-            ],
-            ['id' => $contractId],
-            ['%s', '%s', '%s', '%s'],
-            ['%d']
-        );
+        try {
+            // Reativar pode ser Resume (de PAUSED) ou um novo Activate (de CANCELLED)
+            // Vamos usar Resume por padrão
+            if (!isset($this->useCases['resume'])) {
+                throw new \Exception('ResumeContract Use Case not available');
+            }
 
-        add_settings_error('limpvix_contracts', 'contract_reactivated', $result ? 'Contrato reativado!' : 'Erro ao reativar', $result ? 'success' : 'error');
+            /** @var \LimpVix\Application\UseCase\Contract\ResumeContract $resumeUseCase */
+            $resumeUseCase = $this->useCases['resume'];
+            $resumeUseCase->execute($contractId);
+
+            add_settings_error('limpvix_contracts', 'contract_reactivated', 'Contrato reativado!', 'success');
+        } catch (\Exception $e) {
+            add_settings_error('limpvix_contracts', 'contract_error', 'Erro ao reativar: ' . $e->getMessage(), 'error');
+        }
+
         wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&reactivated=1'));
         exit;
     }
