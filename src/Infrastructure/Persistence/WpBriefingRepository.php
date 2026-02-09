@@ -263,6 +263,35 @@ class WpBriefingRepository implements BriefingRepositoryInterface
         return (int) $this->wpdb->get_var($sql);
     }
 
+    /**
+     * Buscar todos os briefings
+     *
+     * @return Briefing[]
+     */
+    public function findAll(): array
+    {
+        $sql = "SELECT * FROM {$this->tableBriefings} ORDER BY created_at DESC";
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        $briefings = [];
+        foreach ($rows as $row) {
+            try {
+                $briefings[] = $this->hydrate($row);
+            } catch (\Exception $e) {
+                // Log error but continue
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[WpBriefingRepository] Erro ao hidratar briefing UUID ' . $row['uuid'] . ': ' . $e->getMessage());
+                }
+            }
+        }
+
+        return $briefings;
+    }
+
     // ==================== MÉTODOS AUXILIARES ====================
 
     /**

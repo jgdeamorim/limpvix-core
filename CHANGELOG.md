@@ -5,6 +5,137 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.9] - 2026-02-09
+
+### 📋 BRIEFING MANAGER: Interface Profissional Completa
+
+Implementação de um gerenciador profissional completo de Briefings na aba de configurações do LimpVix, centralizando visualização, filtros, ações e configurações em uma única interface administrativa poderosa.
+
+### 🎯 Modificado
+
+#### LimpVixSettingsPage - Gerenciador Profissional de Briefings
+
+- **Reescrito**: `src/Infrastructure/Admin/Pages/LimpVixSettingsPage.php`
+  - **Arquitetura aprimorada**:
+    - Adicionado construtor com injeção de repositories
+    - `WpBriefingRepository` - Gerenciamento de briefings
+    - `WpScheduleRepository` - Consulta de schedules relacionados
+  - **Sistema de abas expandido** (3 abas):
+    - 🔌 Conexões (Firebase, Google, Twilio, 360Dialog)
+    - 📋 **Briefing Manager** (NOVO - gerenciamento completo)
+    - 📅 Scheduling (configurações de geofence e tolerância)
+
+  - **Novo método**: `renderBriefingManagerTab()` - Gerenciador principal
+    - **Dashboard de Estatísticas** (5 cards):
+      - Total de Briefings
+      - Em Rascunho (draft)
+      - Pendentes (pending_validation)
+      - Travados/Prontos (locked)
+      - Agendados (com schedule criado)
+    - **Sistema de Filtros Avançados**:
+      - Busca por UUID ou Usuário (search input)
+      - Filtro por Status (draft/pending/locked/completed)
+      - Filtro por Tipo de Propriedade (residencial/comercial)
+      - Botões: Filtrar | Limpar filtros
+    - **Tabela Profissional de Briefings**:
+      - Colunas: UUID | Usuário | Tipo | Status | M² | Duração | Criado | Schedule | Ações
+      - Status badges coloridos (draft/pending/locked/completed)
+      - Indicador de Schedule (status do agendamento)
+      - **Ações contextuais por linha**:
+        - 👁️ Ver - Abre detalhes do briefing
+        - 📅 Agendar - Cria schedule (apenas para locked sem schedule)
+        - 🗑️ Deletar - Remove briefing (apenas para drafts)
+    - **Seção de Configurações de Cálculo** (integrada):
+      - Tabela m² por cômodo
+      - Fatores de tempo por tipo de limpeza
+      - Buffer operacional e preço/m²
+      - Botão "Salvar Configurações"
+
+  - **Novo método**: `renderBriefingConfigSection()` - Configurações de cálculo
+    - Separação lógica das configs para reuso
+
+  - **Novo método**: `renderSchedulingTab()` - Configurações de Scheduling
+    - Raio de geofence (padrão: 150m)
+    - Tolerância de horário (padrão: 60min)
+    - Link para SchedulingSettings.php
+
+  - **Novo método**: `handleActions()` - Processamento de ações
+    - Ação: `delete_briefing` - Deleta briefing draft
+    - Validação de nonce de segurança
+    - Validação de status (só permite deletar drafts)
+    - Redirect com mensagem de sucesso
+
+  - **Método aprimorado**: `handleSave()` - Salvamento multi-aba
+    - Aba connections: Firebase, Google, Twilio, 360Dialog
+    - Aba briefing: m² table, time factors, buffer, preço
+    - Aba scheduling: geofence radius, time tolerance
+    - Redirect com mensagem de sucesso por aba
+
+  - **CSS Integrado Profissional**:
+    - `.stats-grid` - Grid responsivo para cards de estatísticas
+    - `.stat-card` - Cards com bordas coloridas por status
+    - `.stat-value` - Valores grandes e destacados (36px, bold)
+    - `.stat-label` - Labels em uppercase com letter-spacing
+    - `.briefing-table-container` - Container com sombra e borda
+    - `.briefing-filters` - Barra de filtros com background cinza
+    - `.status-badge` - Badges coloridos por status (draft/pending/locked/scheduled/completed)
+    - Cores semânticas: draft (cinza), pending (amarelo), locked (verde), scheduled (azul)
+
+#### WpBriefingRepository - Método findAll()
+
+- **Modificado**: `src/Infrastructure/Persistence/WpBriefingRepository.php`
+  - **Novo método**: `findAll(): array` - Busca todos os briefings
+    - Query ordenada por `created_at DESC`
+    - Hidratação completa de cada briefing
+    - Try/catch para robustez (continua se um briefing falhar)
+    - Log de erros em `WP_DEBUG` mode
+    - Retorna array de objetos `Briefing` (Domain)
+  - Localização: Após método `count()`, antes da seção de métodos auxiliares
+
+### 🎨 Design e UX
+
+- **Dashboard Visual**: Cards estatísticos com cores distintas por status
+- **Filtros Intuitivos**: Barra destacada com todos os filtros em linha
+- **Tabela Profissional**: Larguras otimizadas, badges coloridos, ações contextuais
+- **Botão "Novo Briefing"**: Link direto para frontend (/briefing)
+- **Mensagens de Feedback**: Notices de sucesso para ações (salvar, deletar)
+- **Responsive Design**: Grid adaptativo para diferentes resoluções
+
+### 🔄 Fluxo de Uso
+
+1. **Acesso**: `http://localhost/wp-admin/admin.php?page=limpvix&tab=briefing`
+2. **Visualização**: Dashboard com estatísticas + tabela completa
+3. **Filtros**: Busca, status e tipo de propriedade
+4. **Ações por Briefing**:
+   - Draft → Ver | Deletar
+   - Pending → Ver
+   - Locked (sem schedule) → Ver | Agendar
+   - Locked (com schedule) → Ver (mostra status do schedule)
+5. **Configurações**: Ajuste de parâmetros de cálculo na mesma página
+
+### ✅ Benefícios
+
+- **Centralização**: Tudo sobre Briefings em uma única página
+- **Visibilidade**: Dashboard com métricas em tempo real
+- **Produtividade**: Filtros rápidos e ações contextuais
+- **Flexibilidade**: Configurações editáveis sem código
+- **Rastreabilidade**: Indicador de Schedule integrado
+- **Profissionalismo**: Design limpo e moderno
+
+### 🔧 Técnico
+
+- Respeitou arquitetura DDD: Repositories no construtor
+- Repositories já existentes: `WpBriefingRepository`, `WpScheduleRepository`
+- Hidratação robusta com error handling
+- Validação de nonces para segurança
+- CSS scoped para evitar conflitos
+- Queries otimizadas (ORDER BY, filtros)
+
+### 📦 Arquivos Impactados
+
+- `src/Infrastructure/Admin/Pages/LimpVixSettingsPage.php` (reescrito - 530 linhas)
+- `src/Infrastructure/Persistence/WpBriefingRepository.php` (+29 linhas - método findAll)
+
 ## [0.1.8] - 2026-02-09
 
 ### 🔄 INTEGRAÇÃO: Scheduling na página de Briefing
