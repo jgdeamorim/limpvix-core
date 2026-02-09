@@ -33,9 +33,10 @@ final class ContractId
 
     private function ensureValid(int $value): void
     {
-        if ($value <= 0) {
-            throw new \InvalidArgumentException('ContractId must be positive');
+        if ($value < 0) {
+            throw new \InvalidArgumentException('ContractId must be non-negative');
         }
+        // Allow 0 for new entities before persistence (will be set by repository)
     }
 
     public function toInt(): int
