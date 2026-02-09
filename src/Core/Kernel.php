@@ -132,6 +132,11 @@ class Kernel
             ProfessionalBootstrap::init();
         }
 
+        // Inicializar módulo Contract (DDD Architecture)
+        if (class_exists('LimpVix\\Core\\ContractBootstrap')) {
+            ContractBootstrap::init();
+        }
+
         // Inicializar automação de contratos
         if (class_exists('LimpVix\\Infrastructure\\Automation\\ContractAutomation')) {
             \LimpVix\Infrastructure\Automation\ContractAutomation::init();
