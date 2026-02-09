@@ -126,15 +126,47 @@ Implementação do módulo de profissionais autônomos (gig economy), base para 
   - Estatísticas: countActive(), countVerified(), getStatistics()
   - Históricos: getAllocationHistory(), getScoreHistory()
 
-### 📊 Estatísticas
+#### Integration - Briefing → Contract Auto-creation
 
-- **Arquivos criados**: 6 arquivos (1 migration + 5 domain)
-- **Linhas de código**: ~47K total (~14K migration SQL + ~33K PHP)
+- **Criado**: `src/Application/UseCases/Contract/CreateContractFromBriefing.php` (350+ linhas)
+  - **✅ Task #68**: Use Case para criação automática de contratos
+  - Trigger: Evento `limpvix_briefing_locked`
+  - Condição: `briefing.is_recurrent = true`
+  - Validações completas de campos de recorrência
+  - Cálculo de end_date baseado em duração (3_months, 6_months, indefinite)
+  - Cálculo de monthly_value baseado em m² e briefing
+  - Geração automática de contract_number (CNT-YYYY-XXXX)
+  - Formatação de service_address (estrutura completa)
+  - Geração de notas do contrato com rastreabilidade do briefing
+  - Link Briefing → Contract (campo contract_id + ledger entry)
+  - Evento disparado: `limpvix_contract_created_from_briefing`
+
+- **Criado**: `src/Infrastructure/Integration/BriefingContractListener.php` (4K, 125+ linhas)
+  - **✅ Task #68**: Listener para eventos de briefing
+  - Hook: `limpvix_briefing_locked` → onBriefingLocked()
+  - Hook: `limpvix_briefing_confirmed` → onBriefingConfirmed() (fallback)
+  - Validação: verifica is_recurrent antes de criar contrato
+  - Error handling: registra erros no log, dispara evento `limpvix_contract_creation_failed`
+  - Notificação: envia email ao admin com detalhes do contrato criado
+  - Admin notification: dispara evento `limpvix_admin_notification` para painel
+  - Logs WP_DEBUG: registra todas ações para debug
+
+- **Modificado**: `src/Core/Kernel.php`
+  - Registra BriefingContractListener no boot do sistema
+  - Inicialização após ContractAutomation
+
+### 📊 Estatísticas (Atualizado)
+
+- **Arquivos criados**: 9 arquivos (1 migration + 5 domain + 1 use case + 1 listener + 1 kernel)
+- **Linhas de código**: ~52K total (~14K migration SQL + ~38K PHP)
 - **Tabelas criadas**: 4 novas tabelas
 - **Campos adicionados**: 9 campos (6 em briefings + 3 em contracts)
 - **Value Objects**: 3 VOs imutáveis com validações completas
 - **Aggregate Roots**: 1 AR (Professional) com 20+ comportamentos
 - **Interfaces**: 1 Repository Interface com 25+ métodos
+- **Use Cases**: 1 Use Case (CreateContractFromBriefing)
+- **Listeners**: 1 Listener (BriefingContractListener)
+- **Integrações**: Briefing → Contract automático
 
 ### 🎯 Próximos Passos (FASE 5 - Semanas 2-4)
 

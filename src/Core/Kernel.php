@@ -132,6 +132,11 @@ class Kernel
             \LimpVix\Infrastructure\Automation\ContractAutomation::init();
         }
 
+        // Inicializar listener Briefing → Contract
+        if (class_exists('LimpVix\\Infrastructure\\Integration\\BriefingContractListener')) {
+            \LimpVix\Infrastructure\Integration\BriefingContractListener::register();
+        }
+
         // Marcar como inicializado
         $this->booted = true;
 
