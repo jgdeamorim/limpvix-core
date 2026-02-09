@@ -25,6 +25,7 @@ use LimpVix\Application\UseCases\Briefing\CreateBriefing;
 use LimpVix\Application\UseCases\Briefing\UpdateBriefingStep;
 use LimpVix\Application\UseCases\Briefing\VerifyBriefingPhone;
 use LimpVix\Application\UseCases\Briefing\GetBriefingSchema;
+use LimpVix\Application\UseCases\Briefing\SelectPackage;
 use LimpVix\Application\Services\BriefingMetricsCalculator;
 use LimpVix\Infrastructure\Persistence\WpBriefingRepository;
 use LimpVix\Infrastructure\Adapters\FirebaseAuthAdapter;
@@ -76,18 +77,21 @@ class BriefingApiBootstrap
         $updateBriefingStepUseCase = new UpdateBriefingStep($repository, $policy, $calculator);
         $verifyBriefingPhoneUseCase = new VerifyBriefingPhone($repository, $policy, $firebaseAdapter);
         $getBriefingSchemaUseCase = new GetBriefingSchema();
+        $selectPackageUseCase = new SelectPackage($repository);
 
         // 3. Inicializar Controllers
         $schemaController = new BriefingSchemaController($getBriefingSchemaUseCase);
         $briefingController = new BriefingController($createBriefingUseCase, $repository);
         $stepController = new BriefingStepController($updateBriefingStepUseCase, $repository);
         $phoneController = new BriefingPhoneController($verifyBriefingPhoneUseCase, $repository);
+        $packageController = new PackageController($selectPackageUseCase);
 
         // 4. Registrar rotas dos controllers
         $schemaController->register();
         $briefingController->register();
         $stepController->register();
         $phoneController->register();
+        $packageController->register();
 
         // 5. Log (debug)
         if (defined('WP_DEBUG') && WP_DEBUG) {

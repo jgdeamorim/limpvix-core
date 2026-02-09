@@ -5,6 +5,115 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.11] - 2026-02-09
+
+### ✅ FASE 2: CRUD Completo de Pacotes
+
+Implementação do sistema completo de gerenciamento de pacotes de serviço (Basic, Standard, Premium, Custom), incluindo interface administrativa, API REST e integração com formulário de briefing.
+
+### 🎯 Adicionado
+
+#### PackageManagementPage - Interface Administrativa Completa
+
+- **Criado**: `src/Infrastructure/Admin/Pages/PackageManagementPage.php`
+  - **✅ Task #50**: Página de gerenciamento de pacotes
+    - URL: `/wp-admin/admin.php?page=limpvix-packages`
+    - Listagem em tabela com 8 colunas (ID, Tipo, Nome, Percentual, Profissionais, Skills, Status, Ações)
+    - Filtro por status (todos/ativos/inativos)
+    - Ordenação por package_type
+    - Exibição formatada de percentuais (0.15 → "15.0%")
+    - Badges de status coloridos (ativo/inativo)
+
+  - **✅ Task #51**: Formulário criar/editar pacotes
+    - Campo `package_type` (slug único, readonly após criação)
+    - Campo `display_name` (nome exibido ao cliente)
+    - Campo `description` (opcional)
+    - Campo `percentage_increase` (0-100%, validado)
+    - Campos `min_professionals` e `max_professionals` (1-10)
+    - Checkbox multiselect para `required_skills` (10 skills disponíveis)
+    - Checkbox `is_active` (status do pacote)
+    - Validações server-side completas
+    - Mensagens de sucesso/erro
+
+  - **✅ Task #52**: Operações CRUD
+    - `savePackage()`: Criar/atualizar com validações
+    - `deletePackage()`: Deletar com confirmação
+    - `toggleStatus()`: Ativar/desativar rapidamente
+    - Uso direto de `$wpdb` para operações
+    - Transações seguras com nonces
+    - Redirect-after-POST para evitar resubmissão
+
+#### PackageController - REST API
+
+- **Criado**: `src/Infrastructure/API/PackageController.php`
+  - **✅ Task #53**: Endpoints REST para pacotes
+    - **GET /limpvix/v1/packages**: Lista pacotes ativos
+      - Público (sem autenticação)
+      - Retorna: type, name, description, percentage, skills
+      - Percentual formatado (0.15 → "15%")
+      - Ordenado por percentual crescente
+      - JSON response padronizado
+
+    - **POST /limpvix/v1/briefing/{uuid}/package**: Seleciona pacote
+      - Requer autenticação (usuário logado)
+      - Params: uuid (briefing), package_type
+      - Validações de UUID e package_type
+      - Usa `SelectPackage` Use Case existente
+      - Retorna dados do pacote selecionado
+      - Registra evento no ledger
+
+  - Integração com `SelectPackage` Use Case
+  - Permission callbacks configurados
+  - Validação de parâmetros via args
+  - Error handling completo
+
+### 🔄 Modificado
+
+#### AdminBootstrap - Registro de Páginas
+
+- **Modificado**: `src/Admin/Bootstrap/AdminBootstrap.php`
+  - Adicionado import de `LimpVixSettingsPage`
+  - Adicionado import de `PackageManagementPage`
+  - Registrado `LimpVixSettingsPage` no método `boot()`
+  - Registrado `PackageManagementPage` no método `boot()`
+  - Ambas páginas agora inicializadas automaticamente
+
+#### BriefingApiBootstrap - Registro de Controller
+
+- **Modificado**: `src/Infrastructure/API/BriefingApiBootstrap.php`
+  - Adicionado import de `SelectPackage` Use Case
+  - Inicializado `SelectPackage` Use Case com repository
+  - Criado `PackageController` com dependência
+  - Registrado rotas do `PackageController` em `rest_api_init`
+  - Namespace: `limpvix/v1`
+
+### 📊 Impacto
+
+- **Admin**: Interface completa para gerenciar pacotes sem tocar no banco
+- **API**: Frontend pode listar e selecionar pacotes via REST
+- **Flexibilidade**: Admin pode criar pacotes customizados além dos 3 padrões
+- **Integração**: `SelectPackage` Use Case já consulta `wp_limpvix_package_configs`
+- **Event Sourcing**: Seleção de pacote registrada no ledger
+
+### 🔄 Próximos Passos
+
+Conforme plano (`/docs-limpvix/PLANO-BRIEFING-COMPLETO.md`):
+- **FASE 3**: Catálogo de Serviços e Adicionais (8-10h estimadas)
+- **FASE 4**: Sistema de Contratos Recorrentes (6-8h estimadas)
+
+### 📝 Endpoints Disponíveis
+
+```
+GET  /wp-json/limpvix/v1/packages
+     → Lista pacotes ativos (público)
+
+POST /wp-json/limpvix/v1/briefing/{uuid}/package
+     Body: { "package_type": "premium" }
+     → Seleciona pacote para briefing (autenticado)
+```
+
+---
+
 ## [0.1.10] - 2026-02-09
 
 ### ✅ FASE 1: Correções Urgentes - Briefing System
