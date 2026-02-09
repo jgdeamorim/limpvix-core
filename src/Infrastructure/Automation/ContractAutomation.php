@@ -2,19 +2,29 @@
 /**
  * ContractAutomation - Automação de Contratos Recorrentes via WP-Cron
  *
- * RESPONSABILIDADES:
+ * ⚠️  DEPRECADO: Este arquivo está sendo substituído pelo ContractBootstrap
+ *
+ * MIGRAÇÃO:
+ * - Expiração de contratos: MIGRADO para ContractBootstrap->onCheckContractExpiration()
+ *   • Usa ExpireContract Use Case (DDD)
+ *   • Cron: limpvix_check_contract_expiration (daily)
+ *
+ * TODO: Migrar funções restantes (briefing generation, notifications) para Use Cases
+ *
+ * RESPONSABILIDADES (LEGADO):
  * - Verificar contratos ativos diariamente
  * - Calcular próximas execuções baseado em recurrence
  * - Gerar briefings automaticamente 7 dias antes
  * - Enviar notificações de renovação
- * - Marcar contratos expirados
+ * - Marcar contratos expirados ⚠️  SUBSTITUÍDO por ContractBootstrap
  *
  * CRON JOBS REGISTRADOS:
- * - limpvix_contracts_daily_check (diário às 00:00)
+ * - limpvix_contracts_daily_check (diário às 00:00) ⚠️  NÃO ATIVO
  * - limpvix_contracts_weekly_briefing (semanal, domingo)
  *
  * @package LimpVix
  * @since 0.1.13
+ * @deprecated 0.8.0 Use ContractBootstrap com Use Cases
  */
 
 namespace LimpVix\Infrastructure\Automation;
@@ -154,13 +164,29 @@ class ContractAutomation
 
     /**
      * Marcar contratos expirados
-     * Contratos com end_date < hoje e status = active
+     *
+     * ⚠️  DEPRECADO: Use ContractBootstrap->onCheckContractExpiration() com ExpireContract Use Case
+     *
+     * @deprecated 0.8.0 Use ExpireContract Use Case via ContractBootstrap
      */
     private static function markExpiredContracts(): int
     {
+        // REFATORADO: Usar ExpireContract Use Case se disponível
+        if (isset($GLOBALS['limpvix_contract_use_cases']['expire'])) {
+            /** @var \LimpVix\Application\UseCase\Contract\ExpireContract $expireUseCase */
+            $expireUseCase = $GLOBALS['limpvix_contract_use_cases']['expire'];
+
+            try {
+                return $expireUseCase->execute();
+            } catch (\Exception $e) {
+                self::log('Erro ao expirar contratos via Use Case: ' . $e->getMessage());
+                return 0;
+            }
+        }
+
+        // FALLBACK LEGADO (se Use Case não disponível)
         global $wpdb;
         $table = $wpdb->prefix . 'limpvix_contracts';
-
         $today = date('Y-m-d');
 
         $updated = $wpdb->query($wpdb->prepare(
