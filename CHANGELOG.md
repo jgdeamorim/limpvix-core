@@ -5,6 +5,157 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.0] - 2026-02-09
+
+### 🚀 FASE 5 - Semana 1: Professional Module (Marketplace Foundation)
+
+Implementação do módulo de profissionais autônomos (gig economy), base para transformar LimpVix em marketplace estilo Uber/99. Inclui migration com 4 novas tabelas, Domain Layer completo com DDD, Value Objects, Aggregate Root e Repository Interface.
+
+### 🎯 Adicionado
+
+#### Migration 010 - Professional Module
+
+- **Criado**: `database-migrations/010_create_professionals_module.sql` (14K, 370+ linhas)
+  - **✅ Task #64**: 4 novas tabelas + alterações em briefings e contracts
+
+  **1. wp_limpvix_professionals** - Profissionais autônomos
+  - Identificação: user_id (FK wp_users), full_name, cpf, phone, email, birth_date
+  - Score e Performance: score (0.00-5.00), total_services, completed_services, cancelled_services, no_show_count, acceptance_rate
+  - Pontualidade: on_time_count, late_count, avg_delay_minutes
+  - Localização: service_region (JSON), latitude, longitude, service_radius_km
+  - Skills: skills (JSON), certifications (JSON), physical_limitations (JSON)
+  - Disponibilidade: weekly_availability (JSON), max_daily_hours, min_service_interval_hours
+  - Financeiro: bank_account (JSON), pix_key, pix_key_type
+  - Status: is_active, is_verified, verified_at, verified_by
+  - Suspensão: suspended_until, suspension_reason, is_permanently_banned, ban_reason
+  - Compliance: has_valid_documents, document_expiry_date, documents (JSON)
+  - EPI: has_epi, epi_last_check
+  - Índices: user, cpf, score DESC, location, active_verified, acceptance_rate DESC
+  - FK para wp_users (user_id), wp_users (verified_by)
+
+  **2. wp_limpvix_professional_allocations_history** - Histórico de alocações
+  - Campos: contract_id, professional_id, allocated_at, deallocated_at
+  - Motivo: deallocation_reason (low_score|client_request|professional_request|contract_ended), deallocation_notes
+  - Performance: final_score, total_executions, completed_executions, failed_executions, avg_feedback_rating, on_time_percentage
+  - Índices: contract, professional, dates, deallocation_reason
+  - FK para wp_limpvix_contracts (CASCADE), wp_limpvix_professionals (CASCADE)
+
+  **3. wp_limpvix_contract_offers** - Sistema first-to-accept (ofertas)
+  - Campos: contract_id, professional_id, status (pending|accepted|rejected|expired)
+  - Score de alocação: allocation_score (0-100), proximity_score (40%), availability_score (30%), rating_score (20%), workload_score (10%)
+  - Timestamps: offered_at, expires_at, responded_at
+  - Rejeição: rejection_reason (too_far|busy|not_interested|other), rejection_notes
+  - Índices: contract, professional, status, expires_at
+  - UNIQUE: (contract_id, professional_id)
+  - FK para wp_limpvix_contracts (CASCADE), wp_limpvix_professionals (CASCADE)
+
+  **4. wp_limpvix_professional_score_history** - Auditoria de score
+  - Campos: professional_id, old_score, new_score, score_change
+  - Motivo: change_reason (feedback|late_checkin|no_show|good_execution|epi_violation), related_contract_id, related_execution_id, change_details (JSON)
+  - Auditoria: changed_at, changed_by (system|admin|client)
+  - Índices: professional, changed_at, reason
+  - FK para wp_limpvix_professionals (CASCADE)
+
+  **Alterações em wp_limpvix_briefings:**
+  - Adicionado: is_recurrent, recurrence_type (weekly|monthly|biweekly), recurrence_duration (3_months|6_months|indefinite)
+  - Adicionado: recurrence_day, recurrence_weeks, recurrence_start_date
+  - Objetivo: Cliente pode solicitar serviços recorrentes direto no briefing
+
+  **Alterações em wp_limpvix_contracts:**
+  - Adicionado: allocated_professional_id (FK wp_limpvix_professionals)
+  - Adicionado: allocation_status (pending|allocated|rejected|reallocating)
+  - Adicionado: allocation_attempts, last_allocation_attempt
+  - Índice: allocated_professional
+  - Objetivo: Vincular profissional ao contrato
+
+#### Domain Layer - Professional Module
+
+- **Criado**: `src/Domain/Professional/Professional.php` (15K, 480+ linhas)
+  - **✅ Task #65**: Aggregate Root completo com DDD
+  - Factory: `create()` para novo profissional, `reconstitute()` para banco
+  - Comportamentos: acceptOffer(), rejectOffer(), completeService(), cancelService(), recordNoShow()
+  - Score: updateScore() com validação 0.00-5.00
+  - Suspensão: suspend(), removeSuspension(), banPermanently()
+  - Verificação: verify() por admin
+  - Atualização: updateAvailability(), updateServiceRegion()
+  - Queries: isAvailableAt(), canServeLocation(), proximityScore(), hasRequiredSkills(), isSuspended(), isInGoodStanding()
+  - Invariantes: Score 0.00-5.00, Região válida, Pelo menos 1 skill, Disponibilidade sem overlaps
+
+- **Criado**: `src/Domain/Professional/ValueObjects/ServiceRegion.php` (5.7K, 195+ linhas)
+  - **✅ Task #66**: Value Object para região de atuação
+  - Imutável: centerLatitude, centerLongitude, radiusKm (1-100 km)
+  - Factory: fromArray() para JSON
+  - Haversine: calculateDistanceKm() com fórmula geodésica
+  - Cobertura: coversLocation() verifica se está no raio
+  - Proximity: proximityScore() calcula 0-100 (inversamente proporcional à distância)
+  - Serialização: toArray(), toJson()
+  - Validações: latitude (-90 a 90), longitude (-180 a 180), raio (1-100)
+
+- **Criado**: `src/Domain/Professional/ValueObjects/WeeklyAvailability.php` (7.3K, 250+ linhas)
+  - **✅ Task #66**: Value Object para disponibilidade semanal
+  - Imutável: schedule por dia (monday-sunday) com slots [{start, end}]
+  - Factory: fromJson(), defaultSchedule() (seg-sex 08:00-18:00)
+  - Validações: dias válidos, horários HH:MM, start < end, sem overlaps no mesmo dia
+  - Queries: isAvailableAt(), isAvailableAtDateTime(), getTotalWeeklyHours(), getAvailableDays(), getSlotsForDay()
+  - Serialização: toArray(), toJson()
+
+- **Criado**: `src/Domain/Professional/ValueObjects/ProfessionalSkills.php` (9.5K, 335+ linhas)
+  - **✅ Task #66**: Value Object para skills, certificações e limitações
+  - Imutável: skills[], certifications[], physicalLimitations[]
+  - Skills conhecidas: limpeza_basica, pos_obra, teto, esquadrias, vidros, carpete, estofados, etc
+  - Certificações: nr35_altura, nr10_eletrica, manipulacao_quimicos, primeiros_socorros
+  - Limitações: no_heights, no_heavy_lifting, no_chemicals, no_confined_spaces
+  - Queries: hasSkill(), hasAllSkills(), hasAnySkill(), hasCertification(), hasLimitation()
+  - Match: canPerformService(), getMissingSkills(), getSkillMatchPercentage()
+  - Factory: fromJson(), basicSkills()
+  - Validações: pelo menos 1 skill, warn se skill desconhecida
+  - Helpers: getKnownSkills(), getKnownCertifications(), getKnownLimitations()
+
+- **Criado**: `src/Domain/Professional/ProfessionalRepositoryInterface.php` (5K, 180+ linhas)
+  - **✅ Task #67**: Contrato de persistência (Repository Pattern)
+  - Busca: findById(), findByUserId(), findByCpf()
+  - Elegibilidade: findEligibleFor() (região + skills + disponibilidade + ativo)
+  - Região: findByRegion() com raio
+  - Skills: findBySkills()
+  - Status: findActiveAndVerified(), findSuspended(), findPendingVerification()
+  - Score: findByMinScore(), updateScore() com auditoria
+  - Persistência: save()
+  - Contadores: incrementCompletedServices(), incrementCancelledServices(), incrementNoShows()
+  - Atividade: updateLastActivity()
+  - Deleção: delete() (soft delete)
+  - Estatísticas: countActive(), countVerified(), getStatistics()
+  - Históricos: getAllocationHistory(), getScoreHistory()
+
+### 📊 Estatísticas
+
+- **Arquivos criados**: 6 arquivos (1 migration + 5 domain)
+- **Linhas de código**: ~47K total (~14K migration SQL + ~33K PHP)
+- **Tabelas criadas**: 4 novas tabelas
+- **Campos adicionados**: 9 campos (6 em briefings + 3 em contracts)
+- **Value Objects**: 3 VOs imutáveis com validações completas
+- **Aggregate Roots**: 1 AR (Professional) com 20+ comportamentos
+- **Interfaces**: 1 Repository Interface com 25+ métodos
+
+### 🎯 Próximos Passos (FASE 5 - Semanas 2-4)
+
+- [ ] **Semana 2**: Infrastructure Layer
+  - WpProfessionalRepository (persistência)
+  - Use Cases (CreateProfessional, UpdateScore, AllocateProfessional)
+  - ProfessionalManagementPage (admin interface)
+
+- [ ] **Semana 3**: Integration
+  - Briefing → Contract auto-creation (quando is_recurrent = true)
+  - Listener para limpvix_briefing_locked
+  - CreateContractFromBriefing Use Case
+
+- [ ] **Semana 4**: API REST
+  - ProfessionalController (endpoints REST)
+  - /wp-json/limpvix/v1/professionals
+  - /wp-json/limpvix/v1/professionals/{id}/offers
+  - Permissões e autenticação
+
+---
+
 ## [0.1.13] - 2026-02-09
 
 ### ✅ FASE 4: Sistema Completo de Contratos Recorrentes
