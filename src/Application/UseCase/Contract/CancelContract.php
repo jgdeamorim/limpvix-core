@@ -1,0 +1,60 @@
+<?php
+/**
+ * CancelContract - Use Case para cancelar contrato
+ *
+ * RESPONSABILIDADE:
+ * - Transição: * → CANCELLED (terminal)
+ * - Limpar próxima execução
+ * - Persistir mudanças
+ * - Disparar evento ContractCancelled
+ *
+ * @package LimpVix\Application\UseCase\Contract
+ * @since 0.8.0
+ */
+
+namespace LimpVix\Application\UseCase\Contract;
+
+use LimpVix\Domain\Contract\ContractId;
+use LimpVix\Domain\Contract\ContractRepositoryInterface;
+use LimpVix\Domain\Contract\Exceptions\ContractNotFoundException;
+
+defined('ABSPATH') || exit;
+
+final class CancelContract
+{
+    private ContractRepositoryInterface $repository;
+
+    public function __construct(ContractRepositoryInterface $repository)
+    {
+        $this->repository = $repository;
+    }
+
+    /**
+     * Executar use case
+     *
+     * @param int $contractId
+     * @param string $reason
+     * @return void
+     * @throws ContractNotFoundException
+     * @throws \LimpVix\Domain\Contract\Exceptions\InvalidContractTransition
+     */
+    public function execute(int $contractId, string $reason = ''): void
+    {
+        // Buscar contrato
+        $contract = $this->repository->findById(ContractId::fromInt($contractId));
+
+        if (!$contract) {
+            throw new ContractNotFoundException("Contract ID: {$contractId}");
+        }
+
+        // Transição de estado (terminal)
+        $contract->cancel($reason);
+
+        // Persistir
+        $this->repository->save($contract);
+
+        // Opcional: Dispatch events
+        $events = $contract->releaseEvents();
+        // TODO: Implementar Event Dispatcher
+    }
+}
