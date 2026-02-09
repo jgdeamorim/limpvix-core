@@ -42,6 +42,7 @@ class LimpVixSettingsPage
         add_action('admin_menu', [$this, 'addMenu']);
         add_action('admin_init', [$this, 'registerSettings']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
+        add_action('wp_ajax_limpvix_get_briefing_details', [$this, 'ajaxGetBriefingDetails']);
     }
 
     public function addMenu(): void
@@ -95,6 +96,9 @@ class LimpVixSettingsPage
         if ($hook !== 'toplevel_page_limpvix') {
             return;
         }
+
+        // Enqueue Thickbox para modais
+        add_thickbox();
 
         wp_enqueue_style('limpvix-settings', LIMPVIX_PLUGIN_URL . 'assets/css/admin-settings.css', [], LIMPVIX_VERSION);
         wp_enqueue_script('limpvix-settings', LIMPVIX_PLUGIN_URL . 'assets/js/admin-settings.js', ['jquery'], LIMPVIX_VERSION, true);
@@ -412,10 +416,12 @@ class LimpVixSettingsPage
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <a href="admin.php?page=limpvix-briefings&action=view&uuid=<?php echo esc_attr($uuid); ?>"
-                                       class="button button-small">
+                                    <button type="button"
+                                            class="button button-small limpvix-view-briefing"
+                                            data-briefing-uuid="<?php echo esc_attr($uuid); ?>"
+                                            data-briefing-id="<?php echo esc_attr($briefing->getId()); ?>">
                                         👁️ Ver
-                                    </a>
+                                    </button>
 
                                     <?php if ($briefing->getStatus()->getValue() === 'locked' && !$hasSchedule): ?>
                                         <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=briefing&action=create_schedule&uuid=<?php echo esc_attr($uuid); ?>"
@@ -547,6 +553,82 @@ class LimpVixSettingsPage
                 </tr>
             </table>
         </div>
+
+        <!-- Modal para Ver Briefing -->
+        <div id="limpvix-briefing-modal" style="display:none;">
+            <div id="limpvix-briefing-modal-content">
+                <div class="limpvix-modal-loading">Carregando briefing...</div>
+            </div>
+        </div>
+
+        <style>
+            #TB_ajaxContent {
+                width: 95% !important;
+                height: 90% !important;
+                padding: 20px;
+                overflow-y: auto;
+            }
+            .limpvix-modal-loading {
+                text-align: center;
+                padding: 40px;
+                font-size: 16px;
+                color: #646970;
+            }
+            .limpvix-modal-error {
+                background: #f8d7da;
+                border: 1px solid #f5c2c7;
+                color: #842029;
+                padding: 15px;
+                border-radius: 4px;
+                margin: 20px 0;
+            }
+        </style>
+
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Interceptar clique no botão "Ver"
+            $('.limpvix-view-briefing').on('click', function(e) {
+                e.preventDefault();
+
+                var uuid = $(this).data('briefing-uuid');
+                var briefingId = $(this).data('briefing-id');
+
+                // Abrir modal do WordPress (ThickBox)
+                var modalUrl = '#TB_inline?width=900&height=600&inlineId=limpvix-briefing-modal';
+                tb_show('Detalhes do Briefing #' + briefingId, modalUrl);
+
+                // Resetar conteúdo do modal
+                $('#limpvix-briefing-modal-content').html('<div class="limpvix-modal-loading">Carregando briefing...</div>');
+
+                // Carregar conteúdo via AJAX
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'limpvix_get_briefing_details',
+                        uuid: uuid,
+                        nonce: '<?php echo wp_create_nonce('limpvix_view_briefing'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#limpvix-briefing-modal-content').html(response.data.html);
+                        } else {
+                            $('#limpvix-briefing-modal-content').html(
+                                '<div class="limpvix-modal-error">Erro ao carregar briefing: ' +
+                                (response.data.message || 'Erro desconhecido') +
+                                '</div>'
+                            );
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        $('#limpvix-briefing-modal-content').html(
+                            '<div class="limpvix-modal-error">Erro de comunicação: ' + error + '</div>'
+                        );
+                    }
+                });
+            });
+        });
+        </script>
         <?php
     }
 
@@ -933,5 +1015,238 @@ class LimpVixSettingsPage
         ];
 
         return get_option('limpvix_briefing_time_factors', $defaults);
+    }
+
+    /**
+     * AJAX handler para carregar detalhes do briefing no modal
+     */
+    public function ajaxGetBriefingDetails(): void
+    {
+        // Verificar nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'limpvix_view_briefing')) {
+            wp_send_json_error(['message' => 'Nonce inválido']);
+            return;
+        }
+
+        // Verificar permissão
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Sem permissão']);
+            return;
+        }
+
+        // Obter UUID
+        $uuid = sanitize_text_field($_POST['uuid'] ?? '');
+        if (empty($uuid)) {
+            wp_send_json_error(['message' => 'UUID não fornecido']);
+            return;
+        }
+
+        // Buscar briefing
+        try {
+            $briefing = $this->briefingRepository->findByUuid($uuid);
+            if (!$briefing) {
+                wp_send_json_error(['message' => 'Briefing não encontrado']);
+                return;
+            }
+
+            // Gerar HTML
+            ob_start();
+            $this->renderBriefingDetailsForModal($briefing);
+            $html = ob_get_clean();
+
+            wp_send_json_success(['html' => $html]);
+
+        } catch (\Exception $e) {
+            error_log('[LimpVixSettingsPage] Erro ao carregar briefing: ' . $e->getMessage());
+            wp_send_json_error(['message' => 'Erro ao carregar briefing: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Renderiza o HTML do briefing para o modal
+     */
+    private function renderBriefingDetailsForModal($briefing): void
+    {
+        $uuid = $briefing->getUuid();
+        $status = $briefing->getStatus()->getValue();
+        $statusLabels = [
+            'draft' => '🟡 Rascunho',
+            'in_progress' => '🔵 Em Progresso',
+            'pending_phone_verification' => '⏳ Aguardando Verificação',
+            'awaiting_payment' => '💰 Aguardando Pagamento',
+            'paid' => '✅ Pago',
+            'locked' => '🔒 Travado'
+        ];
+
+        global $wpdb;
+        $tableData = $wpdb->prefix . 'limpvix_briefing_data';
+
+        // Buscar dados adicionais
+        $locationData = $wpdb->get_var($wpdb->prepare(
+            "SELECT data_value FROM {$tableData} WHERE briefing_uuid = %s AND data_key = %s",
+            $uuid, 'location'
+        ));
+        $location = $locationData ? json_decode($locationData, true) : null;
+
+        ?>
+        <div class="limpvix-briefing-detail-modal">
+            <style>
+                .limpvix-briefing-detail-modal {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                }
+                .limpvix-briefing-detail-modal h2 {
+                    margin-top: 0;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #ccd0d4;
+                }
+                .limpvix-briefing-detail-modal table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 15px 0;
+                }
+                .limpvix-briefing-detail-modal table th {
+                    text-align: left;
+                    padding: 8px 12px;
+                    background: #f6f7f7;
+                    font-weight: 600;
+                    border-bottom: 1px solid #ccd0d4;
+                }
+                .limpvix-briefing-detail-modal table td {
+                    padding: 8px 12px;
+                    border-bottom: 1px solid #dcdcde;
+                }
+                .limpvix-briefing-detail-modal .section {
+                    margin: 20px 0;
+                    padding: 15px;
+                    background: #f6f7f7;
+                    border-radius: 4px;
+                }
+                .limpvix-briefing-detail-modal .section h3 {
+                    margin-top: 0;
+                }
+            </style>
+
+            <h2>📋 Briefing #<?php echo esc_html($briefing->getId()); ?></h2>
+
+            <div class="section">
+                <h3>ℹ️ Informações Gerais</h3>
+                <table>
+                    <tr>
+                        <th>UUID:</th>
+                        <td><code><?php echo esc_html($uuid); ?></code></td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td><?php echo esc_html($statusLabels[$status] ?? $status); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Tipo de Propriedade:</th>
+                        <td><?php echo esc_html($briefing->getPropertyType()->getValue()); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Criado em:</th>
+                        <td><?php echo $briefing->getCreatedAt()->format('d/m/Y H:i'); ?></td>
+                    </tr>
+                    <?php if ($briefing->getLockedAt()): ?>
+                    <tr>
+                        <th>Travado em:</th>
+                        <td><?php echo $briefing->getLockedAt()->format('d/m/Y H:i'); ?></td>
+                    </tr>
+                    <?php endif; ?>
+                </table>
+            </div>
+
+            <div class="section">
+                <h3>📏 Métricas</h3>
+                <table>
+                    <tr>
+                        <th>Área Estimada:</th>
+                        <td><strong><?php echo number_format($briefing->getEstimatedM2(), 2); ?> m²</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Duração Estimada:</th>
+                        <td><strong><?php echo $this->formatMinutes($briefing->getEstimatedDuration()); ?></strong></td>
+                    </tr>
+                    <?php if ($briefing->getMetrics()): ?>
+                    <tr>
+                        <th>Tempo Base:</th>
+                        <td><?php echo $this->formatMinutes($briefing->getMetrics()->getBaseMinutes()); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Buffer:</th>
+                        <td><?php echo $this->formatMinutes($briefing->getMetrics()->getBufferMinutes()); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Tempo Total:</th>
+                        <td><strong><?php echo $this->formatMinutes($briefing->getMetrics()->getTotalMinutes()); ?></strong></td>
+                    </tr>
+                    <?php endif; ?>
+                </table>
+            </div>
+
+            <?php if ($location): ?>
+            <div class="section">
+                <h3>📍 Localização</h3>
+                <table>
+                    <tr>
+                        <th>Endereço:</th>
+                        <td><?php echo esc_html($location['address'] ?? '—'); ?>, <?php echo esc_html($location['number'] ?? '—'); ?></td>
+                    </tr>
+                    <?php if (!empty($location['complement'])): ?>
+                    <tr>
+                        <th>Complemento:</th>
+                        <td><?php echo esc_html($location['complement']); ?></td>
+                    </tr>
+                    <?php endif; ?>
+                    <tr>
+                        <th>Bairro:</th>
+                        <td><?php echo esc_html($location['neighborhood'] ?? '—'); ?></td>
+                    </tr>
+                    <tr>
+                        <th>Cidade/Estado:</th>
+                        <td><?php echo esc_html($location['city'] ?? '—'); ?> / <?php echo esc_html($location['state'] ?? '—'); ?></td>
+                    </tr>
+                    <tr>
+                        <th>CEP:</th>
+                        <td><?php echo esc_html($location['zip_code'] ?? '—'); ?></td>
+                    </tr>
+                    <?php if (!empty($location['latitude']) && !empty($location['longitude'])): ?>
+                    <tr>
+                        <th>Coordenadas:</th>
+                        <td>
+                            <?php echo esc_html($location['latitude']); ?>, <?php echo esc_html($location['longitude']); ?>
+                            <a href="https://www.google.com/maps?q=<?php echo esc_attr($location['latitude']); ?>,<?php echo esc_attr($location['longitude']); ?>" target="_blank" class="button button-small">Ver no Mapa</a>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
+                </table>
+            </div>
+            <?php endif; ?>
+
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ccd0d4; text-align: right;">
+                <a href="admin.php?page=limpvix-briefings&action=view&uuid=<?php echo esc_attr($uuid); ?>"
+                   class="button button-primary" target="_blank">Ver Página Completa</a>
+                <button type="button" class="button" onclick="tb_remove();">Fechar</button>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Formata minutos em formato legível
+     */
+    private function formatMinutes(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return $minutes . ' minutos';
+        }
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($remainingMinutes === 0) {
+            return $hours . 'h';
+        }
+
+        return $hours . 'h ' . $remainingMinutes . 'min';
     }
 }

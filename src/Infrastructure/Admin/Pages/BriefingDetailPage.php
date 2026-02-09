@@ -158,15 +158,15 @@ class BriefingDetailPage
                     </tr>
                     <tr>
                         <th>Duração Estimada:</th>
-                        <td><?php echo esc_html($briefing->getMetrics()->getDurationMinutes()); ?> minutos</td>
+                        <td><?php echo $this->formatMinutes($briefing->getMetrics()->getDurationMinutes()); ?></td>
                     </tr>
                     <tr>
                         <th>Buffer Operacional:</th>
-                        <td><?php echo esc_html($briefing->getMetrics()->getBufferMinutes()); ?> minutos</td>
+                        <td><?php echo $this->formatMinutes($briefing->getMetrics()->getBufferMinutes()); ?></td>
                     </tr>
                     <tr>
                         <th>Tempo Total:</th>
-                        <td><strong><?php echo esc_html($briefing->getMetrics()->getTotalMinutes()); ?> minutos</strong></td>
+                        <td><strong><?php echo $this->formatMinutes($briefing->getMetrics()->getTotalMinutes()); ?></strong></td>
                     </tr>
                 </table>
             </div>
@@ -235,6 +235,9 @@ class BriefingDetailPage
                 </table>
             </div>
             <?php endif; ?>
+
+            <!-- Localização do Serviço -->
+            <?php $this->renderLocationSection($uuid); ?>
 
             <!-- Timeline de Eventos -->
             <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
@@ -579,6 +582,135 @@ class BriefingDetailPage
             '29000-000',
             $coordinates
         );
+    }
+
+    /**
+     * Formata minutos para formato legível (ex: 4h 30min)
+     */
+    private function formatMinutes(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return $minutes . ' minutos';
+        }
+
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($remainingMinutes === 0) {
+            return $hours . 'h';
+        }
+
+        return $hours . 'h ' . $remainingMinutes . 'min';
+    }
+
+    /**
+     * Renderiza seção de localização do serviço
+     */
+    private function renderLocationSection(string $uuid): void
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_briefing_data';
+
+        // Buscar dados de localização
+        $locationData = $wpdb->get_var($wpdb->prepare(
+            "SELECT data_value FROM {$table} WHERE briefing_uuid = %s AND data_key = %s",
+            $uuid,
+            'location'
+        ));
+
+        $location = $locationData ? json_decode($locationData, true) : null;
+
+        ?>
+        <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
+            <h2>📍 Localização do Serviço</h2>
+
+            <?php if ($location): ?>
+                <table class="form-table">
+                    <?php if (!empty($location['address'])): ?>
+                    <tr>
+                        <th>Endereço:</th>
+                        <td><strong><?php echo esc_html($location['address']); ?></strong></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['number'])): ?>
+                    <tr>
+                        <th>Número:</th>
+                        <td><?php echo esc_html($location['number']); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['complement'])): ?>
+                    <tr>
+                        <th>Complemento:</th>
+                        <td><?php echo esc_html($location['complement']); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['neighborhood'])): ?>
+                    <tr>
+                        <th>Bairro:</th>
+                        <td><?php echo esc_html($location['neighborhood']); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['city'])): ?>
+                    <tr>
+                        <th>Cidade:</th>
+                        <td><?php echo esc_html($location['city']); ?> - <?php echo esc_html($location['state'] ?? ''); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['zip_code'])): ?>
+                    <tr>
+                        <th>CEP:</th>
+                        <td><?php echo esc_html($location['zip_code']); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
+                    <?php if (!empty($location['latitude']) && !empty($location['longitude'])): ?>
+                    <tr>
+                        <th>Coordenadas:</th>
+                        <td>
+                            <code><?php echo esc_html($location['latitude']); ?>, <?php echo esc_html($location['longitude']); ?></code>
+                            <a href="https://www.google.com/maps?q=<?php echo esc_attr($location['latitude']); ?>,<?php echo esc_attr($location['longitude']); ?>"
+                               target="_blank"
+                               class="button button-small"
+                               style="margin-left: 10px;">
+                                🗺️ Ver no Google Maps
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
+                </table>
+
+                <?php
+                // Endereço completo para cópia
+                $fullAddress = implode(', ', array_filter([
+                    $location['address'] ?? '',
+                    $location['number'] ?? '',
+                    $location['neighborhood'] ?? '',
+                    $location['city'] ?? '',
+                    $location['state'] ?? '',
+                    $location['zip_code'] ?? ''
+                ]));
+                ?>
+
+                <?php if ($fullAddress): ?>
+                <div style="margin-top: 15px; padding: 10px; background: #f0f0f1; border-left: 3px solid #2271b1;">
+                    <strong>Endereço completo:</strong><br>
+                    <code style="font-size: 13px;"><?php echo esc_html($fullAddress); ?></code>
+                </div>
+                <?php endif; ?>
+
+            <?php else: ?>
+                <div style="padding: 20px; text-align: center; color: #646970;">
+                    <p><em>⚠️ Localização não informada neste briefing.</em></p>
+                    <p><small>A localização será coletada no formulário de briefing do cliente.</small></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
     }
 
     private function renderEventTimeline(string $uuid): void

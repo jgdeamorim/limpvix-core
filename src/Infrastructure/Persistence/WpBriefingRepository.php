@@ -280,7 +280,11 @@ class WpBriefingRepository implements BriefingRepositoryInterface
         $briefings = [];
         foreach ($rows as $row) {
             try {
-                $briefings[] = $this->hydrate($row);
+                // Buscar dados relacionados (structure, frequency, etc)
+                $dataRows = $this->findDataByUuid($row['uuid']);
+
+                // Hidratar com ambos os parâmetros
+                $briefings[] = $this->hydrate($row, $dataRows);
             } catch (\Exception $e) {
                 // Log error but continue
                 if (defined('WP_DEBUG') && WP_DEBUG) {

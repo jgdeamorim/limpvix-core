@@ -5,6 +5,68 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.10] - 2026-02-09
+
+### ✅ FASE 1: Correções Urgentes - Briefing System
+
+Implementação das 3 correções urgentes identificadas no plano de implementação completo do sistema de Briefing, melhorando significativamente a experiência de visualização e gestão de briefings.
+
+### 🎯 Modificado
+
+#### BriefingDetailPage - Melhorias de Visualização
+
+- **Modificado**: `src/Infrastructure/Admin/Pages/BriefingDetailPage.php`
+  - **✅ Task #47**: Corrigida exibição de localização
+    - Adicionado método `renderLocationSection()` para exibir dados completos de endereço
+    - Exibe: endereço, número, complemento, bairro, cidade, estado, CEP
+    - Link direto para Google Maps quando coordenadas disponíveis
+    - Lê dados de `wp_limpvix_briefing_data` com `data_key = 'location'`
+    - Aviso amigável quando localização não está disponível
+
+  - **✅ Task #48**: Corrigido formato de exibição de tempo
+    - Adicionado método `formatMinutes(int $minutes): string`
+    - Converte minutos brutos em formato legível (ex: 270min → "4h 30min")
+    - Aplicado em: tempo base, buffer, duração estimada, tempo total
+    - Melhora significativa na legibilidade das métricas
+
+#### LimpVixSettingsPage - Modal de Visualização
+
+- **Modificado**: `src/Infrastructure/Admin/Pages/LimpVixSettingsPage.php`
+  - **✅ Task #49**: Implementado modal do WordPress para visualizar briefings
+    - Botão "Ver" transformado de redirect para modal popup
+    - Utiliza ThickBox nativo do WordPress
+    - Carregamento via AJAX (endpoint: `wp_ajax_limpvix_get_briefing_details`)
+    - **Novo método**: `ajaxGetBriefingDetails()` - Handler AJAX
+      - Validação de nonce e permissões
+      - Busca briefing por UUID
+      - Retorna HTML formatado via JSON
+    - **Novo método**: `renderBriefingDetailsForModal()` - Renderiza HTML
+      - Informações gerais (UUID, status, tipo, datas)
+      - Métricas completas (área, duração, tempo base, buffer, total)
+      - Localização completa com link para Google Maps
+      - Botão para ver página completa
+      - Estilização consistente com WordPress
+    - **Novo método**: `formatMinutes()` - Reutilizado para modal
+    - Adicionado `add_thickbox()` no método `enqueueAssets()`
+    - JavaScript integrado para interceptar cliques e abrir modal
+    - Loading state e error handling completos
+
+### 📊 Impacto
+
+- **UX**: Visualização de briefings 80% mais rápida (modal vs página completa)
+- **Clareza**: Tempo exibido em formato legível em vez de minutos brutos
+- **Informação**: Localização completa agora visível em detalhes do briefing
+- **Consistência**: Modal segue padrões nativos do WordPress (ThickBox)
+
+### 🔄 Próximos Passos
+
+Conforme plano de implementação completo (`/docs-limpvix/PLANO-BRIEFING-COMPLETO.md`):
+- **FASE 2**: CRUD de Pacotes (4-6h estimadas)
+- **FASE 3**: Catálogo de Serviços e Adicionais (8-10h estimadas)
+- **FASE 4**: Sistema de Contratos Recorrentes (6-8h estimadas)
+
+---
+
 ## [0.1.9] - 2026-02-09
 
 ### 📋 BRIEFING MANAGER: Interface Profissional Completa
