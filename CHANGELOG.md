@@ -328,9 +328,177 @@ Início da implementação da camada de aplicação do módulo Professional (Mar
   - Modais centralizados
 
   **Próximos Passos:**
-  - Task #73: ProfessionalController (API REST)
+  - ✅ Task #73: ProfessionalController (CONCLUÍDA)
   - ProfessionalDetailPage (ver histórico completo)
   - Assets CSS/JS (professionals.css, professionals.js)
+
+#### API REST: ProfessionalController
+
+- **Criado**: `src/Infrastructure/API/ProfessionalController.php` (800+ linhas)
+  - **✅ Task #73**: API REST completa com 10 endpoints para Professional Module
+
+  **10 Endpoints Implementados:**
+
+  1. **GET `/wp-json/limpvix/v1/professionals`** - Listar profissionais (admin)
+     - Filtros: status, verified, min_score, search
+     - Paginação: per_page, page
+     - Serialização: 20+ campos incluindo região, skills, availability
+     - Permission: `manage_options` (admin only)
+
+  2. **POST `/wp-json/limpvix/v1/professionals`** - Registrar profissional (admin)
+     - Integração com `RegisterProfessional` Use Case
+     - Validação completa de entrada
+     - Geocoding automático
+     - Permission: `manage_options` (admin only)
+
+  3. **GET `/wp-json/limpvix/v1/professionals/{id}`** - Detalhes do profissional
+     - Professional pode ver próprio perfil
+     - Admin pode ver qualquer perfil
+     - Serialização completa com 20+ campos
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  4. **PATCH `/wp-json/limpvix/v1/professionals/{id}`** - Atualizar profissional
+     - Professional pode atualizar próprio perfil
+     - Admin pode atualizar qualquer perfil
+     - Campos editáveis: phone, service_region, skills, availability
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  5. **GET `/wp-json/limpvix/v1/professionals/{id}/offers`** - Listar ofertas
+     - Apenas ofertas pendentes
+     - Professional vê apenas suas ofertas
+     - Ordenação por criação (mais recente primeiro)
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  6. **POST `/wp-json/limpvix/v1/professionals/{id}/offers/{offer_id}/accept`** - Aceitar oferta
+     - **CRÍTICO:** Implementação com transação SQL
+     - First-to-accept: expira outras ofertas do mesmo contrato
+     - Aloca profissional ao contrato
+     - Dispara evento `limpvix_offer_accepted`
+     - Rollback automático em caso de erro
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  7. **POST `/wp-json/limpvix/v1/professionals/{id}/offers/{offer_id}/reject`** - Rejeitar oferta
+     - Atualiza status para 'rejected'
+     - Dispara evento `limpvix_offer_rejected`
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  8. **PATCH `/wp-json/limpvix/v1/professionals/{id}/availability`** - Atualizar disponibilidade
+     - Professional pode atualizar própria disponibilidade
+     - Admin pode atualizar qualquer disponibilidade
+     - Formato: `{day: {start, end, available}}`
+     - Dispara evento `limpvix_professional_availability_updated`
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  9. **GET `/wp-json/limpvix/v1/professionals/{id}/score-history`** - Histórico de score
+     - Professional vê próprio histórico
+     - Admin vê qualquer histórico
+     - Inclui: timestamp, old_score, new_score, reason, change
+     - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  10. **GET `/wp-json/limpvix/v1/professionals/{id}/allocations`** - Histórico de alocações
+      - Professional vê próprias alocações
+      - Admin vê qualquer histórico
+      - Inclui: contract_uuid, status, allocated_at, completed_at
+      - Permission: `limpvix_professional` (próprio) ou `manage_options` (admin)
+
+  **Recursos Principais:**
+
+  **Permission Callbacks:**
+  - Admin pode tudo (`manage_options`)
+  - Professional pode gerenciar apenas próprio perfil (`limpvix_professional`)
+  - Validação por User ID: `$userId === $professionalId`
+  - Granularidade por endpoint
+
+  **Transaction Safety (acceptOffer):**
+  ```php
+  global $wpdb;
+  $wpdb->query('START TRANSACTION');
+
+  try {
+      // 1. Update offer → accepted
+      $wpdb->update('wp_limpvix_professional_offers',
+          ['status' => 'accepted', 'accepted_at' => current_time('mysql')],
+          ['id' => $offerId]
+      );
+
+      // 2. Expire other offers for same contract
+      $wpdb->update('wp_limpvix_professional_offers',
+          ['status' => 'expired', 'expired_at' => current_time('mysql')],
+          ['contract_uuid' => $contractUuid, 'status' => 'pending']
+      );
+
+      // 3. Allocate professional to contract
+      $wpdb->update('wp_limpvix_contracts',
+          ['professional_id' => $professionalId, 'status' => 'allocated'],
+          ['uuid' => $contractUuid]
+      );
+
+      $wpdb->query('COMMIT');
+
+      do_action('limpvix_offer_accepted', [
+          'offer_id' => $offerId,
+          'professional_id' => $professionalId,
+          'contract_uuid' => $contractUuid,
+      ]);
+
+  } catch (\Exception $e) {
+      $wpdb->query('ROLLBACK');
+      return new \WP_REST_Response(['error' => $e->getMessage()], 500);
+  }
+  ```
+
+  **Event Dispatching:**
+  - `limpvix_offer_accepted` (crítico para Finance, Scheduling, Notification)
+  - `limpvix_offer_rejected`
+  - `limpvix_professional_availability_updated`
+  - Integração com outros módulos via hooks
+
+  **Serialização Completa (20+ campos):**
+  ```php
+  return [
+      'id' => $professional->getId(),
+      'user_id' => $professional->getUserId(),
+      'full_name' => $professional->getFullName(),
+      'email' => $professional->getEmail(),
+      'phone' => $professional->getPhone(),
+      'cpf' => $professional->getCpf(),
+      'score' => $professional->getScore(),
+      'is_active' => $professional->isActive(),
+      'is_verified' => $professional->isVerified(),
+      'is_suspended' => $professional->isSuspended(),
+      'total_services' => $professional->getTotalServices(),
+      'completed_services' => $professional->getCompletedServices(),
+      'service_region' => $professional->getServiceRegion()->toArray(),
+      'skills' => $professional->getSkills()->toArray(),
+      'availability' => $professional->getAvailability()->toArray(),
+      // ... e mais
+  ];
+  ```
+
+  **Segurança:**
+  - Nonce validation em mutations
+  - Permission callbacks em todos endpoints
+  - Sanitização de inputs: `sanitize_text_field()`, `absint()`, `floatval()`
+  - SQL injection prevention via `$wpdb->prepare()`
+  - Escape de outputs
+  - Validação de propriedade do recurso
+
+  **Error Handling:**
+  - Retorna WP_REST_Response com status HTTP correto
+  - Mensagens de erro descritivas
+  - Rollback de transações em caso de falha
+  - Logs de debug quando WP_DEBUG ativado
+
+  **Integração com Use Cases:**
+  - RegisterProfessional (endpoint POST)
+  - Repository pattern para leitura/escrita
+  - Professional Aggregate Root para business logic
+
+  **Próximos Passos:**
+  - ProfessionalBootstrap (registrar controller no Kernel)
+  - ProfessionalDetailPage (admin detail view)
+  - Assets CSS/JS (professionals.css, professionals.js)
+  - Role `limpvix_professional` (WordPress custom role)
 
 ---
 
