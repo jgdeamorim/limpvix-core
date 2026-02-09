@@ -5,6 +5,84 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.8] - 2026-02-09
+
+### 🔄 INTEGRAÇÃO: Scheduling na página de Briefing
+
+Integração completa do módulo Scheduling diretamente na interface de Briefing Detail, eliminando necessidade de página separada.
+
+### 🎯 Modificado
+
+#### BriefingDetailPage - Integração com Scheduling
+
+- **Refatorado**: `src/Infrastructure/Admin/Pages/BriefingDetailPage.php`
+  - Adicionadas dependências de Scheduling:
+    - `WpScheduleRepository` - Busca schedules relacionados ao briefing
+    - `WpProfessionalRepository` - Busca profissionais disponíveis
+    - `CreateSchedule` - Use Case para criar agendamento
+    - `AllocateProfessional` - Use Case para alocar profissionais automaticamente
+  - **Novo método**: `renderSchedulingSection()` - Seção completa de agendamento
+    - Exibida apenas quando `$briefing->isLocked() === true`
+    - Se schedule existe: mostra status e alocações
+    - Se schedule não existe: mostra formulário de criação
+  - **Novo método**: `renderSchedulingForm()` - Formulário de agendamento
+    - Date picker para escolha de data/hora desejada
+    - Explicação do algoritmo de alocação inteligente
+    - Submit button para criar schedule e alocar profissionais
+  - **Novo método**: `renderExistingSchedule()` - Exibição de schedule existente
+    - Status do agendamento (draft/allocated/in_progress/completed)
+    - Horário solicitado e janela válida (±1h)
+    - Lista de profissionais alocados com scores individuais
+    - Alerta de violações de SLA (se existirem)
+    - Link para detalhes completos do schedule
+  - **Novo método**: `handleSchedulingAction()` - Processa submissão do formulário
+    - Valida nonce de segurança
+    - Cria ServiceLocation a partir do briefing
+    - Executa CreateSchedule Use Case
+    - Executa AllocateProfessional Use Case
+    - Redireciona de volta para detalhe do briefing com mensagem de sucesso/erro
+  - **Novo método privado**: `getExistingSchedule()` - Busca schedule existente do briefing
+  - **Novo método privado**: `getProfessionalAllocations()` - Busca alocações de profissionais
+  - **Novo método privado**: `createServiceLocationFromBriefing()` - Cria Value Object de localização
+
+### 🎨 Fluxo de Usuário
+
+1. Cliente completa Briefing → Admin visualiza em "LimpVix → Briefings"
+2. Admin clica no briefing → abre BriefingDetailPage
+3. Admin revisa dados do briefing e **clica em "Travar Briefing"**
+4. **Seção "Agendamento" aparece automaticamente**
+5. Admin escolhe data/hora desejada (ex: 09:00 de 10/02)
+6. Sistema mostra explicação: "Sistema criará janela de ±1h e alocará profissionais por proximidade, disponibilidade e rating"
+7. Admin clica "Criar Agendamento e Alocar Profissionais"
+8. Sistema executa:
+   - Cria Schedule com janela 08:00-10:00
+   - Calcula profissionais necessários (baseado em duração estimada)
+   - Busca profissionais elegíveis (região + skills + disponibilidade)
+   - Calcula score de cada profissional (proximidade 40% + disponibilidade 30% + rating 20% + carga 10%)
+   - Aloca top N profissionais
+   - Cria appointments no Booknetic
+9. Página recarrega mostrando:
+   - Status: "Alocado"
+   - Profissionais alocados com scores (ex: "João Silva - Score: 87.5")
+   - Janela válida: 08:00-10:00 do dia 10/02
+   - Link para detalhes completos
+
+### ✅ Benefícios
+
+- **UX Simplificada**: Agendamento integrado ao fluxo natural de Briefing
+- **Menos cliques**: Admin não precisa navegar para página separada
+- **Contexto preservado**: Todas informações do briefing visíveis durante agendamento
+- **Automação total**: Alocação de profissionais acontece automaticamente ao criar schedule
+- **Transparência**: Scores de alocação visíveis para auditoria
+
+### 🔧 Técnico
+
+- Respeitou arquitetura DDD: Use Cases chamados da camada de Admin
+- Repositories instanciados no construtor (sem DI container)
+- Value Objects criados corretamente (ServiceLocation com GeoCoordinates)
+- Validação de segurança com nonces do WordPress
+- Feedback de sucesso/erro via admin notices
+
 ## [0.1.7] - 2026-02-09
 
 ### ✨ SCHEDULING FASE 4: Admin Interface + Integration + MigrationManager
