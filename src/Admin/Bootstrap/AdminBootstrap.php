@@ -25,6 +25,7 @@ use LimpVix\Infrastructure\Admin\Pages\MessageTemplatesAdminPage;
 use LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\LimpVixSettingsPage;
 use LimpVix\Infrastructure\Admin\Pages\PackageManagementPage;
+use LimpVix\Infrastructure\Admin\Pages\ServiceCatalogPage;
 
 defined("ABSPATH") || exit;
 
@@ -86,6 +87,11 @@ class AdminBootstrap
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PackageManagementPage')) {
             $packagePage = new PackageManagementPage();
             $packagePage->register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\ServiceCatalogPage')) {
+            $serviceCatalogPage = new ServiceCatalogPage();
+            $serviceCatalogPage->register();
         }
 
         // REMOVIDO: registerCommunicationPages() que causava duplicação

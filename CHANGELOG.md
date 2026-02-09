@@ -5,6 +5,180 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.12] - 2026-02-09
+
+### ✅ FASE 3: Catálogo Completo de Serviços e Adicionais
+
+Implementação do sistema completo de catálogo de serviços (Comercial/Residencial) e adicionais/extras, incluindo migrations, interface administrativa com abas, API REST e seed data inicial.
+
+### 🎯 Adicionado
+
+#### Migration 008 - Tabelas e Seed Data
+
+- **Criado**: `database-migrations/008_create_service_catalog_tables.sql`
+  - **✅ Task #54**: 3 novas tabelas criadas
+
+  **1. wp_limpvix_service_catalog** - Serviços principais
+  - Campos: service_code, category, service_type, display_name, description
+  - base_price, time_multiplier, requires_multiple_professionals
+  - Índices: category, service_type, active, code
+
+  **2. wp_limpvix_service_additionals** - Adicionais/Extras
+  - Campos: additional_code, display_name, description
+  - unit_type (fixed/per_m2/per_unit), base_price, duration_minutes
+  - compatible_with_categories (JSON), is_active
+
+  **3. wp_limpvix_briefing_additionals** - Relação many-to-many
+  - briefing_uuid ↔ additional_id
+  - quantity, unit_price, total_price, notes
+  - Foreign keys com CASCADE
+
+**Seed Data incluído:**
+- 6 serviços padrão (3 comerciais + 3 residenciais)
+  - Padrão (multiplier 1.0)
+  - Pré-Mudança (multiplier 1.3)
+  - Pós-Obra (multiplier 1.7)
+- 10 adicionais prontos:
+  - Teto PVC (R$ 5/m²)
+  - Esquadrias (R$ 15/unidade)
+  - Persianas (R$ 25/unidade)
+  - Cortinas (R$ 8/m²)
+  - Estofados (R$ 80/unidade)
+  - Carpetes (R$ 12/m²)
+  - Jardim (R$ 6/m²)
+  - Organização (R$ 100 fixo)
+  - Eletrodomésticos (R$ 35/unidade)
+  - Armários (R$ 20/unidade)
+
+#### ServiceCatalogPage - Interface com Abas
+
+- **Criado**: `src/Infrastructure/Admin/Pages/ServiceCatalogPage.php` (800+ linhas)
+  - **✅ Task #55**: Sistema de abas (Serviços | Adicionais)
+  - **✅ Task #56**: CRUD completo de serviços
+  - **✅ Task #57**: CRUD completo de adicionais
+
+**Aba 1: Serviços Principais**
+- Listagem em tabela (9 colunas)
+- Filtros implícitos por categoria
+- Formulário create/edit com campos:
+  - service_code (readonly após criação)
+  - category (commercial/residential)
+  - service_type (standard/pre_move/post_construction)
+  - display_name, description
+  - base_price, time_multiplier
+  - requires_multiple_professionals (checkbox)
+  - is_active (checkbox)
+- Validações server-side
+- Ações: Editar | Deletar
+
+**Aba 2: Adicionais/Extras**
+- Listagem em tabela (8 colunas)
+- Formulário create/edit com campos:
+  - additional_code (readonly após criação)
+  - display_name, description
+  - unit_type (fixed/per_m2/per_unit)
+  - base_price, estimated_duration_minutes
+  - compatible_categories (multiselect: commercial/residential)
+  - is_active (checkbox)
+- Validações server-side
+- Ações: Editar | Deletar
+
+**Features:**
+- URL: `/wp-admin/admin.php?page=limpvix-services`
+- Nonces para CSRF protection
+- Sanitização de inputs
+- Mensagens de feedback (success/error)
+- Redirect-after-POST
+- Badges de status coloridos
+
+#### ServiceCatalogController - REST API
+
+- **Criado**: `src/Infrastructure/API/ServiceCatalogController.php`
+  - **✅ Task #58**: 3 endpoints funcionais
+
+**1. GET /wp-json/limpvix/v1/services**
+- Lista serviços ativos
+- Público (sem autenticação)
+- Query param opcional: `category` (commercial/residential)
+- Response formatado com todos os dados
+- Ordenado por category, service_type
+
+**2. GET /wp-json/limpvix/v1/additionals**
+- Lista adicionais ativos
+- Público (sem autenticação)
+- Query param opcional: `category` (filtra compatibilidade)
+- Response com unit_label formatado
+- JSON compatible_categories decodificado
+
+**3. POST /wp-json/limpvix/v1/briefing/{uuid}/additionals**
+- Adiciona extras a um briefing
+- Autenticado (usuário logado)
+- Body: `{ "additionals": [{"id": 1, "quantity": 2, "notes": "..."}] }`
+- Calcula total_price automaticamente
+- Limpa adicionais antigos antes de inserir novos
+- Retorna soma total de extras
+
+**Features:**
+- Validação de UUID do briefing
+- Verificação de adicional ativo
+- Permission callbacks configurados
+- Error handling completo
+- Logs de erro detalhados
+
+### 🔄 Modificado
+
+#### AdminBootstrap - Registro da Página
+
+- **Modificado**: `src/Admin/Bootstrap/AdminBootstrap.php`
+  - Adicionado import de `ServiceCatalogPage`
+  - Registrado `ServiceCatalogPage` no método `boot()`
+  - Inicialização automática
+
+#### BriefingApiBootstrap - Registro do Controller
+
+- **Modificado**: `src/Infrastructure/API/BriefingApiBootstrap.php`
+  - Inicializado `ServiceCatalogController` (sem dependências)
+  - Registrado rotas do controller em `rest_api_init`
+  - Namespace: `limpvix/v1`
+
+### 📊 Impacto
+
+- **Admin**: Interface completa para gerenciar catálogo de serviços
+- **Flexibilidade**: Admin pode criar serviços e adicionais customizados
+- **API**: Frontend pode listar e adicionar extras via REST
+- **Seed Data**: 16 itens prontos para uso imediato (6 serviços + 10 adicionais)
+- **Integração**: Adicionais vinculados a briefings com cálculo automático de preço
+- **Escalabilidade**: Estrutura preparada para expansão do catálogo
+
+### 📝 Endpoints Disponíveis
+
+```
+GET  /wp-json/limpvix/v1/services?category=residential
+     → Lista serviços residenciais ativos (público)
+
+GET  /wp-json/limpvix/v1/additionals?category=commercial
+     → Lista adicionais compatíveis com comercial (público)
+
+POST /wp-json/limpvix/v1/briefing/{uuid}/additionals
+     Body: {
+       "additionals": [
+         {"id": 1, "quantity": 2.5, "notes": "Teto da sala"},
+         {"id": 5, "quantity": 1, "notes": "Sofá 3 lugares"}
+       ]
+     }
+     → Adiciona extras ao briefing (autenticado)
+```
+
+### 🔄 Próximos Passos
+
+Conforme plano (`/docs-limpvix/PLANO-BRIEFING-COMPLETO.md`):
+- **FASE 4**: Sistema de Contratos Recorrentes (6-8h estimadas)
+  - 2 novas tabelas (contracts, contract_executions)
+  - CRUD de contratos mensais/semanais
+  - Automação com cron jobs
+
+---
+
 ## [0.1.11] - 2026-02-09
 
 ### ✅ FASE 2: CRUD Completo de Pacotes
