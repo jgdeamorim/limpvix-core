@@ -155,15 +155,37 @@ Implementação do módulo de profissionais autônomos (gig economy), base para 
   - Registra BriefingContractListener no boot do sistema
   - Inicialização após ContractAutomation
 
+#### Infrastructure - WpMarketplaceProfessionalRepository
+
+- **Criado**: `src/Infrastructure/Persistence/WpMarketplaceProfessionalRepository.php` (11K, 280+ linhas)
+  - **✅ Task #69**: Repository de persistência para Professional marketplace
+  - Implementa ProfessionalRepositoryInterface completa (25+ métodos)
+  - Busca: findById(), findByUserId(), findByCpf()
+  - Elegibilidade: findEligibleFor() com filtros (região + skills + disponibilidade + ativo/verificado)
+  - Região: findByRegion() com Haversine distance calculado em SQL
+  - Skills: findBySkills() com JSON_CONTAINS
+  - Status: findActiveAndVerified(), findSuspended(), findPendingVerification(), findByMinScore()
+  - Persistência: save() com auto insert/update
+  - Score: updateScore() com auditoria em professional_score_history (old_score, new_score, reason, details)
+  - Contadores: incrementCompletedServices(), incrementCancelledServices(), incrementNoShows()
+  - Atividade: updateLastActivity()
+  - Deleção: delete() soft delete (is_active = 0)
+  - Estatísticas: countActive(), countVerified(), getStatistics() com médias
+  - Históricos: getAllocationHistory(), getScoreHistory()
+  - Hidratação: via Professional::reconstitute() de dados do banco
+  - Desidratação: serializa Value Objects (ServiceRegion→JSON, Skills→JSON, Availability→JSON)
+  - Transacional para operações críticas
+
 ### 📊 Estatísticas (Atualizado)
 
-- **Arquivos criados**: 9 arquivos (1 migration + 5 domain + 1 use case + 1 listener + 1 kernel)
-- **Linhas de código**: ~52K total (~14K migration SQL + ~38K PHP)
+- **Arquivos criados**: 10 arquivos (1 migration + 5 domain + 1 use case + 1 listener + 1 repository + 1 kernel)
+- **Linhas de código**: ~63K total (~14K migration SQL + ~49K PHP)
 - **Tabelas criadas**: 4 novas tabelas
 - **Campos adicionados**: 9 campos (6 em briefings + 3 em contracts)
 - **Value Objects**: 3 VOs imutáveis com validações completas
 - **Aggregate Roots**: 1 AR (Professional) com 20+ comportamentos
 - **Interfaces**: 1 Repository Interface com 25+ métodos
+- **Repositories**: 1 Repository (WpMarketplaceProfessionalRepository) com 25+ métodos implementados
 - **Use Cases**: 1 Use Case (CreateContractFromBriefing)
 - **Listeners**: 1 Listener (BriefingContractListener)
 - **Integrações**: Briefing → Contract automático
