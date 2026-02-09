@@ -23,6 +23,7 @@
 namespace LimpVix\Core;
 
 use LimpVix\Infrastructure\Persistence\Contract\WpContractRepository;
+use LimpVix\Application\UseCase\Contract\CreateContract;
 use LimpVix\Application\UseCase\Contract\ActivateContract;
 use LimpVix\Application\UseCase\Contract\PauseContract;
 use LimpVix\Application\UseCase\Contract\ResumeContract;
@@ -111,6 +112,7 @@ final class ContractBootstrap
 
         // Registrar Use Cases
         $GLOBALS['limpvix_contract_use_cases'] = [
+            'create' => new CreateContract($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
             'resume' => new ResumeContract($repository),
@@ -121,7 +123,7 @@ final class ContractBootstrap
             'schedule_next' => new ScheduleNextExecution($repository),
         ];
 
-        self::logInfo('8 Contract Use Cases registered');
+        self::logInfo('9 Contract Use Cases registered');
     }
 
     /**

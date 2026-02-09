@@ -2,14 +2,19 @@
 /**
  * ContractController - REST API para Contratos Recorrentes
  *
+ * REFATORADO PARA DDD - Usa Use Cases em vez de $wpdb direto
+ *
  * Endpoints:
  * - GET  /limpvix/v1/contracts - Listar contratos do cliente
  * - POST /limpvix/v1/contracts - Criar novo contrato
+ * - POST /limpvix/v1/contracts/{id}/activate - Ativar contrato
+ * - POST /limpvix/v1/contracts/{id}/pause - Pausar contrato
+ * - POST /limpvix/v1/contracts/{id}/cancel - Cancelar contrato
  * - GET  /limpvix/v1/contracts/{id}/executions - Histórico de execuções
  * - POST /limpvix/v1/contracts/{id}/schedule-execution - Agendar próxima execução
  *
- * @package LimpVix
- * @since 0.1.13
+ * @package LimpVix\Infrastructure\API
+ * @since 0.8.0
  */
 
 namespace LimpVix\Infrastructure\API;
@@ -17,17 +22,51 @@ namespace LimpVix\Infrastructure\API;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_Error;
+use LimpVix\Domain\Contract\ContractRepositoryInterface;
+use LimpVix\Domain\Contract\ContractId;
+use LimpVix\Application\UseCase\Contract\CreateContract;
+use LimpVix\Application\UseCase\Contract\ActivateContract;
+use LimpVix\Application\UseCase\Contract\PauseContract;
+use LimpVix\Application\UseCase\Contract\CancelContract;
+use LimpVix\Application\UseCase\Contract\ScheduleNextExecution;
+
+defined('ABSPATH') || exit;
 
 class ContractController
 {
     private string $namespace = 'limpvix/v1';
+    private ContractRepositoryInterface $repository;
+    private array $useCases;
 
-    public function register(): void
+    /**
+     * Construtor com Dependency Injection
+     *
+     * @param array $useCases Array com Use Cases injetados pelo Bootstrap
+     */
+    public function __construct(array $useCases = [])
     {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
+        $this->useCases = $useCases;
+
+        // Repository é acessado via global se não injetado
+        $this->repository = $GLOBALS['limpvix_contract_repository'] ?? null;
+
+        if (!$this->repository) {
+            error_log('[ContractController] Repository not found - using global fallback');
+        }
     }
 
-    public function registerRoutes(): void
+    /**
+     * Registrar rotas (compatibilidade com versão antiga)
+     */
+    public function register(): void
+    {
+        add_action('rest_api_init', [$this, 'register_routes']);
+    }
+
+    /**
+     * Registrar rotas REST API
+     */
+    public function register_routes(): void
     {
         // GET /limpvix/v1/contracts
         register_rest_route($this->namespace, '/contracts', [
@@ -38,13 +77,12 @@ class ContractController
                 'client_user_id' => [
                     'required' => false,
                     'type' => 'integer',
-                    'description' => 'Filtrar por ID do cliente (usuário WordPress)'
+                    'description' => 'Filtrar por ID do cliente'
                 ],
                 'status' => [
                     'required' => false,
                     'type' => 'string',
-                    'enum' => ['active', 'suspended', 'cancelled', 'expired'],
-                    'description' => 'Filtrar por status do contrato'
+                    'enum' => ['draft', 'pending_allocation', 'active', 'paused', 'completed', 'cancelled'],
                 ]
             ]
         ]);
@@ -77,8 +115,7 @@ class ContractController
                 ],
                 'property_type' => [
                     'required' => true,
-                    'type' => 'string',
-                    'enum' => ['residential', 'commercial']
+                    'type' => 'string'
                 ],
                 'monthly_value' => [
                     'required' => true,
@@ -90,57 +127,84 @@ class ContractController
                     'type' => 'string',
                     'format' => 'date'
                 ],
-                'service_address' => [
-                    'required' => true,
-                    'type' => 'object'
+                'auto_activate' => [
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => false,
+                    'description' => 'Ativar imediatamente após criação'
+                ],
+                'professional_id' => [
+                    'required' => false,
+                    'type' => 'integer',
+                    'description' => 'ID do profissional (obrigatório se auto_activate=true)'
                 ]
             ]
         ]);
 
-        // GET /limpvix/v1/contracts/{id}/executions
+        // POST /limpvix/v1/contracts/{id}/activate
+        register_rest_route($this->namespace, '/contracts/(?P<id>\d+)/activate', [
+            'methods' => 'POST',
+            'callback' => [$this, 'activateContract'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'args' => [
+                'professional_id' => [
+                    'required' => true,
+                    'type' => 'integer'
+                ]
+            ]
+        ]);
+
+        // POST /limpvix/v1/contracts/{id}/pause
+        register_rest_route($this->namespace, '/contracts/(?P<id>\d+)/pause', [
+            'methods' => 'POST',
+            'callback' => [$this, 'pauseContract'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'args' => [
+                'reason' => [
+                    'required' => false,
+                    'type' => 'string'
+                ]
+            ]
+        ]);
+
+        // POST /limpvix/v1/contracts/{id}/cancel
+        register_rest_route($this->namespace, '/contracts/(?P<id>\d+)/cancel', [
+            'methods' => 'POST',
+            'callback' => [$this, 'cancelContract'],
+            'permission_callback' => [$this, 'checkAdminPermissions'],
+            'args' => [
+                'reason' => [
+                    'required' => false,
+                    'type' => 'string'
+                ]
+            ]
+        ]);
+
+        // GET /limpvix/v1/contracts/{id}/executions (mantido como estava)
         register_rest_route($this->namespace, '/contracts/(?P<id>\d+)/executions', [
             'methods' => 'GET',
             'callback' => [$this, 'getExecutions'],
-            'permission_callback' => [$this, 'checkPermissions'],
-            'args' => [
-                'id' => [
-                    'required' => true,
-                    'type' => 'integer',
-                    'validate_callback' => [$this, 'validateContractId']
-                ]
-            ]
+            'permission_callback' => [$this, 'checkPermissions']
         ]);
 
         // POST /limpvix/v1/contracts/{id}/schedule-execution
         register_rest_route($this->namespace, '/contracts/(?P<id>\d+)/schedule-execution', [
             'methods' => 'POST',
             'callback' => [$this, 'scheduleExecution'],
-            'permission_callback' => [$this, 'checkPermissions'],
-            'args' => [
-                'id' => [
-                    'required' => true,
-                    'type' => 'integer',
-                    'validate_callback' => [$this, 'validateContractId']
-                ],
-                'scheduled_date' => [
-                    'required' => true,
-                    'type' => 'string',
-                    'format' => 'date'
-                ]
-            ]
+            'permission_callback' => [$this, 'checkAdminPermissions']
         ]);
     }
 
     /**
      * GET /limpvix/v1/contracts
-     * Lista contratos (admin vê todos, cliente vê apenas seus)
+     * Lista contratos usando Repository
      */
     public function listContracts(WP_REST_Request $request): WP_REST_Response
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'limpvix_contracts';
+        if (!$this->repository) {
+            return $this->errorResponse('Repository not available', 500);
+        }
 
-        // Determinar filtros
         $clientUserId = $request->get_param('client_user_id');
         $status = $request->get_param('status');
         $currentUserId = get_current_user_id();
@@ -150,144 +214,251 @@ class ContractController
             $clientUserId = $currentUserId;
         }
 
-        // Build query
-        $where = ['1=1'];
-        if ($clientUserId) {
-            $where[] = $wpdb->prepare('client_user_id = %d', $clientUserId);
+        try {
+            // Buscar contratos via Repository
+            if ($clientUserId) {
+                $contracts = $this->repository->findByClientId($clientUserId);
+            } elseif ($status === 'active') {
+                $contracts = $this->repository->findActiveContracts();
+            } else {
+                // Buscar todos contratos ativos (admin only)
+                $contracts = $this->repository->findActiveContracts();
+            }
+
+            // Formatar para API
+            $formatted = array_map(function($contract) {
+                $user = get_userdata($contract->getClientUserId());
+
+                return [
+                    'id' => $contract->getId()->toInt(),
+                    'contract_number' => $contract->getContractNumber(),
+                    'client' => [
+                        'user_id' => $contract->getClientUserId(),
+                        'name' => $user ? $user->display_name : 'Unknown',
+                        'email' => $user ? $user->user_email : ''
+                    ],
+                    'contract_type' => $contract->getContractType(),
+                    'contract_type_label' => $this->getContractTypeLabel($contract->getContractType()),
+                    'recurrence_day' => $contract->getRecurrenceDay(),
+                    'service_code' => $contract->getServiceCode(),
+                    'property_type' => $contract->getPropertyType(),
+                    'monthly_value' => $contract->getMonthlyValue(),
+                    'monthly_value_formatted' => 'R$ ' . number_format($contract->getMonthlyValue(), 2, ',', '.'),
+                    'start_date' => $contract->getStartDate()->format('Y-m-d'),
+                    'end_date' => $contract->getEndDate()?->format('Y-m-d'),
+                    'auto_renew' => $contract->isAutoRenew(),
+                    'status' => $contract->getStatus()->toString(),
+                    'status_label' => $this->getStatusLabel($contract->getStatus()->toString()),
+                    'allocated_professional_id' => $contract->getAllocatedProfessionalId(),
+                    'next_execution_date' => $contract->getNextExecutionDate()?->format('Y-m-d'),
+                    'created_at' => $contract->getCreatedAt()->format('Y-m-d H:i:s'),
+                    'updated_at' => $contract->getUpdatedAt()->format('Y-m-d H:i:s')
+                ];
+            }, $contracts);
+
+            return new WP_REST_Response([
+                'success' => true,
+                'data' => $formatted,
+                'total' => count($formatted)
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error listing contracts: ' . $e->getMessage(), 500);
         }
-        if ($status) {
-            $where[] = $wpdb->prepare('status = %s', $status);
-        }
-
-        $sql = "SELECT
-                    c.*,
-                    u.display_name as client_name,
-                    u.user_email as client_email
-                FROM {$table} c
-                LEFT JOIN {$wpdb->users} u ON c.client_user_id = u.ID
-                WHERE " . implode(' AND ', $where) . "
-                ORDER BY c.created_at DESC";
-
-        $results = $wpdb->get_results($sql, ARRAY_A);
-
-        // Format results
-        $contracts = array_map(function($row) {
-            return [
-                'id' => (int) $row['id'],
-                'contract_number' => $row['contract_number'],
-                'client' => [
-                    'user_id' => (int) $row['client_user_id'],
-                    'name' => $row['client_name'],
-                    'email' => $row['client_email']
-                ],
-                'contract_type' => $row['contract_type'],
-                'contract_type_label' => $this->getContractTypeLabel($row['contract_type']),
-                'recurrence_day' => (int) $row['recurrence_day'],
-                'service_code' => $row['service_code'],
-                'property_type' => $row['property_type'],
-                'monthly_value' => (float) $row['monthly_value'],
-                'monthly_value_formatted' => 'R$ ' . number_format($row['monthly_value'], 2, ',', '.'),
-                'start_date' => $row['start_date'],
-                'end_date' => $row['end_date'],
-                'auto_renew' => (bool) $row['auto_renew'],
-                'status' => $row['status'],
-                'status_label' => $this->getStatusLabel($row['status']),
-                'service_address' => json_decode($row['service_address'], true),
-                'created_at' => $row['created_at']
-            ];
-        }, $results);
-
-        return new WP_REST_Response([
-            'success' => true,
-            'data' => $contracts,
-            'total' => count($contracts)
-        ], 200);
     }
 
     /**
      * POST /limpvix/v1/contracts
-     * Cria novo contrato
+     * Cria novo contrato usando CreateContract Use Case
      */
     public function createContract(WP_REST_Request $request): WP_REST_Response
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'limpvix_contracts';
-
-        // Gerar número único do contrato
-        $contractNumber = $this->generateContractNumber();
-
-        // Preparar dados
-        $data = [
-            'contract_number' => $contractNumber,
-            'client_user_id' => $request->get_param('client_user_id'),
-            'contract_type' => $request->get_param('contract_type'),
-            'recurrence_day' => $request->get_param('recurrence_day'),
-            'recurrence_weeks' => $request->get_param('recurrence_weeks') ?: 1,
-            'service_code' => $request->get_param('service_code'),
-            'property_type' => $request->get_param('property_type'),
-            'estimated_m2' => $request->get_param('estimated_m2'),
-            'monthly_value' => $request->get_param('monthly_value'),
-            'payment_method' => $request->get_param('payment_method'),
-            'payment_day' => $request->get_param('payment_day'),
-            'start_date' => $request->get_param('start_date'),
-            'end_date' => $request->get_param('end_date'),
-            'auto_renew' => $request->get_param('auto_renew') ? 1 : 0,
-            'status' => 'active',
-            'service_address' => wp_json_encode($request->get_param('service_address')),
-            'notes' => $request->get_param('notes'),
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ];
-
-        // Validar service_code existe
-        $serviceExists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_service_catalog WHERE service_code = %s",
-            $data['service_code']
-        ));
-
-        if (!$serviceExists) {
-            return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Código de serviço inválido'
-            ], 400);
+        if (!isset($this->useCases['create'])) {
+            return $this->errorResponse('CreateContract Use Case not available', 500);
         }
 
-        // Inserir
-        $inserted = $wpdb->insert($table, $data);
+        /** @var CreateContract $createUseCase */
+        $createUseCase = $this->useCases['create'];
 
-        if (!$inserted) {
+        try {
+            // Criar contrato (status = DRAFT)
+            $contract = $createUseCase->execute([
+                'client_user_id' => $request->get_param('client_user_id'),
+                'contract_type' => $request->get_param('contract_type'),
+                'recurrence_day' => $request->get_param('recurrence_day'),
+                'service_code' => $request->get_param('service_code'),
+                'property_type' => $request->get_param('property_type'),
+                'monthly_value' => $request->get_param('monthly_value'),
+                'start_date' => $request->get_param('start_date'),
+                'end_date' => $request->get_param('end_date'),
+                'auto_renew' => $request->get_param('auto_renew') ?? true
+            ]);
+
+            // Auto-ativar se solicitado
+            if ($request->get_param('auto_activate') && $request->get_param('professional_id')) {
+                if (isset($this->useCases['activate'])) {
+                    /** @var ActivateContract $activateUseCase */
+                    $activateUseCase = $this->useCases['activate'];
+                    $activateUseCase->execute(
+                        $contract->getId()->toInt(),
+                        $request->get_param('professional_id')
+                    );
+
+                    // Re-buscar contrato atualizado
+                    $contract = $this->repository->findById($contract->getId());
+                }
+            }
+
             return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Erro ao criar contrato: ' . $wpdb->last_error
-            ], 500);
+                'success' => true,
+                'message' => 'Contrato criado com sucesso',
+                'data' => [
+                    'id' => $contract->getId()->toInt(),
+                    'contract_number' => $contract->getContractNumber(),
+                    'client_user_id' => $contract->getClientUserId(),
+                    'contract_type' => $contract->getContractType(),
+                    'monthly_value' => $contract->getMonthlyValue(),
+                    'start_date' => $contract->getStartDate()->format('Y-m-d'),
+                    'status' => $contract->getStatus()->toString()
+                ]
+            ], 201);
+
+        } catch (\InvalidArgumentException $e) {
+            return $this->errorResponse('Validation error: ' . $e->getMessage(), 400);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error creating contract: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /limpvix/v1/contracts/{id}/activate
+     */
+    public function activateContract(WP_REST_Request $request): WP_REST_Response
+    {
+        if (!isset($this->useCases['activate'])) {
+            return $this->errorResponse('ActivateContract Use Case not available', 500);
         }
 
-        $contractId = $wpdb->insert_id;
+        $contractId = (int) $request->get_param('id');
+        $professionalId = (int) $request->get_param('professional_id');
 
-        // Buscar contrato criado
-        $contract = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE id = %d",
-            $contractId
-        ), ARRAY_A);
+        try {
+            /** @var ActivateContract $useCase */
+            $useCase = $this->useCases['activate'];
+            $useCase->execute($contractId, $professionalId);
 
-        return new WP_REST_Response([
-            'success' => true,
-            'message' => 'Contrato criado com sucesso',
-            'data' => [
-                'id' => (int) $contract['id'],
-                'contract_number' => $contract['contract_number'],
-                'client_user_id' => (int) $contract['client_user_id'],
-                'contract_type' => $contract['contract_type'],
-                'monthly_value' => (float) $contract['monthly_value'],
-                'start_date' => $contract['start_date'],
-                'status' => $contract['status']
-            ]
-        ], 201);
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Contrato ativado com sucesso'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error activating contract: ' . $e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * POST /limpvix/v1/contracts/{id}/pause
+     */
+    public function pauseContract(WP_REST_Request $request): WP_REST_Response
+    {
+        if (!isset($this->useCases['pause'])) {
+            return $this->errorResponse('PauseContract Use Case not available', 500);
+        }
+
+        $contractId = (int) $request->get_param('id');
+        $reason = $request->get_param('reason') ?? '';
+
+        try {
+            /** @var PauseContract $useCase */
+            $useCase = $this->useCases['pause'];
+            $useCase->execute($contractId, $reason);
+
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Contrato pausado com sucesso'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error pausing contract: ' . $e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * POST /limpvix/v1/contracts/{id}/cancel
+     */
+    public function cancelContract(WP_REST_Request $request): WP_REST_Response
+    {
+        if (!isset($this->useCases['cancel'])) {
+            return $this->errorResponse('CancelContract Use Case not available', 500);
+        }
+
+        $contractId = (int) $request->get_param('id');
+        $reason = $request->get_param('reason') ?? '';
+
+        try {
+            /** @var CancelContract $useCase */
+            $useCase = $this->useCases['cancel'];
+            $useCase->execute($contractId, $reason);
+
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Contrato cancelado com sucesso'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error cancelling contract: ' . $e->getMessage(), 400);
+        }
+    }
+
+    /**
+     * POST /limpvix/v1/contracts/{id}/schedule-execution
+     * Usa ScheduleNextExecution Use Case
+     */
+    public function scheduleExecution(WP_REST_Request $request): WP_REST_Response
+    {
+        if (!isset($this->useCases['schedule_next'])) {
+            return $this->errorResponse('ScheduleNextExecution Use Case not available', 500);
+        }
+
+        $contractId = (int) $request->get_param('id');
+
+        try {
+            // Verificar se contrato existe
+            $contract = $this->repository->findById(ContractId::fromInt($contractId));
+
+            if (!$contract) {
+                return $this->errorResponse('Contrato não encontrado', 404);
+            }
+
+            if (!$contract->isActive()) {
+                return $this->errorResponse('Contrato não está ativo', 400);
+            }
+
+            /** @var ScheduleNextExecution $useCase */
+            $useCase = $this->useCases['schedule_next'];
+            $useCase->execute($contractId);
+
+            // Re-buscar para pegar next_execution_date atualizado
+            $contract = $this->repository->findById(ContractId::fromInt($contractId));
+
+            return new WP_REST_Response([
+                'success' => true,
+                'message' => 'Próxima execução agendada com sucesso',
+                'data' => [
+                    'contract_id' => $contractId,
+                    'next_execution_date' => $contract->getNextExecutionDate()?->format('Y-m-d'),
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error scheduling execution: ' . $e->getMessage(), 400);
+        }
     }
 
     /**
      * GET /limpvix/v1/contracts/{id}/executions
-     * Lista histórico de execuções do contrato
+     * MANTIDO COMO ESTAVA - fora do escopo do Contract Module
      */
     public function getExecutions(WP_REST_Request $request): WP_REST_Response
     {
@@ -295,7 +466,7 @@ class ContractController
         $contractId = (int) $request->get_param('id');
         $table = $wpdb->prefix . 'limpvix_contract_executions';
 
-        // Verificar permissão (se não for admin, verificar se é o cliente do contrato)
+        // Verificar permissão
         if (!current_user_can('manage_options')) {
             $clientUserId = $wpdb->get_var($wpdb->prepare(
                 "SELECT client_user_id FROM {$wpdb->prefix}limpvix_contracts WHERE id = %d",
@@ -303,10 +474,7 @@ class ContractController
             ));
 
             if ($clientUserId != get_current_user_id()) {
-                return new WP_REST_Response([
-                    'success' => false,
-                    'message' => 'Acesso negado'
-                ], 403);
+                return $this->errorResponse('Acesso negado', 403);
             }
         }
 
@@ -340,133 +508,29 @@ class ContractController
         ], 200);
     }
 
-    /**
-     * POST /limpvix/v1/contracts/{id}/schedule-execution
-     * Agenda uma nova execução do contrato
-     */
-    public function scheduleExecution(WP_REST_Request $request): WP_REST_Response
-    {
-        global $wpdb;
-        $contractId = (int) $request->get_param('id');
-        $scheduledDate = $request->get_param('scheduled_date');
-
-        $contractsTable = $wpdb->prefix . 'limpvix_contracts';
-        $executionsTable = $wpdb->prefix . 'limpvix_contract_executions';
-
-        // Verificar se contrato existe e está ativo
-        $contract = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$contractsTable} WHERE id = %d",
-            $contractId
-        ), ARRAY_A);
-
-        if (!$contract) {
-            return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Contrato não encontrado'
-            ], 404);
-        }
-
-        if ($contract['status'] !== 'active') {
-            return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Contrato não está ativo'
-            ], 400);
-        }
-
-        // Verificar se já existe execução para esta data
-        $existingExecution = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$executionsTable}
-             WHERE contract_id = %d AND scheduled_date = %s AND status != 'cancelled'",
-            $contractId,
-            $scheduledDate
-        ));
-
-        if ($existingExecution > 0) {
-            return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Já existe uma execução agendada para esta data'
-            ], 400);
-        }
-
-        // Criar execução
-        $data = [
-            'contract_id' => $contractId,
-            'scheduled_date' => $scheduledDate,
-            'status' => 'pending',
-            'execution_value' => $contract['monthly_value'],
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ];
-
-        $inserted = $wpdb->insert($executionsTable, $data);
-
-        if (!$inserted) {
-            return new WP_REST_Response([
-                'success' => false,
-                'message' => 'Erro ao agendar execução: ' . $wpdb->last_error
-            ], 500);
-        }
-
-        return new WP_REST_Response([
-            'success' => true,
-            'message' => 'Execução agendada com sucesso',
-            'data' => [
-                'execution_id' => $wpdb->insert_id,
-                'contract_id' => $contractId,
-                'scheduled_date' => $scheduledDate,
-                'status' => 'pending'
-            ]
-        ], 201);
-    }
-
     // ========================================
     // MÉTODOS AUXILIARES
     // ========================================
 
     public function checkPermissions(): bool
     {
-        // Admin pode tudo
         if (current_user_can('manage_options')) {
             return true;
         }
-
-        // Cliente logado pode ver seus próprios contratos
         return is_user_logged_in();
     }
 
-    public function validateContractId($param): bool
+    public function checkAdminPermissions(): bool
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'limpvix_contracts';
-
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE id = %d",
-            $param
-        ));
-
-        return $exists > 0;
+        return current_user_can('manage_options');
     }
 
-    private function generateContractNumber(): string
+    private function errorResponse(string $message, int $status): WP_REST_Response
     {
-        global $wpdb;
-        $table = $wpdb->prefix . 'limpvix_contracts';
-
-        $year = date('Y');
-        $lastNumber = $wpdb->get_var(
-            "SELECT contract_number FROM {$table}
-             WHERE contract_number LIKE 'CNT-{$year}-%'
-             ORDER BY id DESC LIMIT 1"
-        );
-
-        if ($lastNumber) {
-            preg_match('/CNT-\d{4}-(\d+)/', $lastNumber, $matches);
-            $nextNumber = isset($matches[1]) ? (int)$matches[1] + 1 : 1;
-        } else {
-            $nextNumber = 1;
-        }
-
-        return sprintf('CNT-%s-%04d', $year, $nextNumber);
+        return new WP_REST_Response([
+            'success' => false,
+            'message' => $message
+        ], $status);
     }
 
     private function getContractTypeLabel(string $type): string
@@ -482,10 +546,12 @@ class ContractController
     private function getStatusLabel(string $status): string
     {
         $labels = [
+            'draft' => 'Rascunho',
+            'pending_allocation' => 'Aguardando Alocação',
             'active' => 'Ativo',
-            'suspended' => 'Suspenso',
-            'cancelled' => 'Cancelado',
-            'expired' => 'Expirado'
+            'paused' => 'Pausado',
+            'completed' => 'Concluído',
+            'cancelled' => 'Cancelado'
         ];
         return $labels[$status] ?? $status;
     }
