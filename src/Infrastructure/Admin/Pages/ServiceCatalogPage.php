@@ -42,7 +42,7 @@ class ServiceCatalogPage
     public function addMenu(): void
     {
         add_submenu_page(
-            'limpvix',
+            'limpvix-finance',
             'Catálogo de Serviços',
             'Serviços',
             'manage_options',

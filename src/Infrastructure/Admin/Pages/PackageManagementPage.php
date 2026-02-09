@@ -40,7 +40,7 @@ class PackageManagementPage
     public function addMenu(): void
     {
         add_submenu_page(
-            'limpvix',
+            'limpvix-finance',
             'Gerenciar Pacotes',
             'Pacotes',
             'manage_options',

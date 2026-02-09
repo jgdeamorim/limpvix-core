@@ -78,13 +78,6 @@ class AdminBootstrap
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
             FeedbackManagementPage::register();
         }
-
-        // Registrar páginas de configuração e gerenciamento
-        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\LimpVixSettingsPage')) {
-            $settingsPage = new LimpVixSettingsPage();
-            $settingsPage->register();
-        }
-
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PackageManagementPage')) {
             $packagePage = new PackageManagementPage();
             $packagePage->register();
