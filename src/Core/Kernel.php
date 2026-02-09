@@ -127,6 +127,11 @@ class Kernel
             SchedulingBootstrap::init();
         }
 
+        // Inicializar automação de contratos
+        if (class_exists('LimpVix\\Infrastructure\\Automation\\ContractAutomation')) {
+            \LimpVix\Infrastructure\Automation\ContractAutomation::init();
+        }
+
         // Marcar como inicializado
         $this->booted = true;
 

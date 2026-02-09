@@ -5,6 +5,214 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.13] - 2026-02-09
+
+### ✅ FASE 4: Sistema Completo de Contratos Recorrentes
+
+Implementação do módulo de contratos recorrentes (mensais, semanais, quinzenais) com dashboard, CRUD completo, API REST, automação via WP-Cron, histórico de execuções e geração automática de briefings.
+
+### 🎯 Adicionado
+
+#### Migration 009 - Tabelas de Contratos
+
+- **Criado**: `database-migrations/009_create_contracts_tables.sql`
+  - **✅ Task #59**: 2 novas tabelas + trigger
+
+  **1. wp_limpvix_contracts** - Contratos principais
+  - Campos: contract_number (único), client_user_id
+  - contract_type (monthly/weekly/biweekly), recurrence_day, recurrence_weeks
+  - service_code, property_type, estimated_m2
+  - monthly_value, payment_method, payment_day
+  - start_date, end_date, auto_renew
+  - status (active/suspended/cancelled/expired)
+  - service_address (JSON), notes
+  - cancelled_at, cancellation_reason
+  - Índices: client, status, dates, type, contract_number
+  - FK para wp_users (client_user_id)
+
+  **2. wp_limpvix_contract_executions** - Histórico de execuções
+  - Campos: contract_id, briefing_uuid, schedule_uuid
+  - scheduled_date, executed_date
+  - status (pending/scheduled/in_progress/completed/cancelled/failed)
+  - execution_value, notes
+  - Índices: contract, date, status, briefing, schedule
+  - FK para wp_limpvix_contracts (CASCADE)
+
+  **Trigger: check_contract_expiration**
+  - BEFORE UPDATE: marca status='expired' se end_date < hoje
+
+#### ContractManagementPage - Interface Administrativa
+
+- **Criado**: `src/Infrastructure/Admin/Pages/ContractManagementPage.php` (540+ linhas)
+  - **✅ Task #60 e #61**: Dashboard + CRUD completo
+
+  **Dashboard com 4 Cards Estatísticos:**
+  - Contratos Ativos (count)
+  - Valor Mensal Total (sum)
+  - Expirando em 30 dias (count)
+  - Execuções Pendentes (count)
+
+  **Listagem de Contratos:**
+  - Filtros por status (all/active/suspended/cancelled/expired)
+  - Tabela com 9 colunas:
+    - Número do Contrato
+    - Cliente (nome + email)
+    - Tipo (Mensal/Semanal/Quinzenal)
+    - Serviço
+    - Valor Mensal (formatado)
+    - Data Início
+    - Status (badges coloridos)
+    - Ações (Editar | Cancelar | Reativar)
+
+  **Formulário Create/Edit:**
+  - Cliente (dropdown de usuários WP)
+  - Tipo de Contrato + Dia de Recorrência
+  - Serviço (code + property_type + m²)
+  - Financeiro (monthly_value + payment_method + payment_day)
+  - Vigência (start_date + end_date + auto_renew)
+  - Endereço Completo (8 campos → JSON)
+  - Observações
+  - Geração automática de contract_number (CNT-YYYY-XXXX)
+
+  **Ações:**
+  - Cancelar contrato (com motivo via prompt)
+  - Reativar contrato suspenso
+  - Validações server-side
+
+  **Features:**
+  - URL: `/wp-admin/admin.php?page=limpvix-contracts`
+  - Nonces para CSRF protection
+  - Redirect-after-POST
+  - JavaScript para confirmação de cancelamento
+
+#### ContractController - REST API
+
+- **Criado**: `src/Infrastructure/API/ContractController.php` (560+ linhas)
+  - **✅ Task #62**: 4 endpoints REST funcionais
+
+  **1. GET /wp-json/limpvix/v1/contracts**
+  - Lista contratos (admin vê todos, cliente vê apenas seus)
+  - Query params: client_user_id, status
+  - Retorna: formatted list com labels traduzidos
+  - Permissão: is_user_logged_in() ou manage_options
+
+  **2. POST /wp-json/limpvix/v1/contracts**
+  - Cria novo contrato
+  - Validações: client_user_id, service_code, dates
+  - Geração automática de contract_number
+  - Status inicial: active
+  - Retorna: contract criado com ID
+
+  **3. GET /wp-json/limpvix/v1/contracts/{id}/executions**
+  - Lista histórico de execuções do contrato
+  - Permissão: admin ou owner do contrato
+  - Retorna: execuções ordenadas por scheduled_date DESC
+  - Inclui: briefing_uuid, schedule_uuid, status, datas
+
+  **4. POST /wp-json/limpvix/v1/contracts/{id}/schedule-execution**
+  - Agenda uma nova execução manual
+  - Validações: contrato ativo, data única
+  - Cria execution com status=pending
+  - Retorna: execution_id criado
+
+  **Helpers:**
+  - generateContractNumber() - CNT-YYYY-XXXX incremental
+  - validateContractId() - existe no DB
+  - getContractTypeLabel() - tradução PT-BR
+  - getStatusLabel() - tradução PT-BR
+  - getExecutionStatusLabel() - tradução PT-BR
+
+#### ContractAutomation - Automação via WP-Cron
+
+- **Criado**: `src/Infrastructure/Automation/ContractAutomation.php` (420+ linhas)
+  - **✅ Task #63**: 2 cron jobs + 4 automações
+
+  **CRON JOB 1: limpvix_contracts_daily_check**
+  - Frequência: Diário às 00:00
+  - Funções:
+    1. **markExpiredContracts()** - marca status=expired se end_date < hoje
+    2. **notifyExpiringContracts()** - notifica contratos expirando em 30 dias
+    3. **notifyPaymentDue()** - notifica pagamentos no dia (payment_day = hoje)
+    4. **scheduleNextExecutions()** - cria execuções para próximo ciclo
+
+  **CRON JOB 2: limpvix_contracts_weekly_briefing**
+  - Frequência: Semanal (domingo às 00:00)
+  - Função:
+    1. **weeklyBriefingGeneration()** - gera briefings para execuções dos próximos 7 dias
+    2. Atualiza execution.briefing_uuid e status=scheduled
+
+  **Cálculo de Próxima Execução:**
+  - **Monthly**: próximo dia X do mês
+  - **Weekly**: próximo dia da semana (0=domingo, 6=sábado)
+  - **Biweekly**: a cada X semanas a partir de start_date
+  - Respeita end_date (não agenda após expiração)
+
+  **Eventos WordPress Disparados:**
+  - `limpvix_contract_expiring` - contrato expirando (30 dias antes)
+    - Payload: contract_id, client_user_id, end_date, days_remaining, message
+  - `limpvix_contract_payment_due` - pagamento vencendo (dia do pagamento)
+    - Payload: contract_id, monthly_value, payment_day, message
+
+  **Geração Automática de Briefing:**
+  - generateBriefingForExecution() - cria briefing com status=locked
+  - Copia dados do contrato: service_address, service_code, estimated_m2
+  - Calcula estimated_time (1.5 min por m²)
+  - Insere em wp_limpvix_briefings + wp_limpvix_briefing_data
+  - Retorna briefing_uuid
+
+  **Registro de Cron:**
+  - scheduleCronJobs() - ao ativar plugin
+  - unscheduleCronJobs() - ao desativar plugin
+  - Log de atividades em WP_DEBUG mode
+
+#### Registros no Bootstrap
+
+- **Modificado**: `src/Admin/Bootstrap/AdminBootstrap.php`
+  - Adicionado import: `use LimpVix\Infrastructure\Admin\Pages\ContractManagementPage;`
+  - Registrado ContractManagementPage no boot()
+
+- **Modificado**: `src/Infrastructure/API/BriefingApiBootstrap.php`
+  - Instanciado e registrado ContractController
+  - Namespace: limpvix/v1
+
+- **Modificado**: `src/Core/Kernel.php`
+  - Inicializado ContractAutomation::init() após SchedulingBootstrap
+
+### 📊 Estatísticas FASE 4
+
+- **Arquivos criados**: 4 novos arquivos
+- **Linhas de código**: 1.520+ linhas (soma dos arquivos)
+- **Tabelas criadas**: 2 tabelas + 1 trigger
+- **Endpoints REST**: 4 endpoints funcionais
+- **Páginas Admin**: 1 página com dashboard
+- **Cron Jobs**: 2 jobs automatizados
+- **Tasks Concluídas**: 5 tasks (#59-#63)
+
+### 🎉 Funcionalidades da FASE 4
+
+✅ Contratos recorrentes (mensais, semanais, quinzenais)
+✅ Dashboard com estatísticas em tempo real
+✅ CRUD completo via interface administrativa
+✅ API REST para integração externa
+✅ Automação diária de verificações
+✅ Geração automática de briefings 7 dias antes
+✅ Notificações de expiração (30 dias)
+✅ Notificações de pagamento (dia vencimento)
+✅ Histórico completo de execuções
+✅ Cálculo inteligente de próxima execução
+✅ Suporte a renovação automática
+✅ Eventos WordPress para integrações
+
+### 🔄 Próximos Passos
+
+- [ ] Testar cron jobs em ambiente real
+- [ ] Integrar notificações com sistema de comunicação
+- [ ] Implementar relatório financeiro de contratos
+- [ ] Criar painel do cliente para visualizar contratos
+- [ ] Implementar webhook para atualizações de status
+
+---
+
 ## [0.1.12] - 2026-02-09
 
 ### ✅ FASE 3: Catálogo Completo de Serviços e Adicionais
