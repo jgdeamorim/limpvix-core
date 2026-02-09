@@ -7,6 +7,123 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [0.2.0] - 2026-02-09
 
+### 🚀 FASE 5 - Semana 2: Professional Module - Application Layer
+
+Início da implementação da camada de aplicação do módulo Professional (Marketplace). Primeiro Use Case crítico que permite registro de profissionais autônomos na plataforma.
+
+#### Use Case: RegisterProfessional
+
+- **Criado**: `src/Application/UseCases/Professional/RegisterProfessional.php` (520+ linhas)
+  - **✅ Task #70**: Use Case completo para registrar profissional autônomo
+
+  **Fluxo Completo:**
+  1. **Validação de entrada**
+     - Campos obrigatórios: full_name, cpf, phone, email, address, skills
+     - CPF deve ter 11 dígitos
+     - Email válido
+     - Pelo menos 1 skill obrigatória
+
+  2. **Validação CPF único**
+     - Verifica se CPF já está cadastrado via repository
+     - Retorna erro se duplicado
+
+  3. **Validação email único**
+     - Verifica se email já existe no WordPress
+     - Retorna erro se duplicado
+
+  4. **Geocoding de endereço**
+     - Tenta Google Maps API (se configurado)
+     - Fallback 1: coordenadas fornecidas no input
+     - Fallback 2: coordenadas de Vitória-ES (centro: -20.3155, -40.3128)
+     - Retorna ['latitude' => float, 'longitude' => float]
+
+  5. **Criação usuário WordPress**
+     - Username: `prof_{cpf}` (11 dígitos)
+     - Senha aleatória forte (12 chars)
+     - Role: `limpvix_professional`
+     - Display name, first_name, last_name extraídos de full_name
+     - User meta: cpf, phone, senha inicial
+
+  6. **Criação Value Objects**
+     - ServiceRegion: centro (lat/lng) + raio (default 20km)
+     - ProfessionalSkills: skills + certifications + physical_limitations
+     - WeeklyAvailability: schedule fornecido ou defaultSchedule() (seg-sex 08:00-18:00)
+
+  7. **Criação Professional via factory**
+     - `Professional::create()` com validações de domínio
+     - Score inicial: 5.00
+     - Status: isActive=true, isVerified=false
+     - Rollback automático se falhar (deleta usuário WordPress)
+
+  8. **Persistência no repository**
+     - `$repository->save($professional)`
+     - Rollback automático se falhar (deleta usuário WordPress)
+     - Transacional
+
+  9. **Evento: limpvix_professional_registered**
+     - Dados: professional_id, user_id, full_name, email, cpf, service_region, skills
+     - Permite listeners externos reagirem ao registro
+
+  10. **Email de boas-vindas**
+      - Profissional recebe:
+        * Dados de acesso (username, senha temporária)
+        * Link de login
+        * Região de atuação
+        * Skills cadastradas
+        * Próximos passos (completar perfil, aguardar verificação)
+      - Admin recebe:
+        * Notificação de novo profissional
+        * Dados do profissional
+        * Link para aprovar no painel
+
+  11. **Evento: limpvix_admin_notification**
+      - Notificação visual no admin (tipo: professional_registered)
+
+  **Tratamento de Erros:**
+  - Validação entrada: retorna WP_Error com campo faltante
+  - CPF duplicado: retorna WP_Error (cpf_already_registered)
+  - Email duplicado: retorna WP_Error (email_already_exists)
+  - Geocoding falhou: usa fallback (não bloqueia)
+  - Criação usuário falhou: retorna WP_Error do WordPress
+  - Criação Professional falhou: rollback automático + WP_Error
+  - Save repository falhou: rollback automático + WP_Error
+
+  **Resposta de Sucesso:**
+  ```php
+  [
+    'success' => true,
+    'professional_id' => int,
+    'user_id' => int,
+    'message' => 'Profissional registrado com sucesso',
+    'professional' => [
+      'id' => int,
+      'user_id' => int,
+      'full_name' => string,
+      'email' => string,
+      'phone' => string,
+      'cpf' => string (11 dígitos),
+      'score' => 5.00,
+      'is_active' => true,
+      'is_verified' => false,
+      'service_region' => array,
+      'skills' => array,
+    ]
+  ]
+  ```
+
+  **Dependências:**
+  - `ProfessionalRepositoryInterface` (WpMarketplaceProfessionalRepository)
+  - Google Maps API (opcional, via `limpvix_google_maps_api_key`)
+  - WordPress User API (wp_create_user, wp_update_user, email_exists)
+  - WordPress Mail API (wp_mail)
+
+  **Próximos Passos:**
+  - Task #71: UpdateProfessionalScore Use Case
+  - Criar WordPress role `limpvix_professional` no Bootstrap
+  - Registrar Use Case no ProfessionalBootstrap (quando criado)
+
+---
+
 ### 📊 Auditoria Completa do Estado Atual
 
 Auditoria sistemática e exaustiva de todo o plugin antes de avançar para FASE 5 - Semana 2. Mapeamento completo de todas as camadas (Database, Domain, Application, Infrastructure, Admin UI, API REST), identificação de gaps e definição de roadmap.
