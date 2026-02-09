@@ -154,6 +154,44 @@ final class WpScheduleRepository implements ScheduleRepositoryInterface
         return array_map(fn($row) => $this->hydrate($row), $results);
     }
 
+    public function findAll(array $filters = []): array
+    {
+        $where = ['1=1'];
+        $params = [];
+
+        // Filter: status
+        if (!empty($filters['status'])) {
+            $where[] = 'status = %s';
+            $params[] = $filters['status'];
+        }
+
+        // Filter: date range
+        if (!empty($filters['date_from'])) {
+            $where[] = 'DATE(requested_time) >= %s';
+            $params[] = $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $where[] = 'DATE(requested_time) <= %s';
+            $params[] = $filters['date_to'];
+        }
+
+        // Filter: SLA violations only
+        if (!empty($filters['sla_only'])) {
+            $where[] = 'sla_violation IS NOT NULL';
+        }
+
+        $sql = "SELECT * FROM {$this->table} WHERE " . implode(' AND ', $where) . " ORDER BY created_at DESC LIMIT 100";
+
+        if (!empty($params)) {
+            $sql = $this->wpdb->prepare($sql, ...$params);
+        }
+
+        $results = $this->wpdb->get_results($sql, ARRAY_A);
+
+        return $results ?: [];
+    }
+
     public function findWithSlaViolations(?\DateTimeImmutable $since = null): array
     {
         $sql = "SELECT * FROM {$this->table} WHERE sla_violation IS NOT NULL";

@@ -122,6 +122,11 @@ class Kernel
             FeedbackBootstrap::init();
         }
 
+        // Inicializar módulo Scheduling
+        if (class_exists('LimpVix\\Core\\SchedulingBootstrap')) {
+            SchedulingBootstrap::init();
+        }
+
         // Marcar como inicializado
         $this->booted = true;
 

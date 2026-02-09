@@ -9,8 +9,8 @@
 -- Agendamentos principais (Aggregate Root)
 CREATE TABLE IF NOT EXISTS wp_limpvix_schedules (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    uuid VARCHAR(36) NOT NULL UNIQUE COMMENT 'Schedule UUID',
-    order_uuid VARCHAR(36) NOT NULL COMMENT 'Order UUID (FK)',
+    uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL UNIQUE COMMENT 'Schedule UUID',
+    order_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'Order UUID (FK)',
     briefing_id BIGINT UNSIGNED NOT NULL COMMENT 'Briefing ID',
 
     -- Tempo
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_schedules (
 -- Alocações de profissionais aos schedules
 CREATE TABLE IF NOT EXISTS wp_limpvix_professional_allocations (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    schedule_uuid VARCHAR(36) NOT NULL COMMENT 'Schedule UUID (FK)',
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'Staff ID do Booknetic',
+    schedule_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'Schedule UUID (FK)',
+    professional_id INT NOT NULL COMMENT 'Staff ID do Booknetic',
 
     -- TimeSlot alocado
     allocated_start DATETIME NOT NULL COMMENT 'Início do slot alocado',
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professional_allocations (
 -- Disponibilidade semanal dos profissionais
 CREATE TABLE IF NOT EXISTS wp_limpvix_professional_availability (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'Staff ID do Booknetic',
+    professional_id INT NOT NULL COMMENT 'Staff ID do Booknetic',
 
     -- Disponibilidade
     day_of_week VARCHAR(10) NOT NULL COMMENT 'monday|tuesday|...|sunday',
@@ -112,9 +112,9 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professional_availability (
 -- Check-ins dos profissionais
 CREATE TABLE IF NOT EXISTS wp_limpvix_check_ins (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    uuid VARCHAR(36) NOT NULL UNIQUE COMMENT 'CheckIn UUID',
-    schedule_uuid VARCHAR(36) NOT NULL COMMENT 'Schedule UUID (FK)',
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'Staff ID',
+    uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL UNIQUE COMMENT 'CheckIn UUID',
+    schedule_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'Schedule UUID (FK)',
+    professional_id INT NOT NULL COMMENT 'Staff ID',
 
     -- Timestamp e Localização
     timestamp DATETIME NOT NULL COMMENT 'Quando fez check-in',
@@ -148,10 +148,10 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_check_ins (
 -- Check-outs dos profissionais
 CREATE TABLE IF NOT EXISTS wp_limpvix_check_outs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    uuid VARCHAR(36) NOT NULL UNIQUE COMMENT 'CheckOut UUID',
-    schedule_uuid VARCHAR(36) NOT NULL COMMENT 'Schedule UUID (FK)',
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'Staff ID',
-    check_in_uuid VARCHAR(36) NOT NULL COMMENT 'CheckIn UUID (FK)',
+    uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL UNIQUE COMMENT 'CheckOut UUID',
+    schedule_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'Schedule UUID (FK)',
+    professional_id INT NOT NULL COMMENT 'Staff ID',
+    check_in_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'CheckIn UUID (FK)',
 
     -- Timestamp e Duração
     timestamp DATETIME NOT NULL COMMENT 'Quando fez check-out',
@@ -180,8 +180,8 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_check_outs (
 -- Ledger de eventos do scheduling (append-only, auditoria)
 CREATE TABLE IF NOT EXISTS wp_limpvix_scheduling_ledger (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    ledger_uuid VARCHAR(36) NOT NULL UNIQUE COMMENT 'Ledger entry UUID',
-    schedule_uuid VARCHAR(36) NOT NULL COMMENT 'Schedule UUID (FK)',
+    ledger_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL UNIQUE COMMENT 'Ledger entry UUID',
+    schedule_uuid CHAR(36) COLLATE utf8mb4_unicode_520_ci NOT NULL COMMENT 'Schedule UUID (FK)',
 
     -- Evento
     event_type VARCHAR(100) NOT NULL COMMENT 'Tipo do evento',

@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_package_configs (
     INDEX idx_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configuração de pacotes de serviço';
 
--- 4. Inserir pacotes padrão
-INSERT INTO wp_limpvix_package_configs (
+-- 4. Inserir pacotes padrão (INSERT IGNORE para idempotência)
+INSERT IGNORE INTO wp_limpvix_package_configs (
     package_type, display_name, description, percentage_increase,
     min_professionals, max_professionals, required_skills, is_active
 ) VALUES

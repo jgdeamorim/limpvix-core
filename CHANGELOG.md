@@ -5,6 +5,206 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.1.7] - 2026-02-09
+
+### ✨ SCHEDULING FASE 4: Admin Interface + Integration + MigrationManager
+
+Sistema completo de migrations automáticas e finalização do módulo Scheduling.
+
+### 🎯 Adicionado
+
+#### MigrationManager - Sistema Automático de Migrations
+
+- **Novo**: `src/Core/MigrationManager.php` - Gerenciador automático de migrations SQL
+  - Executa migrations automaticamente no activation hook do plugin
+  - Sistema de versionamento (rastreia última migration executada)
+  - **Idempotência automática**: Ignora erros de duplicação (permite re-executar)
+  - **Correções automáticas de compatibilidade**:
+    - `VARCHAR(36)` → `CHAR(36)` para UUIDs
+    - Adiciona collation `utf8mb4_unicode_520_ci` automaticamente
+    - `professional_id BIGINT UNSIGNED` → `INT` (compatível com Booknetic)
+    - Remove `DELIMITER` (só funciona no CLI do MySQL)
+    - Converte `END//` → `END;` em triggers
+    - Remove comandos `USE database;`
+  - Parsing inteligente de triggers (detecta `CREATE TRIGGER ... END;` como statement único)
+  - Métodos públicos:
+    - `runPendingMigrations()`: Executa migrations pendentes
+    - `getCurrentVersion()`: Retorna versão atual
+    - `listMigrations()`: Lista todas migrations com status
+    - `validateTables()`: Verifica se tabelas necessárias existem
+
+#### Hook de Ativação do Plugin
+
+- **Modificado**: `limpvix-core.php`
+  - Hook `register_activation_hook` agora usa MigrationManager
+  - Executa todas migrations automaticamente ao ativar plugin
+  - Exibe erro detalhado se migration falhar
+  - Sistema: Desabilitar + Habilitar plugin = executa migrations pendentes
+
+#### Scheduling FASE 4: Admin Interface (8 arquivos)
+
+**Admin Pages (2 arquivos):**
+
+- **Novo**: `src/Infrastructure/Admin/Pages/ScheduleManagementPage.php`
+  - Lista todos schedules com filtros (status, data range, SLA violations only)
+  - Cards de estatísticas em tempo real
+  - Visualização de profissionais alocados com scores
+  - Colunas: UUID, Order, Data/Hora, Profissionais, Status, SLA, Ações
+  - Menu: LimpVix → Agendamentos
+
+- **Novo**: `src/Infrastructure/Admin/Pages/ProfessionalAvailabilityPage.php`
+  - Gestão de disponibilidade de profissionais
+  - Formulário de edição: horários semanais, região, skills, carga máxima
+  - Atualiza availability via Reflection (properties privadas)
+  - Menu: LimpVix → Disponibilidade
+
+**Settings (1 arquivo):**
+
+- **Novo**: `src/Infrastructure/Admin/Settings/SchedulingSettings.php`
+  - Configurações do algoritmo de alocação:
+    - Raio de geofence (padrão: 150m)
+    - Tolerância de horário (padrão: 60min)
+    - Duração mínima para múltiplos profissionais (padrão: 5h)
+    - Pesos do algoritmo de score (soma = 100%):
+      - Proximidade: 40%
+      - Disponibilidade: 30%
+      - Rating: 20%
+      - Carga: 10%
+  - Validação automática: pesos devem somar 100%
+  - Menu: LimpVix → Config. Agendamento
+
+**Event Dispatcher (1 arquivo):**
+
+- **Novo**: `src/Infrastructure/Events/SchedulingEventDispatcher.php`
+  - Despacha eventos de scheduling para WordPress hooks
+  - Registra eventos no ledger (append-only)
+  - Suporta batch processing
+  - Métodos:
+    - `dispatch(SchedulingEvent)`: Despacha evento único
+    - `dispatchBatch(array)`: Despacha múltiplos eventos
+    - `getEventsForSchedule(uuid)`: Busca eventos de um schedule
+    - `getRecentEvents(limit)`: Últimos eventos (para dashboard)
+
+**Integration Listeners (3 arquivos):**
+
+- **Novo**: `src/Infrastructure/Integration/FinanceSchedulingListener.php`
+  - Check-in → Libera hold financeiro
+  - Checkout → Autoriza payout
+  - Cancellation → Reverte hold (se não teve check-in)
+  - Hooks: `limpvix_scheduling_check_in_performed`, `limpvix_scheduling_check_out_performed`, `limpvix_scheduling_schedule_cancelled`
+
+- **Novo**: `src/Infrastructure/Integration/BriefingSchedulingListener.php`
+  - Briefing locked → Cria Schedule automaticamente
+  - Geocoding de endereço via GeolocationAdapter
+  - Hook: `limpvix_briefing_locked`
+
+- **Novo**: `src/Infrastructure/Integration/FeedbackSchedulingListener.php`
+  - Checkout → Libera formulário de feedback para cliente
+  - Envia notificação por email
+  - Hook: `limpvix_scheduling_check_out_performed`
+
+**Bootstrap (1 arquivo):**
+
+- **Novo**: `src/Core/SchedulingBootstrap.php`
+  - Inicializa módulo Scheduling completo
+  - Registra Admin Pages, Settings, Listeners
+  - Widget no Dashboard com estatísticas
+  - Info no Admin Bar (schedules em progresso + SLA violations)
+  - Métodos: `init()`, `addAdminBarInfo()`, `addDashboardWidget()`
+
+- **Modificado**: `src/Core/Kernel.php`
+  - Adicionada inicialização do SchedulingBootstrap
+
+#### Scheduling: Enhancements no Repository
+
+- **Modificado**: `src/Infrastructure/Persistence/WpScheduleRepository.php`
+  - **Novo método**: `findAll(array $filters)` - Lista schedules com filtros
+  - Suporta filtros: `status`, `date_from`, `date_to`, `sla_only`
+  - Usado pela ScheduleManagementPage
+
+### 🗂️ Migrations Reorganizadas
+
+**Renumeração Sequencial:**
+
+- Migrations renumeradas para evitar conflitos de versão
+- Sistema agora suporta até migration 013
+- Ordem correta:
+  - 005: Executions
+  - 006: Briefings (3 tabelas)
+  - 007: Briefing Packages
+  - 008: Briefing Complexity
+  - 009: Platform Fee Columns
+  - 010: Communication Tables (4 tabelas)
+  - **011: Scheduling Tables (6 tabelas)** ← NOVO
+  - 012: Structured Feedback Tables
+  - 013: Financial Ledger
+
+**Migration 011: Scheduling Tables:**
+- `wp_limpvix_schedules` (Aggregate Root)
+- `wp_limpvix_professional_allocations`
+- `wp_limpvix_professional_availability`
+- `wp_limpvix_check_ins`
+- `wp_limpvix_check_outs`
+- `wp_limpvix_scheduling_ledger`
+
+### 🔧 Modificado
+
+- **Migration 007**: `INSERT` → `INSERT IGNORE` (idempotência)
+- **Backup**: `006_rollback_briefings.sql` → `.bak` (não deve ser migration)
+
+### 📊 Status Atual do Banco de Dados
+
+- **26 tabelas LimpVix criadas**
+- **Versão atual: 13**
+- **Todas migrations executadas com sucesso**
+- **Sistema 100% idempotente** (pode re-executar sem erros)
+
+### 🎯 Módulo Scheduling: Status Final
+
+**Implementação Completa (54 arquivos):**
+- ✅ FASE 1: Domain Layer (29 arquivos)
+- ✅ FASE 2: Application Layer (10 arquivos)
+- ✅ FASE 3: Infrastructure + Database (7 arquivos)
+- ✅ FASE 4: Admin Interface + Integration (8 arquivos)
+
+**Banco de Dados:**
+- ✅ 6 tabelas criadas via migration 011
+- ✅ Foreign keys configuradas corretamente
+- ✅ Triggers para `updated_at` automático
+- ✅ Índices otimizados
+
+**Integração:**
+- ✅ Finance (check-in/out → payout)
+- ✅ Briefing (locked → cria schedule)
+- ✅ Feedback (checkout → libera formulário)
+- ✅ Bootstrap registrado no Kernel
+
+### 🚀 Como Usar
+
+**Executar Migrations:**
+```bash
+# WordPress Admin:
+1. Plugins → Desativar "LimpVix Core"
+2. Plugins → Ativar "LimpVix Core"
+# Migrations executam automaticamente!
+```
+
+**Programaticamente:**
+```php
+$manager = new \LimpVix\Core\MigrationManager();
+
+// Executar migrations pendentes
+$result = $manager->runPendingMigrations();
+
+// Ver versão atual
+$version = $manager->getCurrentVersion(); // 13
+
+// Listar migrations
+$migrations = $manager->listMigrations();
+```
+
+---
+
 ## [0.1.6] - 2026-02-08
 
 ### 🚨 CRITICAL FIX — P0 Oculto: Financial Ledger Inexistente

@@ -127,7 +127,7 @@ function limpvix_core_missing_booknetic_notice() {
  * Hook de ativação
  *
  * RESPONSABILIDADE:
- * - Criar tabelas customizadas
+ * - Criar tabelas customizadas via MigrationManager
  * - Configurar valores padrão
  * - Verificar requisitos
  */
@@ -144,18 +144,26 @@ register_activation_hook(__FILE__, function() {
         wp_die('LimpVix Core requer que o Booknetic esteja instalado e ativo.');
     }
 
-    // Executar TODAS as migrations
-    $migrations = [
-        'LimpVix\\Core\\Migrations\\CreateOrdersTable',
-        'LimpVix\\Infrastructure\\Database\\Migrations\\CreateLedgerTable',
-        'LimpVix\\Infrastructure\\Database\\Migrations\\CreateMercadoPagoPayoutsTable',
-        'LimpVix\\Database\\Migrations\\CreateBookneticIntegrationTables', // Mapeamento appointment → order
-    ];
+    // Executar migrations automaticamente via MigrationManager
+    if (class_exists('LimpVix\\Core\\MigrationManager')) {
+        $migrationManager = new LimpVix\Core\MigrationManager();
+        $result = $migrationManager->runPendingMigrations();
 
-    foreach ($migrations as $migrationClass) {
-        if (class_exists($migrationClass)) {
-            $migration = new $migrationClass();
-            $migration->up();
+        if (!$result['success']) {
+            $errorMessage = 'Erro ao executar migrations:<br>';
+            foreach ($result['errors'] as $error) {
+                $errorMessage .= sprintf(
+                    '- <strong>%s</strong>: %s<br>',
+                    $error['file'],
+                    $error['error']
+                );
+            }
+            wp_die($errorMessage);
+        }
+
+        // Log de sucesso
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[LimpVix] Migrations executadas com sucesso: ' . implode(', ', $result['executed']));
         }
     }
 
