@@ -118,9 +118,106 @@ Início da implementação da camada de aplicação do módulo Professional (Mar
   - WordPress Mail API (wp_mail)
 
   **Próximos Passos:**
-  - Task #71: UpdateProfessionalScore Use Case
+  - ✅ Task #71: UpdateProfessionalScore Use Case (CONCLUÍDA)
   - Criar WordPress role `limpvix_professional` no Bootstrap
   - Registrar Use Case no ProfessionalBootstrap (quando criado)
+
+#### Use Case: UpdateProfessionalScore
+
+- **Criado**: `src/Application/UseCases/Professional/UpdateProfessionalScore.php` (450+ linhas)
+  - **✅ Task #71**: Use Case completo para atualizar score de profissional
+
+  **Responsabilidades:**
+  - Buscar Professional pelo ID
+  - Calcular novo score baseado em regras de negócio
+  - Atualizar score no Aggregate Root
+  - Persistir com auditoria (via Repository→updateScore())
+  - Disparar evento `limpvix_professional_score_updated`
+  - Notificar profissional se score caiu significativamente (≥ 0.3)
+  - Notificar admin se score ficou crítico (< 3.0)
+
+  **Motivos de Mudança de Score:**
+  - `feedback`: Avaliação do cliente (média móvel ponderada: 70% atual + 30% histórico)
+  - `late_checkin`: Atraso no check-in (-0.1)
+  - `no_show`: Não comparecimento (-0.5)
+  - `good_execution`: Boa execução (+0.05)
+  - `epi_violation`: Violação de EPI (-0.3)
+  - `completed_service`: Serviço completado (+0.02)
+  - `contract_cancelled`: Contrato cancelado pelo profissional (-0.2)
+  - `client_complaint`: Reclamação do cliente (-0.3)
+  - `excellent_feedback`: Rating ≥ 4.5 (+0.1)
+  - `poor_feedback`: Rating < 3.0 (-0.2)
+
+  **Algoritmo de Cálculo (Feedback):**
+  - Média móvel ponderada
+  - Peso feedback atual: 70%
+  - Peso score histórico: 30%
+  - Reage rapidamente mas mantém estabilidade
+  - Primeiro serviço: usa rating diretamente
+
+  **Validações:**
+  - Score mínimo: 0.00
+  - Score máximo: 5.00
+  - Arredondamento: 2 casas decimais
+  - Não atualiza se mudança < 0.01 (insignificante)
+
+  **Auditoria Automática:**
+  - Repository→updateScore() já registra em `wp_limpvix_professional_score_history`
+  - Campos: old_score, new_score, score_change, change_reason, related_contract_id, related_execution_id, change_details, changed_at, changed_by
+
+  **Evento Disparado:**
+  ```php
+  do_action('limpvix_professional_score_updated', [
+    'professional_id' => int,
+    'old_score' => float,
+    'new_score' => float,
+    'score_change' => float,
+    'reason' => string,
+    'details' => array,
+    'timestamp' => string
+  ]);
+  ```
+
+  **Notificações Automáticas:**
+
+  1. **Profissional (queda ≥ 0.3):**
+     - Email com score anterior vs. atual
+     - Motivo da queda traduzido
+     - Dicas para melhorar score
+     - Alerta: score < 3.0 = risco suspensão
+
+  2. **Admin (score < 3.0):**
+     - Email com dados do profissional
+     - Score atual crítico
+     - Ações recomendadas (revisar, suspender, orientar)
+     - Evento `limpvix_admin_notification` (priority: high)
+
+  **Resposta de Sucesso:**
+  ```php
+  [
+    'success' => true,
+    'score_changed' => true,
+    'professional_id' => int,
+    'old_score' => float,
+    'new_score' => float,
+    'score_change' => float,
+    'reason' => string,
+    'message' => 'Score atualizado de X para Y (+/-Z)'
+  ]
+  ```
+
+  **Casos Especiais:**
+  - Score não mudou significativamente (< 0.01): retorna success=true, score_changed=false
+  - Motivo desconhecido: mantém score atual, log warning (WP_DEBUG)
+  - Primeiro serviço: usa rating diretamente (sem média)
+
+  **Dependências:**
+  - ProfessionalRepositoryInterface (WpMarketplaceProfessionalRepository)
+  - Professional Aggregate Root
+  - WordPress Mail API
+
+  **Próximos Passos:**
+  - Task #72: ProfessionalManagementPage (Admin Interface)
 
 ---
 
