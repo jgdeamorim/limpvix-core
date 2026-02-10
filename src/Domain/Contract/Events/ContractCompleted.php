@@ -39,6 +39,7 @@ final class ContractCompleted
             'event' => 'contract.completed',
             'contract_id' => $this->contract->getId()->toInt(),
             'contract_number' => $this->contract->getContractNumber(),
+            'professional_id' => $this->contract->getAllocatedProfessionalId(),
             'occurred_at' => $this->occurredAt->format('Y-m-d H:i:s'),
         ];
     }

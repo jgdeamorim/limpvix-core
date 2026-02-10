@@ -46,6 +46,7 @@ final class ContractCancelled
             'event' => 'contract.cancelled',
             'contract_id' => $this->contract->getId()->toInt(),
             'contract_number' => $this->contract->getContractNumber(),
+            'professional_id' => $this->contract->getAllocatedProfessionalId(),
             'reason' => $this->reason,
             'occurred_at' => $this->occurredAt->format('Y-m-d H:i:s'),
         ];

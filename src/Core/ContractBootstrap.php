@@ -316,10 +316,18 @@ final class ContractBootstrap
      */
     public static function onContractActivated($eventData): void
     {
+        // Sincronizar métricas do Professional
+        if (isset($eventData['professional_id'])) {
+            self::incrementProfessionalMetric(
+                (int) $eventData['professional_id'],
+                'total_services'
+            );
+        }
+
         // @future: Enviar notificação ao cliente e profissional
         // @future: Agendar primeira execução
 
-        self::logInfo('Contract activated: ' . ($eventData['contract_id'] ?? 'unknown'));
+        self::logInfo('Contract activated: ' . ($eventData['contract_id'] ?? 'unknown') . ' - Professional: ' . ($eventData['professional_id'] ?? 'unknown'));
     }
 
     /**
@@ -358,11 +366,20 @@ final class ContractBootstrap
      */
     public static function onContractCancelled($eventData): void
     {
+        // Sincronizar métricas do Professional
+        if (isset($eventData['professional_id'])) {
+            self::incrementProfessionalMetric(
+                (int) $eventData['professional_id'],
+                'cancelled_services'
+            );
+            self::recalculateProfessionalAcceptanceRate((int) $eventData['professional_id']);
+        }
+
         // @future: Notificar partes interessadas
         // @future: Processar cancelamento (reembolsos?)
         // @future: Liberar profissional alocado
 
-        self::logInfo('Contract cancelled: ' . ($eventData['contract_id'] ?? 'unknown') . ' - Reason: ' . ($eventData['reason'] ?? 'N/A'));
+        self::logInfo('Contract cancelled: ' . ($eventData['contract_id'] ?? 'unknown') . ' - Professional: ' . ($eventData['professional_id'] ?? 'unknown') . ' - Reason: ' . ($eventData['reason'] ?? 'N/A'));
     }
 
     /**
@@ -373,11 +390,20 @@ final class ContractBootstrap
      */
     public static function onContractCompleted($eventData): void
     {
+        // Sincronizar métricas do Professional
+        if (isset($eventData['professional_id'])) {
+            self::incrementProfessionalMetric(
+                (int) $eventData['professional_id'],
+                'completed_services'
+            );
+            self::recalculateProfessionalAcceptanceRate((int) $eventData['professional_id']);
+        }
+
         // @future: Solicitar avaliação do cliente
         // @future: Processar renovação automática (se auto_renew = true)
         // @future: Liberar profissional alocado
 
-        self::logInfo('Contract completed: ' . ($eventData['contract_id'] ?? 'unknown'));
+        self::logInfo('Contract completed: ' . ($eventData['contract_id'] ?? 'unknown') . ' - Professional: ' . ($eventData['professional_id'] ?? 'unknown'));
     }
 
     /**
@@ -392,6 +418,103 @@ final class ContractBootstrap
         // @future: Processar renovação automática (se auto_renew = true)
 
         self::logInfo('Contract expired: ' . ($eventData['contract_id'] ?? 'unknown'));
+    }
+
+    /**
+     * Incrementa uma métrica do Professional
+     *
+     * MÉTRICAS SUPORTADAS:
+     * - total_services: Total de serviços (contratos ativados)
+     * - completed_services: Serviços completados com sucesso
+     * - cancelled_services: Serviços cancelados
+     *
+     * @param int $professionalId ID do professional (allocated_professional_id)
+     * @param string $metric Nome da métrica a incrementar
+     * @return void
+     */
+    private static function incrementProfessionalMetric(int $professionalId, string $metric): void
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'limpvix_professionals';
+
+        // Validar métrica
+        $validMetrics = ['total_services', 'completed_services', 'cancelled_services'];
+        if (!in_array($metric, $validMetrics, true)) {
+            self::logError("Invalid metric: {$metric}");
+            return;
+        }
+
+        // Incrementar métrica
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET {$metric} = {$metric} + 1,
+                 updated_at = %s
+             WHERE id = %d",
+            current_time('mysql'),
+            $professionalId
+        ));
+
+        if ($updated === false) {
+            self::logError("Failed to increment {$metric} for professional ID {$professionalId}: " . $wpdb->last_error);
+        } else {
+            self::logInfo("Professional {$professionalId}: {$metric} incremented");
+        }
+    }
+
+    /**
+     * Recalcula acceptance_rate do Professional
+     *
+     * FÓRMULA:
+     * acceptance_rate = (completed_services / (completed_services + cancelled_services)) * 100
+     *
+     * Se não houver nenhum serviço, mantém 100.0 (taxa inicial)
+     *
+     * @param int $professionalId ID do professional (allocated_professional_id)
+     * @return void
+     */
+    private static function recalculateProfessionalAcceptanceRate(int $professionalId): void
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'limpvix_professionals';
+
+        // Buscar métricas atuais
+        $professional = $wpdb->get_row($wpdb->prepare(
+            "SELECT completed_services, cancelled_services
+             FROM {$table}
+             WHERE id = %d",
+            $professionalId
+        ));
+
+        if (!$professional) {
+            self::logError("Professional ID {$professionalId} not found for acceptance_rate calculation");
+            return;
+        }
+
+        $completed = (int) $professional->completed_services;
+        $cancelled = (int) $professional->cancelled_services;
+        $total = $completed + $cancelled;
+
+        // Calcular acceptance_rate
+        $acceptanceRate = $total > 0 ? ($completed / $total) * 100 : 100.0;
+
+        // Atualizar acceptance_rate
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table}
+             SET acceptance_rate = %f,
+                 updated_at = %s
+             WHERE id = %d",
+            $acceptanceRate,
+            current_time('mysql'),
+            $professionalId
+        ));
+
+        if ($updated === false) {
+            self::logError("Failed to update acceptance_rate for professional ID {$professionalId}: " . $wpdb->last_error);
+        } else {
+            self::logInfo("Professional {$professionalId}: acceptance_rate recalculated to {$acceptanceRate}%");
+        }
     }
 
     /**
