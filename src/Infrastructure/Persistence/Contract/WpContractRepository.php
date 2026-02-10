@@ -6,6 +6,7 @@
  * - Persistir e recuperar Contracts usando wpdb
  * - Gerenciar transações do banco de dados
  * - Abstrair detalhes de SQL do domínio
+ * - Despachar Domain Events após persistência
  *
  * TABELA: wp_limpvix_contracts
  *
@@ -19,6 +20,7 @@ use LimpVix\Domain\Contract\Contract;
 use LimpVix\Domain\Contract\ContractId;
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Contract\Exceptions\ContractNotFoundException;
+use LimpVix\Infrastructure\Events\WordPressEventDispatcher;
 
 defined('ABSPATH') || exit;
 
@@ -26,12 +28,14 @@ final class WpContractRepository implements ContractRepositoryInterface
 {
     private \wpdb $wpdb;
     private string $table;
+    private WordPressEventDispatcher $eventDispatcher;
 
-    public function __construct()
+    public function __construct(?WordPressEventDispatcher $eventDispatcher = null)
     {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->table = $wpdb->prefix . 'limpvix_contracts';
+        $this->eventDispatcher = $eventDispatcher ?? new WordPressEventDispatcher();
     }
 
     /**
@@ -75,6 +79,9 @@ final class WpContractRepository implements ContractRepositoryInterface
                 );
             }
         }
+
+        // Despachar Domain Events após persistência bem-sucedida
+        $this->dispatchEvents($contract);
     }
 
     /**
@@ -237,6 +244,26 @@ final class WpContractRepository implements ContractRepositoryInterface
     }
 
     // ==================== MÉTODOS AUXILIARES ====================
+
+    /**
+     * Despachar Domain Events do aggregate
+     *
+     * IMPORTANTE:
+     * - Chamado APÓS persistência bem-sucedida
+     * - Garante que eventos só são despachados se save() suceder
+     * - Usa WordPressEventDispatcher para converter em do_action()
+     *
+     * @param Contract $contract
+     * @return void
+     */
+    private function dispatchEvents(Contract $contract): void
+    {
+        $events = $contract->releaseEvents();
+
+        if (!empty($events)) {
+            $this->eventDispatcher->dispatchAll($events);
+        }
+    }
 
     /**
      * Obter formato wpdb para cada campo

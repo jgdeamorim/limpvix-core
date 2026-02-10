@@ -77,13 +77,20 @@ final class WordPressEventDispatcher
         // Extrair nome curto da classe (última parte do namespace)
         $shortName = substr($className, strrpos($className, '\\') + 1);
 
-        // Converter CamelCase para snake_case
-        $snakeCase = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName));
-
         // Extrair aggregate name do namespace
         // LimpVix\Domain\Contract\Events\ContractActivated → contract
         $parts = explode('\\', $className);
         $aggregateName = strtolower($parts[2] ?? 'unknown');
+
+        // Remover prefixo do aggregate do evento se presente
+        // ContractActivated → Activated
+        $aggregatePrefix = ucfirst($aggregateName);
+        if (strpos($shortName, $aggregatePrefix) === 0) {
+            $shortName = substr($shortName, strlen($aggregatePrefix));
+        }
+
+        // Converter CamelCase para snake_case
+        $snakeCase = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName));
 
         return "limpvix_{$aggregateName}_{$snakeCase}";
     }

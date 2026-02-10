@@ -59,10 +59,6 @@ final class CreateContract
         // Persistir
         $this->repository->save($contract);
 
-        // Opcional: Dispatch events
-        $events = $contract->releaseEvents();
-        // TODO: Implementar Event Dispatcher
-
         return $contract;
     }
 }

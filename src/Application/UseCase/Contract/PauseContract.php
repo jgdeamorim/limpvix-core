@@ -51,9 +51,5 @@ final class PauseContract
 
         // Persistir
         $this->repository->save($contract);
-
-        // Opcional: Dispatch events
-        $events = $contract->releaseEvents();
-        // TODO: Implementar Event Dispatcher
     }
 }

@@ -58,12 +58,5 @@ final class ActivateContract
 
         // Persistir
         $this->repository->save($contract);
-
-        // Opcional: Dispatch events
-        $events = $contract->releaseEvents();
-        // TODO: Implementar Event Dispatcher quando estiver disponível
-        // foreach ($events as $event) {
-        //     $this->eventDispatcher->dispatch($event);
-        // }
     }
 }
