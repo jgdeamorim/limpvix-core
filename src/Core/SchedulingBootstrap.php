@@ -7,9 +7,11 @@ namespace LimpVix\Core;
 use LimpVix\Infrastructure\Admin\Pages\ScheduleManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\ProfessionalAvailabilityPage;
 use LimpVix\Infrastructure\Admin\Settings\SchedulingSettings;
+use LimpVix\Infrastructure\Admin\Widgets\FeedbackWindowMonitorWidget;
 use LimpVix\Infrastructure\Integration\FinanceSchedulingListener;
 use LimpVix\Infrastructure\Integration\BriefingSchedulingListener;
 use LimpVix\Infrastructure\Integration\FeedbackSchedulingListener;
+use LimpVix\Infrastructure\Adapters\FeedbackReminderCronAdapter;
 
 /**
  * Bootstrap: Scheduling Module
@@ -44,6 +46,12 @@ final class SchedulingBootstrap
 
         // 4. Registrar WordPress Hooks
         self::registerHooks();
+
+        // 5. Registrar Cron Adapters (GAP #1)
+        self::registerCronAdapters();
+
+        // 6. Registrar Admin Widgets (GAP #1)
+        self::registerAdminWidgets();
 
         self::$initialized = true;
 
@@ -228,5 +236,48 @@ final class SchedulingBootstrap
             }
         </style>
         <?php
+    }
+
+    /**
+     * Registra Cron Adapters (GAP #1)
+     */
+    private static function registerCronAdapters(): void
+    {
+        // Get dependencies from globals
+        $executionRepository = $GLOBALS['limpvix_execution_repository'] ?? null;
+        $feedbackRepository = new \LimpVix\Infrastructure\Persistence\WpStructuredFeedbackRepository();
+        $sendMessage = null; // TODO: Inject SendTemplatedMessage when available
+
+        if ($executionRepository && $feedbackRepository) {
+            $feedbackReminderCron = new FeedbackReminderCronAdapter(
+                $executionRepository,
+                $feedbackRepository,
+                $sendMessage
+            );
+            $feedbackReminderCron->register();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[LimpVix] FeedbackReminderCronAdapter registered');
+            }
+        }
+    }
+
+    /**
+     * Registra Admin Widgets (GAP #1)
+     */
+    private static function registerAdminWidgets(): void
+    {
+        if (is_admin()) {
+            try {
+                $feedbackWindowWidget = new FeedbackWindowMonitorWidget();
+                $feedbackWindowWidget->register();
+
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[LimpVix] FeedbackWindowMonitorWidget registered');
+                }
+            } catch (\Exception $e) {
+                error_log('[LimpVix] Error registering FeedbackWindowMonitorWidget: ' . $e->getMessage());
+            }
+        }
     }
 }

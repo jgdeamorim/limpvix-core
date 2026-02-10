@@ -121,7 +121,9 @@ final class MigrationManager
                     'Duplicate column name',
                     'Duplicate entry',
                     'Duplicate key name',
+                    'Duplicate foreign key constraint',
                     'Table .* already exists',
+                    'Can\'t DROP .* check that column/key exists',
                 ];
 
                 $isIdempotent = false;

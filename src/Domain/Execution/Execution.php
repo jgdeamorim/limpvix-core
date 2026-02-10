@@ -58,6 +58,9 @@ class Execution
     // SLA tracking
     private array $slaViolations = [];
 
+    // Feedback Window (GAP #1)
+    private ?\DateTimeImmutable $feedbackWindowExpiresAt = null;
+
     public function __construct(
         string $executionUuid,
         string $orderUuid,
@@ -71,7 +74,8 @@ class Execution
         ?\DateTimeImmutable $checkOutAt = null,
         ?GeoLocation $checkOutGeo = null,
         ?EvidenceCollection $evidence = null,
-        array $slaViolations = []
+        array $slaViolations = [],
+        ?\DateTimeImmutable $feedbackWindowExpiresAt = null
     ) {
         $this->executionUuid = $executionUuid;
         $this->orderUuid = $orderUuid;
@@ -86,6 +90,7 @@ class Execution
         $this->checkOutGeo = $checkOutGeo;
         $this->evidence = $evidence;
         $this->slaViolations = $slaViolations;
+        $this->feedbackWindowExpiresAt = $feedbackWindowExpiresAt;
     }
 
     /**
@@ -199,6 +204,72 @@ class Execution
 
         $this->guardTransition(ExecutionStatusEnum::VALIDATED);
         $this->status = ExecutionStatusEnum::VALIDATED;
+    }
+
+    // ========================================
+    // FEEDBACK WINDOW (GAP #1)
+    // ========================================
+
+    /**
+     * Start 24-hour feedback window
+     *
+     * Called after execution is VALIDATED to give customer
+     * 24 hours to submit feedback before payout authorization
+     *
+     * @since GAP #1
+     */
+    public function startFeedbackWindow(): void
+    {
+        if ($this->feedbackWindowExpiresAt !== null) {
+            // Already started, don't override
+            return;
+        }
+
+        $now = new \DateTimeImmutable();
+        $this->feedbackWindowExpiresAt = $now->modify('+24 hours');
+    }
+
+    /**
+     * Check if feedback window is currently active (not expired)
+     *
+     * @return bool True if window is active and not yet expired
+     * @since GAP #1
+     */
+    public function isFeedbackWindowActive(): bool
+    {
+        if ($this->feedbackWindowExpiresAt === null) {
+            return false; // Window not started
+        }
+
+        $now = new \DateTimeImmutable();
+        return $now < $this->feedbackWindowExpiresAt;
+    }
+
+    /**
+     * Check if feedback window has expired
+     *
+     * @return bool True if window started and expired, false if not started or still active
+     * @since GAP #1
+     */
+    public function isFeedbackWindowExpired(): bool
+    {
+        if ($this->feedbackWindowExpiresAt === null) {
+            return false; // Window not started
+        }
+
+        $now = new \DateTimeImmutable();
+        return $now >= $this->feedbackWindowExpiresAt;
+    }
+
+    /**
+     * Get feedback window expiration time
+     *
+     * @return \DateTimeImmutable|null Expiration time or null if not started
+     * @since GAP #1
+     */
+    public function getFeedbackWindowExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->feedbackWindowExpiresAt;
     }
 
     /**

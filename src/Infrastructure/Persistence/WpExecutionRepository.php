@@ -167,6 +167,7 @@ class WpExecutionRepository implements ExecutionRepositoryInterface
             'check_out_geo' => $this->serializeGeoLocation($execution->getCheckOutGeo()),
             'evidence' => $this->serializeEvidenceCollection($execution->getEvidence()),
             'sla_violations' => $this->serializeSlaViolations($execution->getSlaViolations()),
+            'feedback_window_expires_at' => $execution->getFeedbackWindowExpiresAt()?->format('Y-m-d H:i:s'),
             'updated_at' => current_time('mysql'),
         ];
     }
@@ -189,7 +190,10 @@ class WpExecutionRepository implements ExecutionRepositoryInterface
             $row['check_out_at'] ? new \DateTimeImmutable($row['check_out_at']) : null,
             $this->deserializeGeoLocation($row['check_out_geo']),
             $this->deserializeEvidenceCollection($row['evidence']),
-            $this->deserializeSlaViolations($row['sla_violations'])
+            $this->deserializeSlaViolations($row['sla_violations']),
+            isset($row['feedback_window_expires_at']) && $row['feedback_window_expires_at']
+                ? new \DateTimeImmutable($row['feedback_window_expires_at'])
+                : null
         );
     }
 

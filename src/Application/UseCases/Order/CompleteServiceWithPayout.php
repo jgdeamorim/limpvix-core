@@ -71,6 +71,24 @@ class CompleteServiceWithPayout
             ));
         }
 
+        // GAP #1: Start 24-hour feedback window (se ainda não iniciada)
+        // Customer tem 24h para submeter feedback antes do payout ser autorizado
+        if ($execution->getFeedbackWindowExpiresAt() === null) {
+            $execution->startFeedbackWindow();
+
+            // Persist feedback window start (outside transaction for idempotency)
+            // If transaction fails, window is already started - next retry will skip this
+            $executionRepo = $GLOBALS['limpvix_execution_repository'] ?? null;
+            if ($executionRepo) {
+                try {
+                    $executionRepo->save($execution);
+                } catch (\Exception $e) {
+                    // Log but don't fail - window start is not critical for this operation
+                    error_log('[LimpVix] Failed to persist feedback window start: ' . $e->getMessage());
+                }
+            }
+        }
+
         // REFATORADO (SPRINT 7): Atomic Order.complete() + Financial state transitions
         // Order e Financial são aggregates diferentes que devem transicionar atomicamente:
         // - Se Order.complete() falha, Financial não deve ser modificado

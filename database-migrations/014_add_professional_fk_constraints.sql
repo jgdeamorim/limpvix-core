@@ -126,19 +126,20 @@ ON DELETE RESTRICT
 ON UPDATE CASCADE;
 
 -- ========================================
--- STEP 4: Adicionar índices para performance (se não existirem)
+-- STEP 4: Adicionar índices para performance
 -- ========================================
 
 -- Índice em contracts.allocated_professional_id (melhora JOIN performance)
-CREATE INDEX IF NOT EXISTS idx_contracts_allocated_professional
+-- NOTA: MigrationManager ignora erro "Duplicate key name" automaticamente
+CREATE INDEX idx_contracts_allocated_professional
 ON wp_limpvix_contracts(allocated_professional_id);
 
 -- Índice em offers.professional_id (melhora queries de ofertas por professional)
-CREATE INDEX IF NOT EXISTS idx_offers_professional
+CREATE INDEX idx_offers_professional
 ON wp_limpvix_contract_offers(professional_id);
 
 -- Índice em payouts.professional_id (melhora queries de payouts por professional)
-CREATE INDEX IF NOT EXISTS idx_payouts_professional
+CREATE INDEX idx_payouts_professional
 ON wp_limpvix_payouts(professional_id);
 
 -- ========================================

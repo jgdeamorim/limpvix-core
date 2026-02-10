@@ -37,6 +37,7 @@ namespace LimpVix\Application\UseCases;
 
 use LimpVix\Application\Commands\TransitionFinancialStatusCommand;
 use LimpVix\Application\Results\TransitionFinancialStatusResult;
+use LimpVix\Application\UseCases\Feedback\CheckFeedbackWindowStatus;
 use LimpVix\Domain\Finance\FinancialStatus;
 use LimpVix\Domain\Finance\FinancialContext;
 
@@ -52,13 +53,24 @@ class ProcessTimerExpired
     private $transitionUseCase;
 
     /**
+     * Use Case de verificação de feedback window (GAP #1)
+     *
+     * @var CheckFeedbackWindowStatus|null
+     */
+    private $checkFeedbackWindow;
+
+    /**
      * Construtor
      *
      * @param TransitionFinancialStatus $transitionUseCase
+     * @param CheckFeedbackWindowStatus|null $checkFeedbackWindow (GAP #1)
      */
-    public function __construct(TransitionFinancialStatus $transitionUseCase)
-    {
+    public function __construct(
+        TransitionFinancialStatus $transitionUseCase,
+        ?CheckFeedbackWindowStatus $checkFeedbackWindow = null
+    ) {
         $this->transitionUseCase = $transitionUseCase;
+        $this->checkFeedbackWindow = $checkFeedbackWindow;
     }
 
     /**
@@ -76,6 +88,63 @@ class ProcessTimerExpired
         bool $professionalValid = true,
         bool $hasPreviousPayout = false
     ): TransitionFinancialStatusResult {
+        // ========================================
+        // GAP #1: Check Feedback Window Status
+        // ========================================
+        if ($this->checkFeedbackWindow !== null) {
+            $feedbackCheck = $this->checkFeedbackWindow->execute($orderUuid);
+
+            if (!$feedbackCheck->isSuccess()) {
+                // Failed to check feedback window
+                return TransitionFinancialStatusResult::failed(
+                    $orderUuid,
+                    'feedback_window_check_failed',
+                    $feedbackCheck->getError()
+                );
+            }
+
+            $feedbackData = $feedbackCheck->getValue();
+
+            // BLOCK if window active without feedback
+            if (!$feedbackData['can_authorize_payout']) {
+                return TransitionFinancialStatusResult::failed(
+                    $orderUuid,
+                    $feedbackData['reason'],
+                    $feedbackData['message']
+                );
+            }
+
+            // BLOCK and transition to BLOCKED if negative feedback
+            if ($feedbackData['requires_manual_review']) {
+                $context = new FinancialContext([
+                    'timer_expired' => true,
+                    'has_dispute' => $hasDispute,
+                    'professional_valid' => $professionalValid,
+                    'has_previous_payout' => $hasPreviousPayout,
+                    'feedback_rating' => $feedbackData['feedback_score'],
+                    'feedback_reason' => $feedbackData['reason'],
+                    'requires_manual_review' => true
+                ]);
+
+                $command = new TransitionFinancialStatusCommand(
+                    orderUuid: $orderUuid,
+                    toStatus: FinancialStatus::BLOCKED(),
+                    reason: 'negative_feedback_manual_review',
+                    actor: 'system',
+                    actorId: null,
+                    context: $context
+                );
+
+                return $this->transitionUseCase->execute($command);
+            }
+
+            // Continue with normal flow (positive feedback or window expired)
+        }
+
+        // ========================================
+        // Original Logic: REVIEW → AUTHORIZED
+        // ========================================
+
         // Contexto: timer expirou (24h sem feedback)
         $context = new FinancialContext([
             'timer_expired' => true,
