@@ -114,6 +114,7 @@ final class ContractBootstrap
         // Registrar Use Cases
         $GLOBALS['limpvix_contract_use_cases'] = [
             'create' => new CreateContract($repository),
+            'list' => new \LimpVix\Application\UseCase\Contract\ListContracts($repository),
             'submit_for_allocation' => new SubmitForAllocation($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
@@ -125,7 +126,7 @@ final class ContractBootstrap
             'schedule_next' => new ScheduleNextExecution($repository),
         ];
 
-        self::logInfo('10 Contract Use Cases registered');
+        self::logInfo('11 Contract Use Cases registered');
     }
 
     /**
@@ -198,20 +199,31 @@ final class ContractBootstrap
      *
      * @return void
      */
+    /**
+     * Registra REST API endpoints
+     *
+     * REFATORADO (ONDA 2): Agora injeta AuthorizationService
+     *
+     * @return void
+     */
     public static function registerRestApi(): void
     {
-        // @future: Refatorar ContractController para usar Use Cases
-        // Linha 234: substituir $wpdb por $useCases
-
         if (class_exists('LimpVix\\Infrastructure\\API\\ContractController')) {
-            $useCases = $GLOBALS['limpvix_contract_use_cases'] ?? null;
+            $useCases = $GLOBALS['limpvix_contract_use_cases'] ?? [];
+            $authService = $GLOBALS['limpvix_authorization_service'] ?? null;
 
-            if ($useCases) {
-                $controller = new \LimpVix\Infrastructure\API\ContractController($useCases);
-                $controller->register_routes();
-
-                self::logInfo('ContractController REST API registered');
+            if (empty($useCases)) {
+                self::logInfo('Contract Use Cases not found - controller will use fallback');
             }
+
+            if (!$authService) {
+                self::logInfo('AuthorizationService not found - controller will use fallback');
+            }
+
+            $controller = new \LimpVix\Infrastructure\API\ContractController($useCases, $authService);
+            $controller->register_routes();
+
+            self::logInfo('ContractController REST API registered with ' . count($useCases) . ' Use Cases');
         }
     }
 

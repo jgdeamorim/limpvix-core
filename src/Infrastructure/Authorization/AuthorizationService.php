@@ -76,4 +76,14 @@ final class AuthorizationService
     {
         return isset($this->policies[$resourceType]);
     }
+
+    /**
+     * Get all registered policies
+     *
+     * @return array<string, AuthorizationPolicyInterface>
+     */
+    public function getPolicies(): array
+    {
+        return $this->policies;
+    }
 }

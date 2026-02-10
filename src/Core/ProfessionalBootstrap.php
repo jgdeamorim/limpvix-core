@@ -48,16 +48,19 @@ final class ProfessionalBootstrap
         // 1. Registrar Repository (prioridade alta)
         add_action('init', [self::class, 'registerRepository'], 5);
 
-        // 2. Registrar Admin Pages (apenas no admin)
+        // 2. Registrar Use Cases (após repository)
+        add_action('init', [self::class, 'registerUseCases'], 10);
+
+        // 3. Registrar Admin Pages (apenas no admin)
         if (is_admin()) {
             add_action('admin_menu', [self::class, 'registerAdminPages']);
             add_action('admin_enqueue_scripts', [self::class, 'registerAdminAssets']);
         }
 
-        // 3. Registrar REST API
+        // 4. Registrar REST API
         add_action('rest_api_init', [self::class, 'registerRestApi']);
 
-        // 4. Registrar Event Listeners
+        // 5. Registrar Event Listeners
         self::registerEventListeners();
 
         // Log de inicialização
@@ -75,6 +78,48 @@ final class ProfessionalBootstrap
             $GLOBALS['limpvix_professional_repository'] = new WpMarketplaceProfessionalRepository();
 
             self::logInfo('ProfessionalRepository registered');
+        }
+    }
+
+    /**
+     * Registra Use Cases no container global
+     *
+     * Use Cases registrados:
+     * - register: RegisterProfessional
+     * - accept_offer: AcceptOffer
+     * - reject_offer: RejectOffer
+     * - update_availability: UpdateAvailability
+     * - list_offers: ListOffers
+     * - get_score_history: GetScoreHistory
+     * - get_allocation_history: GetAllocationHistory
+     *
+     * @return void
+     */
+    public static function registerUseCases(): void
+    {
+        if (!isset($GLOBALS['limpvix_professional_use_cases'])) {
+            $repository = $GLOBALS['limpvix_professional_repository'] ?? null;
+
+            if (!$repository) {
+                self::logInfo('ProfessionalRepository not found - skipping Use Cases registration');
+                return;
+            }
+
+            // Carregar dependências adicionais
+            $contractRepo = $GLOBALS['limpvix_contract_repository'] ?? null;
+            $eventDispatcher = $GLOBALS['limpvix_event_dispatcher'] ?? null;
+
+            $GLOBALS['limpvix_professional_use_cases'] = [
+                'register' => new \LimpVix\Application\UseCase\Professional\RegisterProfessional($repository),
+                'accept_offer' => new \LimpVix\Application\UseCase\Professional\AcceptOffer($repository, $contractRepo, $eventDispatcher),
+                'reject_offer' => new \LimpVix\Application\UseCase\Professional\RejectOffer($repository, $eventDispatcher),
+                'update_availability' => new \LimpVix\Application\UseCase\Professional\UpdateAvailability($repository),
+                'list_offers' => new \LimpVix\Application\UseCase\Professional\ListOffers($repository),
+                'get_score_history' => new \LimpVix\Application\UseCase\Professional\GetScoreHistory($repository),
+                'get_allocation_history' => new \LimpVix\Application\UseCase\Professional\GetAllocationHistory($repository),
+            ];
+
+            self::logInfo('Professional Use Cases registered (7 Use Cases)');
         }
     }
 
@@ -149,19 +194,28 @@ final class ProfessionalBootstrap
     /**
      * Registra REST API endpoints
      *
+     * REFATORADO (ONDA 3): Agora injeta Use Cases e AuthorizationService
+     *
      * @return void
      */
     public static function registerRestApi(): void
     {
         if (class_exists('LimpVix\\Infrastructure\\API\\ProfessionalController')) {
-            $repository = $GLOBALS['limpvix_professional_repository'] ?? null;
+            $useCases = $GLOBALS['limpvix_professional_use_cases'] ?? [];
+            $authService = $GLOBALS['limpvix_authorization_service'] ?? null;
 
-            if ($repository) {
-                $controller = new ProfessionalController($repository);
-                $controller->register_routes();
-
-                self::logInfo('ProfessionalController REST API registered');
+            if (empty($useCases)) {
+                self::logInfo('Professional Use Cases not found - controller will use fallback');
             }
+
+            if (!$authService) {
+                self::logInfo('AuthorizationService not found - controller will use fallback');
+            }
+
+            $controller = new ProfessionalController($useCases, $authService);
+            $controller->register_routes();
+
+            self::logInfo('ProfessionalController REST API registered with ' . count($useCases) . ' Use Cases');
         }
     }
 

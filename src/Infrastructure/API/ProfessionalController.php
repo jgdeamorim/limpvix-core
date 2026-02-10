@@ -35,16 +35,34 @@ namespace LimpVix\Infrastructure\API;
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 use LimpVix\Application\UseCases\Professional\RegisterProfessional;
 use LimpVix\Application\UseCases\Professional\UpdateProfessionalScore;
+use LimpVix\Infrastructure\Authorization\AuthorizationService;
+use LimpVix\Application\DTO\Request\AcceptOfferRequest;
+use LimpVix\Application\DTO\Request\RejectOfferRequest;
+use LimpVix\Application\DTO\Request\RegisterProfessionalRequest;
+use LimpVix\Application\DTO\Request\UpdateAvailabilityRequest;
+use LimpVix\Application\DTO\Response\ProfessionalResponse;
 
 defined('ABSPATH') || exit;
 
 class ProfessionalController
 {
     private $repository;
+    private array $useCases;
+    private ?AuthorizationService $authService;
 
-    public function __construct()
+    /**
+     * Construtor com Dependency Injection
+     *
+     * @param array $useCases Array com Use Cases injetados
+     * @param AuthorizationService|null $authService Authorization service
+     */
+    public function __construct(array $useCases = [], ?AuthorizationService $authService = null)
     {
-        $this->repository = new WpMarketplaceProfessionalRepository();
+        $this->useCases = $useCases;
+        $this->authService = $authService ?? $GLOBALS['limpvix_authorization_service'] ?? null;
+
+        // Repository via global ou DI
+        $this->repository = $GLOBALS['limpvix_professional_repository'] ?? new WpMarketplaceProfessionalRepository();
     }
 
     /**
@@ -174,37 +192,55 @@ class ProfessionalController
      *
      * Registrar novo profissional
      */
+    /**
+     * POST /wp-json/limpvix/v1/professionals
+     *
+     * Criar novo profissional - REFATORADO
+     */
     public function create(\WP_REST_Request $request): \WP_REST_Response
     {
-        $data = [
-            'full_name' => $request->get_param('full_name'),
-            'cpf' => $request->get_param('cpf'),
-            'phone' => $request->get_param('phone'),
-            'email' => $request->get_param('email'),
-            'address' => $request->get_param('address'),
-            'skills' => $request->get_param('skills'),
-            'certifications' => $request->get_param('certifications') ?: [],
-            'physical_limitations' => $request->get_param('physical_limitations') ?: [],
-            'service_radius_km' => $request->get_param('service_radius_km') ?: 20,
-            'weekly_availability' => $request->get_param('weekly_availability'),
-        ];
-
-        $useCase = new RegisterProfessional($this->repository);
-        $result = $useCase->execute($data);
-
-        if (is_wp_error($result)) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => $result->get_error_message(),
-                'code' => $result->get_error_code()
-            ], 400);
+        if (!isset($this->useCases['register'])) {
+            return ApiResponse::error('RegisterProfessional Use Case not available', null, 500);
         }
 
-        return new \WP_REST_Response([
-            'success' => true,
-            'data' => $result['professional'],
-            'message' => 'Profissional registrado com sucesso'
-        ], 201);
+        try {
+            $dto = RegisterProfessionalRequest::fromArray([
+                'full_name' => $request->get_param('full_name'),
+                'cpf' => $request->get_param('cpf'),
+                'phone' => $request->get_param('phone'),
+                'email' => $request->get_param('email'),
+                'address' => $request->get_param('address'),
+                'skills' => $request->get_param('skills'),
+                'certifications' => $request->get_param('certifications') ?: [],
+                'physical_limitations' => $request->get_param('physical_limitations') ?: [],
+                'service_radius_km' => $request->get_param('service_radius_km') ?: 20,
+                'weekly_availability' => $request->get_param('weekly_availability'),
+            ]);
+
+            // Authorization: Admin pode criar qualquer profissional
+            if ($this->authService && !$this->authService->authorize('create', get_current_user_id(), 'professional', $dto->toArray())) {
+                return ApiResponse::unauthorized('Você não tem permissão para criar profissionais');
+            }
+
+            // Use Case executa o registro
+            $result = $this->useCases['register']->execute($dto->toArray());
+
+            // RegisterProfessional pode retornar WP_Error
+            if (is_wp_error($result)) {
+                return ApiResponse::error($result->get_error_message(), $result->get_error_code(), 400);
+            }
+
+            return ApiResponse::success(
+                $result['professional'],
+                'Profissional registrado com sucesso',
+                201
+            );
+
+        } catch (\InvalidArgumentException $e) {
+            return ApiResponse::validationError([$e->getMessage()]);
+        } catch (\Exception $e) {
+            return ApiResponse::error('Erro ao registrar profissional: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -271,227 +307,116 @@ class ProfessionalController
      *
      * Listar ofertas do profissional
      */
+    /**
+     * GET /wp-json/limpvix/v1/professionals/{id}/offers
+     *
+     * Listar ofertas do profissional - REFATORADO
+     */
     public function listOffers(\WP_REST_Request $request): \WP_REST_Response
     {
-        global $wpdb;
-        $id = (int) $request->get_param('id');
-
-        $professional = $this->repository->findById($id);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['list_offers'])) {
+            return ApiResponse::error('ListOffers Use Case not available', null, 500);
         }
 
-        $table = $wpdb->prefix . 'limpvix_contract_offers';
-        $offers = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE professional_id = %d ORDER BY offered_at DESC LIMIT 50",
-            $id
-        ), ARRAY_A);
+        try {
+            $professionalId = (int) $request->get_param('id');
+            $limit = (int) ($request->get_param('limit') ?: 50);
 
-        return new \WP_REST_Response([
-            'success' => true,
-            'data' => $offers
-        ], 200);
+            // Authorization: Professional pode ver apenas suas próprias ofertas
+            if ($this->authService && !$this->authService->authorize('view', get_current_user_id(), 'professional', $professionalId)) {
+                return ApiResponse::unauthorized('Você só pode ver suas próprias ofertas');
+            }
+
+            // Use Case executa a busca
+            $offers = $this->useCases['list_offers']->execute($professionalId, $limit);
+
+            return ApiResponse::success($offers);
+
+        } catch (\RuntimeException $e) {
+            return ApiResponse::notFound($e->getMessage());
+        } catch (\Exception $e) {
+            return ApiResponse::error('Erro ao listar ofertas: ' . $e->getMessage());
+        }
     }
 
     /**
      * POST /wp-json/limpvix/v1/professionals/{id}/offers/{offer_id}/accept
      *
-     * Aceitar oferta (first-to-accept)
+     * Aceitar oferta (first-to-accept) - REFATORADO
      */
     public function acceptOffer(\WP_REST_Request $request): \WP_REST_Response
     {
-        global $wpdb;
-        $professionalId = (int) $request->get_param('id');
-        $offerId = (int) $request->get_param('offer_id');
-
-        $professional = $this->repository->findById($professionalId);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['accept_offer'])) {
+            return ApiResponse::error('AcceptOffer Use Case not available', null, 500);
         }
-
-        $table = $wpdb->prefix . 'limpvix_contract_offers';
-
-        // Buscar oferta
-        $offer = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE id = %d AND professional_id = %d",
-            $offerId, $professionalId
-        ), ARRAY_A);
-
-        if (!$offer) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Oferta não encontrada'
-            ], 404);
-        }
-
-        // Validar status
-        if ($offer['status'] !== 'pending') {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Oferta não está mais disponível (status: ' . $offer['status'] . ')'
-            ], 400);
-        }
-
-        // Validar expiração
-        if (strtotime($offer['expires_at']) < time()) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Oferta expirada'
-            ], 400);
-        }
-
-        // Transação: aceitar oferta + rejeitar demais
-        $wpdb->query('START TRANSACTION');
 
         try {
-            // Atualizar oferta para accepted
-            $wpdb->update(
-                $table,
-                [
-                    'status' => 'accepted',
-                    'responded_at' => current_time('mysql')
-                ],
-                ['id' => $offerId],
-                ['%s', '%s'],
-                ['%d']
+            $professionalId = (int) $request->get_param('id');
+            $offerId = (int) $request->get_param('offer_id');
+
+            // Authorization: Professional pode aceitar apenas suas próprias ofertas
+            if ($this->authService && !$this->authService->authorize('update', get_current_user_id(), 'professional', $professionalId)) {
+                return ApiResponse::unauthorized('Você só pode aceitar suas próprias ofertas');
+            }
+
+            // Use Case executa toda a lógica
+            $result = $this->useCases['accept_offer']->execute($professionalId, $offerId);
+
+            return ApiResponse::success(
+                $result,
+                'Oferta aceita! Contrato alocado para você.'
             );
 
-            // Expirar outras ofertas do mesmo contrato
-            $wpdb->update(
-                $table,
-                ['status' => 'expired'],
-                [
-                    'contract_id' => $offer['contract_id'],
-                    'status' => 'pending'
-                ],
-                ['%s'],
-                ['%d', '%s']
-            );
-
-            // Alocar profissional ao contrato
-            $contractsTable = $wpdb->prefix . 'limpvix_contracts';
-            $wpdb->update(
-                $contractsTable,
-                [
-                    'allocated_professional_id' => $professionalId,
-                    'allocation_status' => 'allocated',
-                    'updated_at' => current_time('mysql')
-                ],
-                ['id' => $offer['contract_id']],
-                ['%d', '%s', '%s'],
-                ['%d']
-            );
-
-            $wpdb->query('COMMIT');
-
-            // Disparar evento
-            do_action('limpvix_offer_accepted', [
-                'offer_id' => $offerId,
-                'professional_id' => $professionalId,
-                'contract_id' => $offer['contract_id'],
-            ]);
-
-            // Atualizar last_activity
-            $this->repository->updateLastActivity($professionalId);
-
-            return new \WP_REST_Response([
-                'success' => true,
-                'message' => 'Oferta aceita! Contrato alocado para você.',
-                'data' => [
-                    'offer_id' => $offerId,
-                    'contract_id' => $offer['contract_id'],
-                ]
-            ], 200);
-
+        } catch (\RuntimeException $e) {
+            // Erros de negócio (oferta não encontrada, expirada, etc)
+            return ApiResponse::error($e->getMessage(), 'business_error', 400);
         } catch (\Exception $e) {
-            $wpdb->query('ROLLBACK');
-
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Erro ao aceitar oferta: ' . $e->getMessage()
-            ], 500);
+            // Erros inesperados
+            return ApiResponse::error('Erro ao aceitar oferta: ' . $e->getMessage());
         }
     }
 
     /**
      * POST /wp-json/limpvix/v1/professionals/{id}/offers/{offer_id}/reject
      *
-     * Rejeitar oferta
+     * Rejeitar oferta - REFATORADO
      */
     public function rejectOffer(\WP_REST_Request $request): \WP_REST_Response
     {
-        global $wpdb;
-        $professionalId = (int) $request->get_param('id');
-        $offerId = (int) $request->get_param('offer_id');
-        $reason = $request->get_param('reason') ?: 'not_interested';
-        $notes = $request->get_param('notes') ?: '';
-
-        $professional = $this->repository->findById($professionalId);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['reject_offer'])) {
+            return ApiResponse::error('RejectOffer Use Case not available', null, 500);
         }
 
-        $table = $wpdb->prefix . 'limpvix_contract_offers';
+        try {
+            $dto = RejectOfferRequest::fromArray([
+                'professional_id' => (int) $request->get_param('id'),
+                'offer_id' => (int) $request->get_param('offer_id'),
+                'reason' => $request->get_param('reason') ?: 'not_interested',
+                'notes' => $request->get_param('notes'),
+            ]);
 
-        // Buscar oferta
-        $offer = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE id = %d AND professional_id = %d",
-            $offerId, $professionalId
-        ), ARRAY_A);
+            // Authorization
+            if ($this->authService && !$this->authService->authorize('update', get_current_user_id(), 'professional', $dto->professional_id)) {
+                return ApiResponse::unauthorized('Você só pode rejeitar suas próprias ofertas');
+            }
 
-        if (!$offer) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Oferta não encontrada'
-            ], 404);
+            // Use Case
+            $this->useCases['reject_offer']->execute(
+                $dto->professional_id,
+                $dto->offer_id,
+                $dto->reason,
+                $dto->notes
+            );
+
+            return ApiResponse::success(null, 'Oferta rejeitada');
+
+        } catch (\InvalidArgumentException $e) {
+            return ApiResponse::validationError([$e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return ApiResponse::error($e->getMessage(), 'business_error', 400);
+        } catch (\Exception $e) {
+            return ApiResponse::error('Erro ao rejeitar oferta: ' . $e->getMessage());
         }
-
-        // Validar status
-        if ($offer['status'] !== 'pending') {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Oferta não pode ser rejeitada (status: ' . $offer['status'] . ')'
-            ], 400);
-        }
-
-        // Atualizar oferta para rejected
-        $wpdb->update(
-            $table,
-            [
-                'status' => 'rejected',
-                'responded_at' => current_time('mysql'),
-                'rejection_reason' => $reason,
-                'rejection_notes' => $notes,
-            ],
-            ['id' => $offerId],
-            ['%s', '%s', '%s', '%s'],
-            ['%d']
-        );
-
-        // Disparar evento
-        do_action('limpvix_offer_rejected', [
-            'offer_id' => $offerId,
-            'professional_id' => $professionalId,
-            'contract_id' => $offer['contract_id'],
-            'reason' => $reason,
-        ]);
-
-        // Atualizar last_activity
-        $this->repository->updateLastActivity($professionalId);
-
-        return new \WP_REST_Response([
-            'success' => true,
-            'message' => 'Oferta rejeitada'
-        ], 200);
     }
 
     /**
@@ -499,91 +424,106 @@ class ProfessionalController
      *
      * Atualizar disponibilidade
      */
+    /**
+     * PUT /wp-json/limpvix/v1/professionals/{id}/availability
+     *
+     * Atualizar disponibilidade do profissional - REFATORADO
+     */
     public function updateAvailability(\WP_REST_Request $request): \WP_REST_Response
     {
-        $id = (int) $request->get_param('id');
-        $availabilityData = $request->get_param('availability');
-
-        $professional = $this->repository->findById($id);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['update_availability'])) {
+            return ApiResponse::error('UpdateAvailability Use Case not available', null, 500);
         }
 
         try {
-            $availability = \LimpVix\Domain\Professional\ValueObjects\WeeklyAvailability::fromJson(
-                json_encode($availabilityData)
+            $dto = UpdateAvailabilityRequest::fromArray([
+                'professional_id' => (int) $request->get_param('id'),
+                'availability' => $request->get_param('availability'),
+            ]);
+
+            // Authorization: Professional pode atualizar apenas sua própria disponibilidade
+            if ($this->authService && !$this->authService->authorize('update', get_current_user_id(), 'professional', $dto->professional_id)) {
+                return ApiResponse::unauthorized('Você só pode atualizar sua própria disponibilidade');
+            }
+
+            // Use Case executa a atualização
+            $result = $this->useCases['update_availability']->execute($dto->professional_id, $dto->availability);
+
+            return ApiResponse::success(
+                $result,
+                'Disponibilidade atualizada com sucesso'
             );
 
-            $professional->updateAvailability($availability);
-            $this->repository->save($professional);
-
-            return new \WP_REST_Response([
-                'success' => true,
-                'message' => 'Disponibilidade atualizada',
-                'data' => [
-                    'availability' => $availability->toArray()
-                ]
-            ], 200);
+        } catch (\InvalidArgumentException $e) {
+            return ApiResponse::validationError([$e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return ApiResponse::notFound($e->getMessage());
         } catch (\Exception $e) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Erro ao atualizar disponibilidade: ' . $e->getMessage()
-            ], 400);
+            return ApiResponse::error('Erro ao atualizar disponibilidade: ' . $e->getMessage());
         }
     }
 
     /**
      * GET /wp-json/limpvix/v1/professionals/{id}/score-history
      *
-     * Histórico de score
+     * Histórico de score - REFATORADO
      */
     public function getScoreHistory(\WP_REST_Request $request): \WP_REST_Response
     {
-        $id = (int) $request->get_param('id');
-        $limit = $request->get_param('limit') ?: 50;
-
-        $professional = $this->repository->findById($id);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['get_score_history'])) {
+            return ApiResponse::error('GetScoreHistory Use Case not available', null, 500);
         }
 
-        $history = $this->repository->getScoreHistory($id, $limit);
+        try {
+            $professionalId = (int) $request->get_param('id');
+            $limit = (int) ($request->get_param('limit') ?: 50);
 
-        return new \WP_REST_Response([
-            'success' => true,
-            'data' => $history
-        ], 200);
+            // Authorization: Professional pode ver apenas seu próprio histórico
+            if ($this->authService && !$this->authService->authorize('view', get_current_user_id(), 'professional', $professionalId)) {
+                return ApiResponse::unauthorized('Você só pode ver seu próprio histórico');
+            }
+
+            // Use Case executa a busca
+            $history = $this->useCases['get_score_history']->execute($professionalId, $limit);
+
+            return ApiResponse::success($history);
+
+        } catch (\RuntimeException $e) {
+            return ApiResponse::notFound($e->getMessage());
+        } catch (\Exception $e) {
+            return ApiResponse::error('Erro ao buscar histórico de score: ' . $e->getMessage());
+        }
     }
 
     /**
      * GET /wp-json/limpvix/v1/professionals/{id}/allocations
      *
-     * Histórico de alocações
+     * Histórico de alocações - REFATORADO
      */
     public function getAllocations(\WP_REST_Request $request): \WP_REST_Response
     {
-        $id = (int) $request->get_param('id');
-
-        $professional = $this->repository->findById($id);
-        if (!$professional) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'error' => 'Profissional não encontrado'
-            ], 404);
+        if (!isset($this->useCases['get_allocation_history'])) {
+            return ApiResponse::error('GetAllocationHistory Use Case not available', null, 500);
         }
 
-        $allocations = $this->repository->getAllocationHistory($id);
+        try {
+            $professionalId = (int) $request->get_param('id');
 
-        return new \WP_REST_Response([
-            'success' => true,
-            'data' => $allocations
-        ], 200);
+            // Authorization: Professional pode ver apenas suas próprias alocações
+            if ($this->authService && !$this->authService->authorize('view', get_current_user_id(), 'professional', $professionalId)) {
+                return ApiResponse::unauthorized('Você só pode ver suas próprias alocações');
+            }
+
+            // Use Case executa a busca
+            $allocations = $this->useCases['get_allocation_history']->execute($professionalId);
+
+            return ApiResponse::success($allocations);
+
+        } catch (\RuntimeException $e) {
+            return ApiResponse::notFound($e->getMessage());
+        } catch (\Exception $e) {
+            return ApiResponse::error('Erro ao buscar histórico de alocações: ' . $e->getMessage());
+        }
     }
 
     // ==================== PERMISSION CALLBACKS ====================

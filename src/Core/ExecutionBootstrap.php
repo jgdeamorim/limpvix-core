@@ -39,7 +39,10 @@ final class ExecutionBootstrap
         // 2. Registrar Use Cases
         add_action('init', [self::class, 'registerUseCases'], 10);
 
-        // 3. Registrar Event Listeners
+        // 3. Registrar REST API
+        add_action('rest_api_init', [self::class, 'registerRestApi']);
+
+        // 4. Registrar Event Listeners
         self::registerEventListeners();
 
         self::logInfo('Execution Module Bootstrap initialized');
@@ -75,6 +78,8 @@ final class ExecutionBootstrap
 
         $GLOBALS['limpvix_execution_use_cases'] = [
             'create' => new CreateExecution($repository),
+            'list' => new \LimpVix\Application\UseCase\Execution\ListExecutions($repository),
+            'get' => new \LimpVix\Application\UseCase\Execution\GetExecution($repository),
             'schedule' => new ScheduleExecution($repository),
             'start' => new StartExecution($repository),
             'complete' => new CompleteExecution($repository),
@@ -83,7 +88,35 @@ final class ExecutionBootstrap
             'reschedule' => new RescheduleExecution($repository),
         ];
 
-        self::logInfo('7 Execution Use Cases registered');
+        self::logInfo('9 Execution Use Cases registered');
+    }
+
+    /**
+     * Registra REST API endpoints
+     *
+     * CRIADO (ONDA 2): ExecutionController com 9 endpoints
+     *
+     * @return void
+     */
+    public static function registerRestApi(): void
+    {
+        if (class_exists('LimpVix\\Infrastructure\\API\\ExecutionController')) {
+            $useCases = $GLOBALS['limpvix_execution_use_cases'] ?? [];
+            $authService = $GLOBALS['limpvix_authorization_service'] ?? null;
+
+            if (empty($useCases)) {
+                self::logInfo('Execution Use Cases not found - controller will use fallback');
+            }
+
+            if (!$authService) {
+                self::logInfo('AuthorizationService not found - controller will use fallback');
+            }
+
+            $controller = new \LimpVix\Infrastructure\API\ExecutionController($useCases, $authService);
+            $controller->register_routes();
+
+            self::logInfo('ExecutionController REST API registered with ' . count($useCases) . ' Use Cases');
+        }
     }
 
     /**

@@ -103,6 +103,9 @@ class Kernel
         // Core habilitado - inicializar componentes
         $this->logInfo('LimpVix Core está HABILITADO - iniciando bootstrap');
 
+        // Inicializar Authorization Service (ANTES dos módulos)
+        $this->initializeAuthorization();
+
         // Inicializar Hooks Manager
         $this->hooks = new Hooks($this->featureFlags);
         $this->hooks->register();
@@ -156,6 +159,47 @@ class Kernel
         $this->booted = true;
 
         $this->logInfo('LimpVix Core inicializado com sucesso');
+    }
+
+    /**
+     * Inicializa o Authorization Service
+     *
+     * Registra policies para todos os recursos do sistema:
+     * - Contract
+     * - Execution
+     * - Professional
+     *
+     * O serviço fica disponível globalmente via $GLOBALS['limpvix_authorization_service']
+     *
+     * @return void
+     */
+    private function initializeAuthorization(): void
+    {
+        // Carregar classes necessárias
+        if (!class_exists('LimpVix\\Infrastructure\\Authorization\\AuthorizationService')) {
+            $this->logInfo('AuthorizationService não encontrado - pulando inicialização');
+            return;
+        }
+
+        $authService = new \LimpVix\Infrastructure\Authorization\AuthorizationService();
+
+        // Registrar policies
+        if (class_exists('LimpVix\\Infrastructure\\Authorization\\Policies\\ContractPolicy')) {
+            $authService->registerPolicy('contract', new \LimpVix\Infrastructure\Authorization\Policies\ContractPolicy());
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Authorization\\Policies\\ExecutionPolicy')) {
+            $authService->registerPolicy('execution', new \LimpVix\Infrastructure\Authorization\Policies\ExecutionPolicy());
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Authorization\\Policies\\ProfessionalPolicy')) {
+            $authService->registerPolicy('professional', new \LimpVix\Infrastructure\Authorization\Policies\ProfessionalPolicy());
+        }
+
+        // Disponibilizar globalmente
+        $GLOBALS['limpvix_authorization_service'] = $authService;
+
+        $this->logInfo('AuthorizationService inicializado com ' . count($authService->getPolicies()) . ' policies');
     }
 
     /**
