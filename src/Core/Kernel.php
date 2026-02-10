@@ -103,6 +103,9 @@ class Kernel
         // Core habilitado - inicializar componentes
         $this->logInfo('LimpVix Core está HABILITADO - iniciando bootstrap');
 
+        // Inicializar Transaction Manager (infraestrutura base)
+        $this->initializeTransactionManager();
+
         // Inicializar Authorization Service (ANTES dos módulos)
         $this->initializeAuthorization();
 
@@ -159,6 +162,37 @@ class Kernel
         $this->booted = true;
 
         $this->logInfo('LimpVix Core inicializado com sucesso');
+    }
+
+    /**
+     * Inicializa o Transaction Manager
+     *
+     * Cria instância do gerenciador de transações de banco de dados.
+     * Disponibiliza globalmente via $GLOBALS['limpvix_transaction_manager']
+     *
+     * O TransactionManager é usado por Use Cases críticos que precisam
+     * garantir atomicidade em operações multi-step:
+     * - RegisterProfessional (WordPress user + domain record)
+     * - CreateOrder (Order + Financial aggregates)
+     * - ExecutePayout (provider call + DB persistence)
+     *
+     * @return void
+     */
+    private function initializeTransactionManager(): void
+    {
+        if (!class_exists('LimpVix\\Infrastructure\\Database\\TransactionManager')) {
+            $this->logInfo('TransactionManager não encontrado - pulando inicialização');
+            return;
+        }
+
+        global $wpdb;
+
+        $transactionManager = new \LimpVix\Infrastructure\Database\TransactionManager($wpdb);
+
+        // Disponibilizar globalmente
+        $GLOBALS['limpvix_transaction_manager'] = $transactionManager;
+
+        $this->logInfo('TransactionManager inicializado e disponível globalmente');
     }
 
     /**

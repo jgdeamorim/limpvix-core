@@ -83,31 +83,50 @@ class RegisterProfessional
             return $geocoded;
         }
 
-        // 5. Criar usuário WordPress
-        $userId = $this->createWordPressUser($data);
-        if (is_wp_error($userId)) {
-            return $userId;
+        // 5-8. REFATORADO (SPRINT 7): Atomic WordPress User + Professional creation
+        // Usa TransactionManager para garantir atomicidade:
+        // - Se WordPress user criado MAS Professional save falhar → ROLLBACK automático
+        // - Se qualquer step falhar → nenhum dado é persistido
+        // - Elimina necessidade de wp_delete_user() manual
+
+        $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+        if (!$transactionManager) {
+            return new \WP_Error(
+                'transaction_manager_not_available',
+                'TransactionManager não está disponível. Sistema em estado inconsistente.',
+                ['status' => 500]
+            );
         }
 
-        // 6. Criar Value Objects
-        $serviceRegion = ServiceRegion::fromArray([
-            'center_latitude' => $geocoded['latitude'],
-            'center_longitude' => $geocoded['longitude'],
-            'radius_km' => $data['service_radius_km'] ?? 20, // Default 20km
-        ]);
+        // Transaction-protected execution
+        $transactionManager->beginTransaction();
 
-        $skills = ProfessionalSkills::fromJson(
-            json_encode($data['skills']),
-            isset($data['certifications']) ? json_encode($data['certifications']) : null,
-            isset($data['physical_limitations']) ? json_encode($data['physical_limitations']) : null
-        );
-
-        $availability = isset($data['weekly_availability'])
-            ? WeeklyAvailability::fromJson(json_encode($data['weekly_availability']))
-            : WeeklyAvailability::defaultSchedule(); // Seg-Sex 08:00-18:00
-
-        // 7. Criar Professional via factory
         try {
+            // 5. Criar usuário WordPress (dentro da transação)
+            $userId = $this->createWordPressUser($data);
+            if (is_wp_error($userId)) {
+                throw new \RuntimeException($userId->get_error_message());
+            }
+
+            // 6. Criar Value Objects
+            $serviceRegion = ServiceRegion::fromArray([
+                'center_latitude' => $geocoded['latitude'],
+                'center_longitude' => $geocoded['longitude'],
+                'radius_km' => $data['service_radius_km'] ?? 20, // Default 20km
+            ]);
+
+            $skills = ProfessionalSkills::fromJson(
+                json_encode($data['skills']),
+                isset($data['certifications']) ? json_encode($data['certifications']) : null,
+                isset($data['physical_limitations']) ? json_encode($data['physical_limitations']) : null
+            );
+
+            $availability = isset($data['weekly_availability'])
+                ? WeeklyAvailability::fromJson(json_encode($data['weekly_availability']))
+                : WeeklyAvailability::defaultSchedule(); // Seg-Sex 08:00-18:00
+
+            // 7. Criar Professional via factory
             $professional = Professional::create(
                 $userId,
                 $data['full_name'],
@@ -118,27 +137,27 @@ class RegisterProfessional
                 $skills,
                 $availability
             );
-        } catch (\InvalidArgumentException $e) {
-            // Rollback: deletar usuário WordPress criado
-            wp_delete_user($userId);
 
-            return new \WP_Error(
-                'professional_creation_failed',
-                'Erro ao criar profissional: ' . $e->getMessage(),
-                ['status' => 500]
-            );
-        }
-
-        // 8. Salvar no repository
-        try {
+            // 8. Salvar no repository
             $this->repository->save($professional);
+
+            // COMMIT: Tudo sucedeu
+            $transactionManager->commit();
+
         } catch (\Exception $e) {
-            // Rollback: deletar usuário WordPress criado
-            wp_delete_user($userId);
+            // ROLLBACK: Qualquer falha reverte TUDO (WordPress user + Professional)
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[RegisterProfessional] Transaction rolled back: %s',
+                    $e->getMessage()
+                ));
+            }
 
             return new \WP_Error(
-                'repository_save_failed',
-                'Erro ao salvar profissional no banco: ' . $e->getMessage(),
+                'professional_registration_failed',
+                'Erro ao registrar profissional: ' . $e->getMessage(),
                 ['status' => 500]
             );
         }
