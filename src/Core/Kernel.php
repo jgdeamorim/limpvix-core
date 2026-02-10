@@ -137,6 +137,11 @@ class Kernel
             ContractBootstrap::init();
         }
 
+        // Inicializar módulo Execution (Contract Executions)
+        if (class_exists('LimpVix\\Core\\ExecutionBootstrap')) {
+            ExecutionBootstrap::init();
+        }
+
         // Inicializar automação de contratos
         if (class_exists('LimpVix\\Infrastructure\\Automation\\ContractAutomation')) {
             \LimpVix\Infrastructure\Automation\ContractAutomation::init();
