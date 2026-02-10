@@ -66,7 +66,8 @@ final class ContractBootstrap
         if (is_admin()) {
             add_action('admin_menu', [self::class, 'registerAdminPages']);
             add_action('admin_enqueue_scripts', [self::class, 'registerAdminAssets']);
-            add_action('wp_dashboard_setup', [self::class, 'registerAdminWidgets']);
+            // DISABLED: Dashboard widgets causing critical errors in admin
+            // add_action('wp_dashboard_setup', [self::class, 'registerAdminWidgets']);
         }
 
         // 4. Registrar REST API

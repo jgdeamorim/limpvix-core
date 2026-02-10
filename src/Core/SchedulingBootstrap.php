@@ -102,7 +102,8 @@ final class SchedulingBootstrap
         add_action('admin_bar_menu', [__CLASS__, 'addAdminBarInfo'], 999);
 
         // Hook: Dashboard widget
-        add_action('wp_dashboard_setup', [__CLASS__, 'addDashboardWidget']);
+        // DISABLED: Causing admin dashboard errors
+        // add_action('wp_dashboard_setup', [__CLASS__, 'addDashboardWidget']);
     }
 
     /**
