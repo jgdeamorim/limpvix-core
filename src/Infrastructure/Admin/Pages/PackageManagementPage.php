@@ -148,7 +148,9 @@ class PackageManagementPage
             if ($result) {
                 add_settings_error('limpvix_packages', 'package_created', 'Pacote criado com sucesso!', 'success');
             } else {
-                add_settings_error('limpvix_packages', 'create_failed', 'Erro ao criar pacote: ' . $this->wpdb->last_error, 'error');
+                // FASE 1.4 - ADMIN UI REFACTORING: Log error internally, show generic message
+                error_log('[PackageManagementPage] Database error on package creation: ' . $this->wpdb->last_error);
+                add_settings_error('limpvix_packages', 'create_failed', 'Erro ao criar pacote. Por favor, tente novamente ou contate o suporte.', 'error');
             }
         }
 

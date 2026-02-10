@@ -325,41 +325,59 @@ class FeedbackManagementPage
     /**
      * Buscar casos de feedback negativo
      */
+    /**
+     * Get negative feedback cases from database
+     *
+     * FASE 1.2 - ADMIN UI REFACTORING:
+     * - REMOVED mock data
+     * - Implemented real database query
+     * - Joins with users and executions tables for complete data
+     *
+     * @return array Array of negative feedback cases (score <= 3)
+     */
     private function getNegativeFeedbackCases(): array
     {
         global $wpdb;
 
-        // Mock data (substituir por query real)
-        // Na implementação real, buscar de limpvix_finance_orders onde rating <= 3
-        return [
-            [
-                'order_id' => 1001,
-                'customer_name' => 'Ana Paula Silva',
-                'service_name' => 'Limpeza Residencial Básica',
-                'rating' => 2,
-                'comment' => 'A profissional chegou com 40 minutos de atraso e esqueceu de limpar os banheiros.',
-                'feedback_date' => '2026-02-01 14:30:00',
-                'case_status' => 'pending',
-            ],
-            [
-                'order_id' => 1005,
-                'customer_name' => 'Carlos Eduardo Mendes',
-                'service_name' => 'Limpeza Pós-Obra',
-                'rating' => 3,
-                'comment' => 'Serviço OK, mas esperava mais atenção aos detalhes pelo preço cobrado.',
-                'feedback_date' => '2026-01-28 10:15:00',
-                'case_status' => 'in_progress',
-            ],
-            [
-                'order_id' => 987,
-                'customer_name' => 'Fernanda Costa',
-                'service_name' => 'Limpeza Completa',
-                'rating' => 1,
-                'comment' => 'Pior experiência. Produtos usados deixaram manchas no sofá.',
-                'feedback_date' => '2026-01-15 16:45:00',
-                'case_status' => 'resolved',
-            ],
-        ];
+        $feedbackTable = $wpdb->prefix . 'limpvix_feedback';
+        $usersTable = $wpdb->users;
+        $executionsTable = $wpdb->prefix . 'limpvix_contract_executions';
+        $professionalsTable = $wpdb->prefix . 'limpvix_professionals';
+
+        // Query real data from limpvix_feedback table
+        $results = $wpdb->get_results(
+            "SELECT
+                f.id,
+                f.execution_id as order_id,
+                u.display_name as customer_name,
+                CONCAT('Execução #', f.execution_id) as service_name,
+                f.score as rating,
+                f.comment,
+                f.created_at as feedback_date,
+                CASE
+                    WHEN f.admin_response IS NULL THEN 'pending'
+                    WHEN f.admin_response IS NOT NULL AND f.resolved_at IS NULL THEN 'in_progress'
+                    WHEN f.resolved_at IS NOT NULL THEN 'resolved'
+                    ELSE 'pending'
+                END as case_status,
+                p.full_name as professional_name,
+                f.professional_id
+            FROM {$feedbackTable} f
+            LEFT JOIN {$usersTable} u ON f.client_user_id = u.ID
+            LEFT JOIN {$executionsTable} e ON f.execution_id = e.id
+            LEFT JOIN {$professionalsTable} p ON f.professional_id = p.id
+            WHERE f.score <= 3
+            ORDER BY f.created_at DESC
+            LIMIT 50",
+            ARRAY_A
+        );
+
+        // Return empty array if no results (instead of mock data)
+        if (empty($results)) {
+            return [];
+        }
+
+        return $results;
     }
 
     /**

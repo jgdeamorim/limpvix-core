@@ -111,6 +111,8 @@ final class ProfessionalBootstrap
 
             $GLOBALS['limpvix_professional_use_cases'] = [
                 'register' => new \LimpVix\Application\UseCase\Professional\RegisterProfessional($repository),
+                'list' => new \LimpVix\Application\UseCase\Professional\ListProfessionals($repository),
+                'get_statistics' => new \LimpVix\Application\UseCase\Professional\GetProfessionalStatistics(),
                 'accept_offer' => new \LimpVix\Application\UseCase\Professional\AcceptOffer($repository, $contractRepo, $eventDispatcher),
                 'reject_offer' => new \LimpVix\Application\UseCase\Professional\RejectOffer($repository, $eventDispatcher),
                 'update_availability' => new \LimpVix\Application\UseCase\Professional\UpdateAvailability($repository),
@@ -119,7 +121,7 @@ final class ProfessionalBootstrap
                 'get_allocation_history' => new \LimpVix\Application\UseCase\Professional\GetAllocationHistory($repository),
             ];
 
-            self::logInfo('Professional Use Cases registered (7 Use Cases)');
+            self::logInfo('Professional Use Cases registered (9 Use Cases)');
         }
     }
 

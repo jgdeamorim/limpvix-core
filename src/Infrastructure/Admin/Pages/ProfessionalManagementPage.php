@@ -16,8 +16,8 @@
 namespace LimpVix\Infrastructure\Admin\Pages;
 
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
-use LimpVix\Application\UseCases\Professional\RegisterProfessional;
-use LimpVix\Application\UseCases\Professional\UpdateProfessionalScore;
+use LimpVix\Application\UseCase\Professional\RegisterProfessional;
+use LimpVix\Application\UseCase\Professional\UpdateProfessionalScore;
 
 defined('ABSPATH') || exit;
 
@@ -28,12 +28,16 @@ class ProfessionalManagementPage
 
     private $wpdb;
     private $repository;
+    private $useCases;
 
     public function __construct()
     {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->repository = new WpMarketplaceProfessionalRepository();
+
+        // REFATORADO (FASE 2): Dependency Injection via globals (Bootstrap)
+        $this->useCases = $GLOBALS['limpvix_professional_use_cases'] ?? [];
     }
 
     public function register(): void
@@ -376,11 +380,24 @@ class ProfessionalManagementPage
 
     private function renderStatistics(array $stats): void
     {
-        $active = $stats['active'] ?? 0;
-        $total = $stats['total'] ?? 0;
-        $avgScore = $stats['avg_score'] ?? 0;
-        $verified = $this->repository->countVerified();
-        $suspended = count($this->repository->findSuspended());
+        // REFATORADO (FASE 2): Usar GetProfessionalStatistics Use Case
+        $statsData = isset($this->useCases['get_statistics'])
+            ? $this->useCases['get_statistics']->execute()
+            : [
+                'total' => 0,
+                'active' => 0,
+                'verified' => 0,
+                'suspended' => 0,
+                'average_score' => 0,
+            ];
+
+        $active = $statsData['active'];
+        $total = $statsData['total'];
+        $avgScore = $statsData['average_score'];
+        $verified = $statsData['verified'];
+        $suspended = $statsData['suspended'];
+
+        // Calcular pending (ainda usa repository por enquanto)
         $pending = count($this->repository->findPendingVerification());
 
         ?>
@@ -451,46 +468,34 @@ class ProfessionalManagementPage
         <?php
     }
 
+    /**
+     * Get professionals with filters (REFATORADO - FASE 2)
+     *
+     * FASE 2.2 - USE CASE PATTERN:
+     * - Usa ListProfessionals Use Case
+     * - Whitelist validation, prepared statements, esc_like já implementados no Use Case
+     * - Código mais limpo e testável
+     *
+     * @param string $filter_status Status filter ('all', 'active', 'inactive', 'suspended')
+     * @param string $filter_verified Verification filter ('all', 'verified', 'not_verified')
+     * @param float $filter_score Minimum score filter
+     * @param string $search Search term
+     * @return array Array of professional records
+     */
     private function getProfessionals($filter_status, $filter_verified, $filter_score, $search): array
     {
-        $table = $this->wpdb->prefix . 'limpvix_professionals';
+        // REFATORADO (FASE 2): Usar ListProfessionals Use Case
+        $filters = [
+            'status' => $filter_status,
+            'verified' => $filter_verified,
+            'min_score' => $filter_score,
+            'search' => $search,
+            'limit' => 100, // Por enquanto, hardcoded (FASE 3 implementará paginação)
+        ];
 
-        $where = ['1=1'];
-        $params = [];
-
-        // Filter by status
-        if ($filter_status === 'active') {
-            $where[] = 'is_active = 1 AND (suspended_until IS NULL OR suspended_until < NOW())';
-        } elseif ($filter_status === 'inactive') {
-            $where[] = 'is_active = 0';
-        } elseif ($filter_status === 'suspended') {
-            $where[] = 'is_active = 1 AND suspended_until IS NOT NULL AND suspended_until > NOW()';
-        }
-
-        // Filter by verified
-        if ($filter_verified === 'verified') {
-            $where[] = 'is_verified = 1';
-        } elseif ($filter_verified === 'not_verified') {
-            $where[] = 'is_verified = 0';
-        }
-
-        // Filter by score
-        if ($filter_score > 0) {
-            $where[] = $this->wpdb->prepare('score >= %f', $filter_score);
-        }
-
-        // Search
-        if (!empty($search)) {
-            $like = '%' . $this->wpdb->esc_like($search) . '%';
-            $where[] = $this->wpdb->prepare(
-                '(full_name LIKE %s OR cpf LIKE %s OR email LIKE %s)',
-                $like, $like, $like
-            );
-        }
-
-        $sql = "SELECT * FROM {$table} WHERE " . implode(' AND ', $where) . " ORDER BY created_at DESC LIMIT 100";
-
-        return $this->wpdb->get_results($sql, ARRAY_A);
+        return isset($this->useCases['list'])
+            ? $this->useCases['list']->execute($filters)
+            : [];
     }
 
     private function renderProfessionalsTable(array $professionals): void

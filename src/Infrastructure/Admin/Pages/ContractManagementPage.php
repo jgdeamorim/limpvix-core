@@ -272,28 +272,33 @@ class ContractManagementPage
 
     private function renderDashboard(): void
     {
-        // Statistics
-        $activeCount = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->tableContracts} WHERE status = 'active'");
-        $totalMonthly = $this->wpdb->get_var("SELECT SUM(monthly_value) FROM {$this->tableContracts} WHERE status = 'active'");
-        $expiringCount = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->tableContracts} WHERE status = 'active' AND end_date IS NOT NULL AND end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
-        $pendingExecutions = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->tableExecutions} WHERE status IN ('pending', 'scheduled')");
+        // REFATORADO (FASE 2): Usar GetContractStatistics Use Case
+        $stats = isset($this->useCases['get_statistics'])
+            ? $this->useCases['get_statistics']->execute()
+            : [
+                'active_contracts' => 0,
+                'total_monthly_value' => 0,
+                'expiring_soon' => 0,
+                'pending_executions' => 0,
+                'currency_formatted' => 'R$ 0,00',
+            ];
 
         ?>
         <div class="dashboard-stats">
             <div class="stat-card">
-                <div class="stat-value"><?php echo esc_html($activeCount); ?></div>
+                <div class="stat-value"><?php echo esc_html($stats['active_contracts']); ?></div>
                 <div class="stat-label">Contratos Ativos</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">R$ <?php echo number_format($totalMonthly, 2, ',', '.'); ?></div>
+                <div class="stat-value"><?php echo esc_html($stats['currency_formatted']); ?></div>
                 <div class="stat-label">Valor Mensal Total</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value"><?php echo esc_html($expiringCount); ?></div>
+                <div class="stat-value"><?php echo esc_html($stats['expiring_soon']); ?></div>
                 <div class="stat-label">Expirando em 30 dias</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value"><?php echo esc_html($pendingExecutions); ?></div>
+                <div class="stat-value"><?php echo esc_html($stats['pending_executions']); ?></div>
                 <div class="stat-label">Execuções Pendentes</div>
             </div>
         </div>
@@ -302,15 +307,23 @@ class ContractManagementPage
 
     private function renderList(): void
     {
-        $filterStatus = $_GET['filter_status'] ?? 'all';
+        // REFATORADO (FASE 2): Usar ListContracts Use Case
+        $filterStatus = sanitize_text_field($_GET['filter_status'] ?? 'all');
 
-        $sql = "SELECT * FROM {$this->tableContracts}";
-        if ($filterStatus !== 'all') {
-            $sql .= $this->wpdb->prepare(" WHERE status = %s", $filterStatus);
+        // Whitelist de status válidos (segurança)
+        $validStatuses = ['all', 'active', 'suspended', 'cancelled', 'expired', 'completed', 'pending_allocation'];
+        if (!in_array($filterStatus, $validStatuses, true)) {
+            $filterStatus = 'all'; // Fallback to safe default
         }
-        $sql .= " ORDER BY created_at DESC";
 
-        $contracts = $this->wpdb->get_results($sql, ARRAY_A);
+        $filters = [
+            'status' => $filterStatus,
+            'limit' => 100, // Por enquanto, hardcoded (FASE 3 implementará paginação)
+        ];
+
+        $contracts = isset($this->useCases['list'])
+            ? $this->useCases['list']->execute($filters)
+            : [];
 
         ?>
         <h2 style="margin-top: 30px;">Lista de Contratos</h2>

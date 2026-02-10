@@ -115,6 +115,7 @@ final class ContractBootstrap
         $GLOBALS['limpvix_contract_use_cases'] = [
             'create' => new CreateContract($repository),
             'list' => new \LimpVix\Application\UseCase\Contract\ListContracts($repository),
+            'get_statistics' => new \LimpVix\Application\UseCase\Contract\GetContractStatistics(),
             'submit_for_allocation' => new SubmitForAllocation($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
@@ -126,7 +127,7 @@ final class ContractBootstrap
             'schedule_next' => new ScheduleNextExecution($repository),
         ];
 
-        self::logInfo('11 Contract Use Cases registered');
+        self::logInfo('12 Contract Use Cases registered');
     }
 
     /**

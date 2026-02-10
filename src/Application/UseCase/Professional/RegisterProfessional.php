@@ -24,7 +24,7 @@
  * @since 0.2.0
  */
 
-namespace LimpVix\Application\UseCases\Professional;
+namespace LimpVix\Application\UseCase\Professional;
 
 use LimpVix\Domain\Professional\Professional;
 use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;

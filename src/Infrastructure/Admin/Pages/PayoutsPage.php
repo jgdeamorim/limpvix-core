@@ -345,27 +345,79 @@ class PayoutsPage
     /**
      * Mascarar chave de destinatário (privacidade)
      */
+    /**
+     * Mask recipient key (PIX, bank account, etc.)
+     *
+     * FASE 1.3 - ADMIN UI REFACTORING:
+     * - Added admin master check (ID 1 can see full keys)
+     * - Improved masking for regular admins
+     * - Enhanced security for sensitive financial data
+     *
+     * @param string $key Recipient key (PIX, account, etc.)
+     * @param string $type Type of key ('pix', 'bank_account', etc.)
+     * @return string Masked key
+     */
     private function maskRecipientKey(string $key, string $type): string
     {
+        // Admin master (ID 1) can see full keys for auditing
+        if ($this->isAdminMaster()) {
+            return $key;
+        }
+
+        // Regular admins see masked data
         if ($type === 'pix') {
             // Mascarar PIX (email, telefone, CPF)
             if (strpos($key, '@') !== false) {
-                // Email
+                // Email: show only first 2 chars + domain
                 $parts = explode('@', $key);
-                return substr($parts[0], 0, 3) . '***@' . $parts[1];
+                return substr($parts[0], 0, 2) . '***@' . $parts[1];
             } elseif (strlen($key) === 11) {
-                // CPF
+                // CPF: show only first 3 and last 2
                 return substr($key, 0, 3) . '.***.**' . substr($key, -2);
             } else {
-                // Telefone ou outro
-                return substr($key, 0, 4) . '****' . substr($key, -2);
+                // Telefone ou outro: show only first 2 and last 2
+                return substr($key, 0, 2) . '****' . substr($key, -2);
             }
         } elseif ($type === 'bank_account') {
-            // Conta bancária
-            return 'Banco ***';
+            // Conta bancária: mask completely
+            return 'Banco ***-****';
         } else {
-            // Saldo MP
-            return 'ID ' . substr($key, 0, 3) . '***';
+            // Saldo MP: show only first 2
+            return 'ID ' . substr($key, 0, 2) . '***';
         }
+    }
+
+    /**
+     * Mask transfer ID
+     *
+     * FASE 1.3 - NEW METHOD:
+     * - Always mask transfer IDs (even for admin master)
+     * - Prevents accidental exposure in logs/screenshots
+     *
+     * @param string $transferId Mercado Pago transfer ID
+     * @return string Masked transfer ID
+     */
+    private function maskTransferId(string $transferId): string
+    {
+        if (empty($transferId) || strlen($transferId) <= 12) {
+            return str_repeat('*', strlen($transferId));
+        }
+
+        // Show first 4 and last 4 characters
+        return substr($transferId, 0, 4) . str_repeat('*', strlen($transferId) - 8) . substr($transferId, -4);
+    }
+
+    /**
+     * Check if current user is admin master (ID 1)
+     *
+     * FASE 1.3 - NEW METHOD:
+     * - Admin master has full visibility for auditing purposes
+     * - Can be extended to check for specific capability
+     *
+     * @return bool True if admin master
+     */
+    private function isAdminMaster(): bool
+    {
+        return get_current_user_id() === 1 && current_user_can('manage_options');
     }
 }
