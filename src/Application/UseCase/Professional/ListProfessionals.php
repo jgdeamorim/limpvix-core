@@ -102,9 +102,23 @@ final class ListProfessionals
         // Get total count (for pagination)
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE {$whereSql}");
 
+        // Ordenação (com whitelist para segurança)
+        $orderby = $filters['orderby'] ?? 'created_at';
+        $order = strtoupper($filters['order'] ?? 'DESC');
+
+        $allowedOrderby = ['id', 'full_name', 'score', 'created_at', 'is_verified', 'is_active'];
+        if (!in_array($orderby, $allowedOrderby, true)) {
+            $orderby = 'created_at';
+        }
+
+        $allowedOrder = ['ASC', 'DESC'];
+        if (!in_array($order, $allowedOrder, true)) {
+            $order = 'DESC';
+        }
+
         // Get data
         $sql = $wpdb->prepare(
-            "SELECT * FROM {$table} WHERE {$whereSql} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+            "SELECT * FROM {$table} WHERE {$whereSql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
             $limit,
             $offset
         );

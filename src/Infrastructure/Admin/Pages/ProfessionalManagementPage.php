@@ -335,16 +335,7 @@ class ProfessionalManagementPage
             delete_transient('limpvix_professional_action_result');
         }
 
-        // Get filters
-        $filter_status = isset($_GET['filter_status']) ? sanitize_text_field($_GET['filter_status']) : 'all';
-        $filter_verified = isset($_GET['filter_verified']) ? sanitize_text_field($_GET['filter_verified']) : 'all';
-        $filter_score = isset($_GET['filter_score']) ? (float)$_GET['filter_score'] : 0;
-        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
-
-        // Get professionals
-        $professionals = $this->getProfessionals($filter_status, $filter_verified, $filter_score, $search);
-
-        // Get statistics
+        // Get statistics (ainda usa método antigo por enquanto)
         $stats = $this->repository->getStatistics();
 
         ?>
@@ -358,8 +349,7 @@ class ProfessionalManagementPage
 
             <?php $this->renderMessages($messages); ?>
             <?php $this->renderStatistics($stats); ?>
-            <?php $this->renderFilters($filter_status, $filter_verified, $filter_score, $search); ?>
-            <?php $this->renderProfessionalsTable($professionals); ?>
+            <?php $this->renderProfessionalsTable(); ?>
             <?php $this->renderRegisterModal(); ?>
             <?php $this->renderActionsModals(); ?>
         </div>
@@ -498,39 +488,25 @@ class ProfessionalManagementPage
             : [];
     }
 
-    private function renderProfessionalsTable(array $professionals): void
+    private function renderProfessionalsTable(): void
     {
+        // REFATORADO (FASE 3): Usar WP_List_Table com paginação nativa
         ?>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>CPF</th>
-                    <th>Email / Telefone</th>
-                    <th>Score</th>
-                    <th>Status</th>
-                    <th>Verificado</th>
-                    <th>Região</th>
-                    <th>Skills</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($professionals)): ?>
-                    <tr>
-                        <td colspan="10" style="text-align: center; padding: 40px;">
-                            <span class="dashicons dashicons-info" style="font-size: 48px; color: #ccc;"></span>
-                            <p style="color: #666; margin-top: 10px;">Nenhum profissional encontrado</p>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($professionals as $prof): ?>
-                        <?php $this->renderProfessionalRow($prof); ?>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+        <h2 style="margin-top: 30px;">Lista de Profissionais</h2>
+
+        <?php
+        // Instantiate and prepare the list table
+        $listTable = new \LimpVix\Infrastructure\Admin\Tables\Professional_List_Table($this->useCases);
+        $listTable->prepare_items();
+        ?>
+
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>" />
+            <?php
+            $listTable->search_box('Buscar', 'professional-search');
+            $listTable->display();
+            ?>
+        </form>
         <?php
     }
 

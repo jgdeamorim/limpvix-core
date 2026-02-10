@@ -307,88 +307,22 @@ class ContractManagementPage
 
     private function renderList(): void
     {
-        // REFATORADO (FASE 2): Usar ListContracts Use Case
-        $filterStatus = sanitize_text_field($_GET['filter_status'] ?? 'all');
-
-        // Whitelist de status válidos (segurança)
-        $validStatuses = ['all', 'active', 'suspended', 'cancelled', 'expired', 'completed', 'pending_allocation'];
-        if (!in_array($filterStatus, $validStatuses, true)) {
-            $filterStatus = 'all'; // Fallback to safe default
-        }
-
-        $filters = [
-            'status' => $filterStatus,
-            'limit' => 100, // Por enquanto, hardcoded (FASE 3 implementará paginação)
-        ];
-
-        $contracts = isset($this->useCases['list'])
-            ? $this->useCases['list']->execute($filters)
-            : [];
-
+        // REFATORADO (FASE 3): Usar WP_List_Table com paginação nativa
         ?>
         <h2 style="margin-top: 30px;">Lista de Contratos</h2>
 
-        <div class="tablenav top">
-            <div class="alignleft actions">
-                <select name="filter_status" id="filter-status" onchange="window.location='?page=<?php echo self::PAGE_SLUG; ?>&filter_status=' + this.value">
-                    <option value="all" <?php selected($filterStatus, 'all'); ?>>Todos os status</option>
-                    <option value="active" <?php selected($filterStatus, 'active'); ?>>Ativos</option>
-                    <option value="suspended" <?php selected($filterStatus, 'suspended'); ?>>Suspensos</option>
-                    <option value="cancelled" <?php selected($filterStatus, 'cancelled'); ?>>Cancelados</option>
-                    <option value="expired" <?php selected($filterStatus, 'expired'); ?>>Expirados</option>
-                </select>
-            </div>
-        </div>
+        <?php
+        // Instantiate and prepare the list table
+        $listTable = new \LimpVix\Infrastructure\Admin\Tables\Contract_List_Table($this->useCases);
+        $listTable->prepare_items();
+        ?>
 
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>Nº Contrato</th>
-                    <th>Cliente</th>
-                    <th>Tipo</th>
-                    <th>Serviço</th>
-                    <th>Valor Mensal</th>
-                    <th>Início</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($contracts)): ?>
-                    <tr><td colspan="8" style="text-align:center; padding:30px;">Nenhum contrato encontrado. <a href="?page=<?php echo self::PAGE_SLUG; ?>&action=create">Criar primeiro</a></td></tr>
-                <?php else: ?>
-                    <?php foreach ($contracts as $contract): ?>
-                        <?php
-                        $user = get_user_by('ID', $contract['client_user_id']);
-                        $userName = $user ? $user->display_name : 'Usuário #' . $contract['client_user_id'];
-                        $typeLabels = ['monthly' => 'Mensal', 'weekly' => 'Semanal', 'biweekly' => 'Quinzenal'];
-                        ?>
-                        <tr>
-                            <td><strong><?php echo esc_html($contract['contract_number']); ?></strong></td>
-                            <td><?php echo esc_html($userName); ?></td>
-                            <td><?php echo esc_html($typeLabels[$contract['contract_type']] ?? $contract['contract_type']); ?></td>
-                            <td><?php echo esc_html($contract['service_code']); ?></td>
-                            <td>R$ <?php echo number_format($contract['monthly_value'], 2, ',', '.'); ?></td>
-                            <td><?php echo date('d/m/Y', strtotime($contract['start_date'])); ?></td>
-                            <td><span class="status-badge <?php echo esc_attr($contract['status']); ?>"><?php echo esc_html(ucfirst($contract['status'])); ?></span></td>
-                            <td>
-                                <a href="?page=<?php echo self::PAGE_SLUG; ?>&action=edit&id=<?php echo $contract['id']; ?>" class="button button-small">Editar</a>
-                                <?php if ($contract['status'] === 'active'): ?>
-                                    <button type="button" class="button button-small" onclick="cancelContract(<?php echo $contract['id']; ?>)">Cancelar</button>
-                                <?php elseif ($contract['status'] === 'cancelled'): ?>
-                                    <form method="post" style="display:inline-block;">
-                                        <?php wp_nonce_field(self::NONCE_ACTION . '_reactivate_contract', 'limpvix_contract_nonce_reactivate_contract'); ?>
-                                        <input type="hidden" name="limpvix_contract_action_type" value="reactivate_contract">
-                                        <input type="hidden" name="contract_id" value="<?php echo $contract['id']; ?>">
-                                        <button type="submit" class="button button-small button-primary">Reativar</button>
-                                    </form>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>" />
+            <?php
+            $listTable->display();
+            ?>
+        </form>
 
         <script>
         function cancelContract(contractId) {
