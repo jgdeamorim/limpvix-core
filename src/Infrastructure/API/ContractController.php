@@ -29,6 +29,10 @@ use LimpVix\Application\UseCase\Contract\ActivateContract;
 use LimpVix\Application\UseCase\Contract\PauseContract;
 use LimpVix\Application\UseCase\Contract\CancelContract;
 use LimpVix\Application\UseCase\Contract\ScheduleNextExecution;
+use LimpVix\Infrastructure\Authorization\AuthorizationService;
+use LimpVix\Application\DTO\Request\CreateContractRequest;
+use LimpVix\Application\DTO\Response\ContractResponse;
+use LimpVix\Application\DTO\Response\ContractListResponse;
 
 defined('ABSPATH') || exit;
 
@@ -37,13 +41,15 @@ class ContractController
     private string $namespace = 'limpvix/v1';
     private ContractRepositoryInterface $repository;
     private array $useCases;
+    private AuthorizationService $authService;
 
     /**
      * Construtor com Dependency Injection
      *
      * @param array $useCases Array com Use Cases injetados pelo Bootstrap
+     * @param AuthorizationService|null $authService Authorization service
      */
-    public function __construct(array $useCases = [])
+    public function __construct(array $useCases = [], ?AuthorizationService $authService = null)
     {
         $this->useCases = $useCases;
 
@@ -52,6 +58,13 @@ class ContractController
 
         if (!$this->repository) {
             error_log('[ContractController] Repository not found - using global fallback');
+        }
+
+        // AuthorizationService via DI ou global
+        $this->authService = $authService ?? $GLOBALS['limpvix_authorization_service'] ?? null;
+
+        if (!$this->authService) {
+            error_log('[ContractController] AuthorizationService not available');
         }
     }
 
@@ -197,12 +210,12 @@ class ContractController
 
     /**
      * GET /limpvix/v1/contracts
-     * Lista contratos usando Repository
+     * Lista contratos usando ListContracts Use Case
      */
     public function listContracts(WP_REST_Request $request): WP_REST_Response
     {
-        if (!$this->repository) {
-            return $this->errorResponse('Repository not available', 500);
+        if (!isset($this->useCases['list'])) {
+            return ApiResponse::error('ListContracts Use Case not available', null, 500);
         }
 
         $clientUserId = $request->get_param('client_user_id');
@@ -215,55 +228,15 @@ class ContractController
         }
 
         try {
-            // Buscar contratos via Repository
-            if ($clientUserId) {
-                $contracts = $this->repository->findByClientId($clientUserId);
-            } elseif ($status === 'active') {
-                $contracts = $this->repository->findActiveContracts();
-            } else {
-                // Buscar todos contratos ativos (admin only)
-                $contracts = $this->repository->findActiveContracts();
-            }
+            // Use Case: ListContracts
+            $contracts = $this->useCases['list']->execute($clientUserId, $status);
 
-            // Formatar para API
-            $formatted = array_map(function($contract) {
-                $user = get_userdata($contract->getClientUserId());
-
-                return [
-                    'id' => $contract->getId()->toInt(),
-                    'contract_number' => $contract->getContractNumber(),
-                    'client' => [
-                        'user_id' => $contract->getClientUserId(),
-                        'name' => $user ? $user->display_name : 'Unknown',
-                        'email' => $user ? $user->user_email : ''
-                    ],
-                    'contract_type' => $contract->getContractType(),
-                    'contract_type_label' => $this->getContractTypeLabel($contract->getContractType()),
-                    'recurrence_day' => $contract->getRecurrenceDay(),
-                    'service_code' => $contract->getServiceCode(),
-                    'property_type' => $contract->getPropertyType(),
-                    'monthly_value' => $contract->getMonthlyValue(),
-                    'monthly_value_formatted' => 'R$ ' . number_format($contract->getMonthlyValue(), 2, ',', '.'),
-                    'start_date' => $contract->getStartDate()->format('Y-m-d'),
-                    'end_date' => $contract->getEndDate()?->format('Y-m-d'),
-                    'auto_renew' => $contract->isAutoRenew(),
-                    'status' => $contract->getStatus()->toString(),
-                    'status_label' => $this->getStatusLabel($contract->getStatus()->toString()),
-                    'allocated_professional_id' => $contract->getAllocatedProfessionalId(),
-                    'next_execution_date' => $contract->getNextExecutionDate()?->format('Y-m-d'),
-                    'created_at' => $contract->getCreatedAt()->format('Y-m-d H:i:s'),
-                    'updated_at' => $contract->getUpdatedAt()->format('Y-m-d H:i:s')
-                ];
-            }, $contracts);
-
-            return new WP_REST_Response([
-                'success' => true,
-                'data' => $formatted,
-                'total' => count($formatted)
-            ], 200);
+            // Response DTO
+            $response = new ContractListResponse($contracts, count($contracts));
+            return new WP_REST_Response($response->toArray(), 200);
 
         } catch (\Exception $e) {
-            return $this->errorResponse('Error listing contracts: ' . $e->getMessage(), 500);
+            return ApiResponse::error('Error listing contracts: ' . $e->getMessage());
         }
     }
 
@@ -274,59 +247,45 @@ class ContractController
     public function createContract(WP_REST_Request $request): WP_REST_Response
     {
         if (!isset($this->useCases['create'])) {
-            return $this->errorResponse('CreateContract Use Case not available', 500);
+            return ApiResponse::error('CreateContract Use Case not available', null, 500);
         }
 
-        /** @var CreateContract $createUseCase */
-        $createUseCase = $this->useCases['create'];
-
         try {
-            // Criar contrato (status = DRAFT)
-            $contract = $createUseCase->execute([
-                'client_user_id' => $request->get_param('client_user_id'),
-                'contract_type' => $request->get_param('contract_type'),
-                'recurrence_day' => $request->get_param('recurrence_day'),
-                'service_code' => $request->get_param('service_code'),
-                'property_type' => $request->get_param('property_type'),
-                'monthly_value' => $request->get_param('monthly_value'),
-                'start_date' => $request->get_param('start_date'),
-                'end_date' => $request->get_param('end_date'),
-                'auto_renew' => $request->get_param('auto_renew') ?? true
-            ]);
+            // DTO: Validação de input
+            $dto = CreateContractRequest::fromArray($request->get_params());
 
-            // Auto-ativar se solicitado
-            if ($request->get_param('auto_activate') && $request->get_param('professional_id')) {
-                if (isset($this->useCases['activate'])) {
-                    /** @var ActivateContract $activateUseCase */
-                    $activateUseCase = $this->useCases['activate'];
-                    $activateUseCase->execute(
-                        $contract->getId()->toInt(),
-                        $request->get_param('professional_id')
-                    );
-
-                    // Re-buscar contrato atualizado
-                    $contract = $this->repository->findById($contract->getId());
+            // Authorization: User pode criar apenas para si mesmo (já validado no DTO)
+            if ($this->authService && !current_user_can('manage_options')) {
+                if (!$this->authService->authorize('create', get_current_user_id(), 'contract', $dto->toUseCaseParams())) {
+                    return ApiResponse::unauthorized('Você só pode criar contratos para si mesmo');
                 }
             }
 
-            return new WP_REST_Response([
-                'success' => true,
-                'message' => 'Contrato criado com sucesso',
-                'data' => [
-                    'id' => $contract->getId()->toInt(),
-                    'contract_number' => $contract->getContractNumber(),
-                    'client_user_id' => $contract->getClientUserId(),
-                    'contract_type' => $contract->getContractType(),
-                    'monthly_value' => $contract->getMonthlyValue(),
-                    'start_date' => $contract->getStartDate()->format('Y-m-d'),
-                    'status' => $contract->getStatus()->toString()
-                ]
-            ], 201);
+            // Use Case: CreateContract
+            $contract = $this->useCases['create']->execute($dto->toUseCaseParams());
+
+            // Auto-ativar se solicitado
+            if ($dto->auto_activate && $dto->professional_id && isset($this->useCases['activate'])) {
+                $this->useCases['activate']->execute(
+                    $contract->getId()->toInt(),
+                    $dto->professional_id
+                );
+
+                // Re-buscar contrato atualizado
+                $contract = $this->repository->findById($contract->getId());
+            }
+
+            // Response DTO
+            return ApiResponse::success(
+                ContractResponse::fromAggregate($contract)->toArray(),
+                'Contrato criado com sucesso',
+                201
+            );
 
         } catch (\InvalidArgumentException $e) {
-            return $this->errorResponse('Validation error: ' . $e->getMessage(), 400);
+            return ApiResponse::validationError([$e->getMessage()]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Error creating contract: ' . $e->getMessage(), 500);
+            return ApiResponse::error('Error creating contract: ' . $e->getMessage());
         }
     }
 
@@ -458,54 +417,15 @@ class ContractController
 
     /**
      * GET /limpvix/v1/contracts/{id}/executions
-     * MANTIDO COMO ESTAVA - fora do escopo do Contract Module
+     * DEPRECATED - Use /limpvix/v1/executions?contract_id={id} instead
      */
     public function getExecutions(WP_REST_Request $request): WP_REST_Response
     {
-        global $wpdb;
         $contractId = (int) $request->get_param('id');
-        $table = $wpdb->prefix . 'limpvix_contract_executions';
 
-        // Verificar permissão
-        if (!current_user_can('manage_options')) {
-            $clientUserId = $wpdb->get_var($wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}limpvix_contracts WHERE id = %d",
-                $contractId
-            ));
-
-            if ($clientUserId != get_current_user_id()) {
-                return $this->errorResponse('Acesso negado', 403);
-            }
-        }
-
-        // Buscar execuções
-        $executions = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE contract_id = %d ORDER BY scheduled_date DESC",
-            $contractId
-        ), ARRAY_A);
-
-        // Formatar
-        $formatted = array_map(function($exec) {
-            return [
-                'id' => (int) $exec['id'],
-                'contract_id' => (int) $exec['contract_id'],
-                'briefing_uuid' => $exec['briefing_uuid'],
-                'schedule_uuid' => $exec['schedule_uuid'],
-                'scheduled_date' => $exec['scheduled_date'],
-                'executed_date' => $exec['executed_date'],
-                'status' => $exec['status'],
-                'status_label' => $this->getExecutionStatusLabel($exec['status']),
-                'execution_value' => $exec['execution_value'] ? (float) $exec['execution_value'] : null,
-                'notes' => $exec['notes'],
-                'created_at' => $exec['created_at']
-            ];
-        }, $executions);
-
-        return new WP_REST_Response([
-            'success' => true,
-            'data' => $formatted,
-            'total' => count($formatted)
-        ], 200);
+        return ApiResponse::deprecated(
+            "/wp-json/limpvix/v1/executions?contract_id={$contractId}"
+        );
     }
 
     // ========================================
