@@ -16,6 +16,7 @@
 namespace LimpVix\Infrastructure\Finance\Providers;
 
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
+use LimpVix\Core\Environment;
 
 class MercadoPagoPayoutProvider
 {
@@ -29,13 +30,15 @@ class MercadoPagoPayoutProvider
     {
         $this->payoutRepository = new WpPayoutRepository();
 
-        // Buscar status do Mercado Pago (sincronizado pelo MercadoPagoDetector)
-        $mpStatus = get_option('limpvix_mp_status', []);
-        $environment = $mpStatus['environment'] ?? 'production';
+        // PRIORITY 1: Environment variables (.env)
+        // PRIORITY 2: wp_options (sincronizado pelo MercadoPagoDetector)
+        // PRIORITY 3: Fallback para configuração antiga
 
-        // Determinar qual access token usar (prod ou test) baseado no environment
-        $accessTokenKey = ($environment === 'sandbox') ? 'limpvix_mp_access_token_test' : 'limpvix_mp_access_token_prod';
-        $accessToken = get_option($accessTokenKey);
+        // Determinar environment (sandbox ou production)
+        $environment = $this->determineEnvironment();
+
+        // Obter access token baseado no environment
+        $accessToken = $this->getAccessToken($environment);
 
         if (empty($accessToken)) {
             error_log('[LimpVix] Mercado Pago não configurado (access_token ausente)');
@@ -52,6 +55,79 @@ class MercadoPagoPayoutProvider
         }
 
         error_log("[LimpVix] MercadoPagoPayoutProvider inicializado - Environment: {$environment}, Enabled: true");
+    }
+
+    /**
+     * Determinar environment do MercadoPago
+     *
+     * PRIORITY ORDER:
+     * 1. LIMPVIX_MP_ENVIRONMENT (.env)
+     * 2. limpvix_mp_status['environment'] (wp_options)
+     * 3. Default: 'production'
+     *
+     * @return string 'sandbox' ou 'production'
+     */
+    private function determineEnvironment(): string
+    {
+        // 1. Tentar .env
+        if (class_exists('LimpVix\\Core\\Environment')) {
+            try {
+                $envVar = Environment::get('LIMPVIX_MP_ENVIRONMENT');
+                if (in_array($envVar, ['sandbox', 'production'], true)) {
+                    return $envVar;
+                }
+            } catch (\RuntimeException $e) {
+                // Variable não existe, continuar para fallback
+            }
+        }
+
+        // 2. Fallback: wp_options (backward compatibility)
+        $mpStatus = get_option('limpvix_mp_status', []);
+        return $mpStatus['environment'] ?? 'production';
+    }
+
+    /**
+     * Obter access token do MercadoPago
+     *
+     * PRIORITY ORDER:
+     * 1. LIMPVIX_MP_ACCESS_TOKEN_PROD/TEST (.env)
+     * 2. limpvix_mp_access_token_prod/test (wp_options)
+     * 3. Empty string (não configurado)
+     *
+     * @param string $environment 'sandbox' ou 'production'
+     * @return string Access token ou empty string
+     */
+    private function getAccessToken(string $environment): string
+    {
+        $envKey = ($environment === 'sandbox')
+            ? 'LIMPVIX_MP_ACCESS_TOKEN_TEST'
+            : 'LIMPVIX_MP_ACCESS_TOKEN_PROD';
+
+        $optionKey = ($environment === 'sandbox')
+            ? 'limpvix_mp_access_token_test'
+            : 'limpvix_mp_access_token_prod';
+
+        // 1. Tentar .env
+        if (class_exists('LimpVix\\Core\\Environment')) {
+            try {
+                $token = Environment::get($envKey);
+                if (!empty($token)) {
+                    error_log("[LimpVix] Using MercadoPago token from .env ({$envKey})");
+                    return $token;
+                }
+            } catch (\RuntimeException $e) {
+                // Variable não existe, continuar para fallback
+            }
+        }
+
+        // 2. Fallback: wp_options (backward compatibility)
+        $token = get_option($optionKey);
+        if (!empty($token)) {
+            error_log("[LimpVix] Using MercadoPago token from wp_options ({$optionKey})");
+            return $token;
+        }
+
+        return '';
     }
 
     /**

@@ -109,6 +109,7 @@ final class Contract
         bool $autoRenew = true
     ): self {
         // Validações
+        self::ensureValidContractNumber($contractNumber);
         self::ensureValidMonthlyValue($monthlyValue);
         self::ensureValidContractType($contractType);
         self::ensureValidRecurrenceDay($recurrenceDay, $contractType);
@@ -502,6 +503,33 @@ final class Contract
         if ($type === 'monthly' && ($day < 1 || $day > 31)) {
             throw new \InvalidArgumentException(
                 "Recurrence day must be between 1 and 31 for monthly contracts"
+            );
+        }
+    }
+
+    /**
+     * Validar formato do contract_number
+     *
+     * Formato esperado: LMPVX-YYYYMM-NNNNNN
+     * Exemplo: LMPVX-202602-000123
+     *
+     * @param string $contractNumber
+     * @return void
+     * @throws \InvalidArgumentException Se formato inválido
+     */
+    private static function ensureValidContractNumber(string $contractNumber): void
+    {
+        if (empty($contractNumber)) {
+            throw new \InvalidArgumentException('Contract number cannot be empty');
+        }
+
+        // Importar validation do generator service se disponível
+        // Caso contrário, validação inline
+        $pattern = '/^LMPVX-20[0-9]{2}(0[1-9]|1[0-2])-[0-9]{6}$/';
+
+        if (preg_match($pattern, $contractNumber) !== 1) {
+            throw new \InvalidArgumentException(
+                "Invalid contract_number format: {$contractNumber}. Expected format: LMPVX-YYYYMM-NNNNNN (ex: LMPVX-202602-000123)"
             );
         }
     }

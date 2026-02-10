@@ -180,7 +180,7 @@ ADD COLUMN recurrence_start_date DATE NULL COMMENT 'Data de início da recorrên
 -- ============================================================================
 
 ALTER TABLE wp_limpvix_contracts
-ADD COLUMN allocated_professional_id BIGINT UNSIGNED NULL COMMENT 'FK para wp_limpvix_professionals',
+ADD COLUMN allocated_professional_id BIGINT UNSIGNED NULL COMMENT 'FK para wp_limpvix_professionals.id (PK, NÃO user_id)',
 ADD COLUMN allocation_status VARCHAR(50) DEFAULT 'pending' COMMENT 'pending|allocated|rejected|reallocating',
 ADD COLUMN allocation_attempts INT DEFAULT 0 COMMENT 'Tentativas de alocação',
 ADD COLUMN last_allocation_attempt DATETIME NULL,
@@ -195,8 +195,8 @@ ADD FOREIGN KEY (allocated_professional_id) REFERENCES wp_limpvix_professionals(
 
 CREATE TABLE IF NOT EXISTS wp_limpvix_contract_offers (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    contract_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_contracts',
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_professionals',
+    contract_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_contracts.id',
+    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_professionals.id (PK, NÃO user_id)',
 
     -- Score de Alocação (calculado pelo algoritmo)
     allocation_score DECIMAL(5,2) NOT NULL COMMENT '0-100, score de match do profissional',

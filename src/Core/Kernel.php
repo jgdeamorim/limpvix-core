@@ -76,10 +76,11 @@ class Kernel
      * Inicializa o sistema
      *
      * ORDEM DE EXECUÇÃO:
-     * 1. Verificar Feature Flag "core_enabled"
-     * 2. Inicializar FeatureFlags
-     * 3. Inicializar Hooks
-     * 4. Registrar interceptações do Booknetic
+     * 1. Inicializar Environment (.env loader)
+     * 2. Verificar Feature Flag "core_enabled"
+     * 3. Inicializar FeatureFlags
+     * 4. Inicializar Hooks
+     * 5. Registrar interceptações do Booknetic
      *
      * @return void
      */
@@ -90,7 +91,10 @@ class Kernel
             return;
         }
 
-        // Inicializar Feature Flags (SEMPRE primeiro)
+        // Inicializar Environment (ANTES de tudo - variáveis podem ser usadas por features)
+        $this->initializeEnvironment();
+
+        // Inicializar Feature Flags
         $this->featureFlags = new FeatureFlags();
 
         // Verificar se o Core está habilitado
@@ -162,6 +166,61 @@ class Kernel
         $this->booted = true;
 
         $this->logInfo('LimpVix Core inicializado com sucesso');
+    }
+
+    /**
+     * Inicializa o Environment (.env loader)
+     *
+     * Carrega variáveis de ambiente do arquivo .env e disponibiliza
+     * via classe Environment. Deve ser chamado ANTES de qualquer
+     * outro componente, pois feature flags e configurações podem
+     * depender de variáveis de ambiente.
+     *
+     * HIERARQUIA DE BUSCA:
+     * 1. .env file (priority)
+     * 2. PHP Constants (LIMPVIX_*)
+     * 3. wp_options (fallback - backward compatibility)
+     *
+     * SPRINT 7 - Item 1.10: Environment Configuration
+     *
+     * @return void
+     */
+    private function initializeEnvironment(): void
+    {
+        if (!class_exists('LimpVix\\Core\\Environment')) {
+            $this->logInfo('Environment class not found - skipping initialization');
+            return;
+        }
+
+        // Carregar .env
+        Environment::load();
+
+        // Log ambiente atual
+        $env = Environment::getEnvironment();
+        $debug = Environment::isDebug() ? 'YES' : 'NO';
+        $this->logInfo("Environment loaded: {$env} (Debug: {$debug})");
+
+        // Validar variáveis críticas em produção
+        if (Environment::isProduction()) {
+            try {
+                Environment::validate([
+                    // Não obrigar MercadoPago pois pode vir do WooCommerce plugin
+                    // Não obrigar outras integrações pois são opcionais
+                ]);
+            } catch (\RuntimeException $e) {
+                $this->logError('Missing required environment variables: ' . $e->getMessage());
+                // Não parar o sistema, apenas logar erro
+            }
+        }
+
+        // Disponibilizar globalmente (opcional - pode acessar via Environment::get() diretamente)
+        $GLOBALS['limpvix_environment'] = [
+            'type' => $env,
+            'debug' => Environment::isDebug(),
+            'test_mode' => Environment::isTestMode(),
+        ];
+
+        $this->logInfo('Environment initialized');
     }
 
     /**

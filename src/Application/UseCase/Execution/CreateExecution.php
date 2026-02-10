@@ -26,10 +26,19 @@ final class CreateExecution
     /**
      * Criar nova execução vinculada a contrato
      *
-     * @param int $contractId
-     * @param int $professionalUserId
-     * @param \DateTimeImmutable $scheduledDate
-     * @return ContractExecution
+     * IMPORTANTE - ID Semantics (DIFERENTE de Contract.allocated_professional_id):
+     * @param int $contractId Contract ID (wp_limpvix_contracts.id)
+     * @param int $professionalUserId WordPress User ID (wp_users.ID)
+     *                                ⚠️ ATENÇÃO: Este campo armazena user_id, NÃO professional.id (PK)
+     *                                Motivo: Domain Execution foi projetado para lookup direto em wp_users
+     *                                Diferente de Contract que usa professional.id (PK)
+     * @param \DateTimeImmutable $scheduledDate Data agendada para execução
+     * @return ContractExecution Aggregate criado e persistido
+     *
+     * INCONSISTÊNCIA CONHECIDA:
+     * - wp_limpvix_contracts.allocated_professional_id → professional.id (PK da tabela professionals)
+     * - wp_limpvix_executions.professional_id → user_id (FK para wp_users.ID)
+     * Considerar padronizar no futuro para usar sempre professional.id (PK).
      */
     public function execute(
         int $contractId,

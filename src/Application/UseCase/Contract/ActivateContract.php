@@ -35,13 +35,21 @@ final class ActivateContract
     /**
      * Executar use case
      *
-     * @param int $contractId
-     * @param int $professionalId
+     * IMPORTANTE - ID Semantics (AMBIGUIDADE HISTÓRICA):
+     * @param int $contractId Contract ID (wp_limpvix_contracts.id)
+     * @param int $professionalId PODE SER user_id OU professional.id (PK)
+     *                            validateProfessional() aceita AMBOS:
+     *                            - Se recebe user_id (FK wp_users) → converte para professional.id (PK)
+     *                            - Se recebe professional.id (PK) → valida existência
+     *                            Retorna professional.id (PK) que é usado em activate()
      * @return void
      * @throws ContractNotFoundException
      * @throws ProfessionalNotFoundException
      * @throws ProfessionalNotAvailableException
      * @throws \LimpVix\Domain\Contract\Exceptions\InvalidContractTransition
+     *
+     * NOTA: Esta ambiguidade é intencional para flexibilidade da API, mas pode causar confusão.
+     * A função validateProfessional() faz a conversão internamente.
      */
     public function execute(int $contractId, int $professionalId): void
     {

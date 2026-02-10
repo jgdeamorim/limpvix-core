@@ -6,7 +6,8 @@
  * - Registrar Repository (WpContractRepository)
  * - Registrar Use Cases (10 Use Cases)
  * - Registrar Admin Pages (ContractManagementPage)
- * - Registrar REST API (ContractController)
+ * - Registrar Admin Widgets (CronHealthWidget)
+ * - Registrar REST API (ContractController, HealthController)
  * - Registrar Cron Jobs (ContractAutomation - expiração)
  * - Registrar Event Listeners (Domain Events)
  *
@@ -46,9 +47,10 @@ final class ContractBootstrap
      * 2. Registrar Use Cases (prioridade 10)
      * 3. Registrar Admin Pages (apenas no admin)
      * 4. Registrar Admin Assets (CSS/JS)
-     * 5. Registrar REST API (rest_api_init)
-     * 6. Registrar Cron Jobs (expiração de contratos)
-     * 7. Registrar Event Listeners
+     * 5. Registrar Admin Widgets (Dashboard widgets)
+     * 6. Registrar REST API (rest_api_init)
+     * 7. Registrar Cron Jobs (expiração de contratos)
+     * 8. Registrar Event Listeners
      *
      * @return void
      */
@@ -64,6 +66,7 @@ final class ContractBootstrap
         if (is_admin()) {
             add_action('admin_menu', [self::class, 'registerAdminPages']);
             add_action('admin_enqueue_scripts', [self::class, 'registerAdminAssets']);
+            add_action('wp_dashboard_setup', [self::class, 'registerAdminWidgets']);
         }
 
         // 4. Registrar REST API
@@ -104,6 +107,8 @@ final class ContractBootstrap
      */
     public static function registerUseCases(): void
     {
+        global $wpdb;
+
         $repository = $GLOBALS['limpvix_contract_repository'] ?? null;
 
         if (!$repository) {
@@ -111,9 +116,12 @@ final class ContractBootstrap
             return;
         }
 
+        // Registrar ContractNumberGenerator (SPRINT 7 - Item 1.8)
+        $contractNumberGenerator = new \LimpVix\Application\Services\ContractNumberGenerator($wpdb);
+
         // Registrar Use Cases
         $GLOBALS['limpvix_contract_use_cases'] = [
-            'create' => new CreateContract($repository),
+            'create' => new CreateContract($repository, $contractNumberGenerator),
             'list' => new \LimpVix\Application\UseCase\Contract\ListContracts($repository),
             'get_statistics' => new \LimpVix\Application\UseCase\Contract\GetContractStatistics(),
             'submit_for_allocation' => new SubmitForAllocation($repository),
@@ -194,6 +202,25 @@ final class ContractBootstrap
     }
 
     /**
+     * Registra Admin Widgets (Dashboard)
+     *
+     * WIDGETS:
+     * - CronHealthWidget: Status visual dos cron jobs (SPRINT 7 - Item 1.9)
+     *
+     * @return void
+     */
+    public static function registerAdminWidgets(): void
+    {
+        // Registrar CronHealthWidget (SPRINT 7 - Item 1.9)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Widgets\\CronHealthWidget')) {
+            $cronHealthWidget = new \LimpVix\Infrastructure\Admin\Widgets\CronHealthWidget();
+            $cronHealthWidget->register();
+
+            self::logInfo('CronHealthWidget registered on dashboard');
+        }
+    }
+
+    /**
      * Registra REST API endpoints
      *
      * NOTA: ContractController será refatorado para usar Use Cases
@@ -209,6 +236,7 @@ final class ContractBootstrap
      */
     public static function registerRestApi(): void
     {
+        // 1. Registrar ContractController
         if (class_exists('LimpVix\\Infrastructure\\API\\ContractController')) {
             $useCases = $GLOBALS['limpvix_contract_use_cases'] ?? [];
             $authService = $GLOBALS['limpvix_authorization_service'] ?? null;
@@ -225,6 +253,14 @@ final class ContractBootstrap
             $controller->register_routes();
 
             self::logInfo('ContractController REST API registered with ' . count($useCases) . ' Use Cases');
+        }
+
+        // 2. Registrar HealthController (SPRINT 7 - Item 1.9)
+        if (class_exists('LimpVix\\Infrastructure\\API\\HealthController')) {
+            $healthController = new \LimpVix\Infrastructure\API\HealthController();
+            $healthController->registerRoutes();
+
+            self::logInfo('HealthController REST API registered (cron monitoring)');
         }
     }
 
@@ -253,14 +289,28 @@ final class ContractBootstrap
      *
      * Executado diariamente via WP Cron
      *
+     * REFATORADO (SPRINT 7 - Item 1.9):
+     * - Adiciona CronMonitor para rastrear execuções
+     * - Registra início/fim com status
+     * - Permite health check via endpoint
+     *
      * @return void
      */
     public static function onCheckContractExpiration(): void
     {
+        // SPRINT 7 - Item 1.9: CronMonitor para health check
+        global $wpdb;
+        $monitor = new \LimpVix\Application\Services\CronMonitor();
+        $jobName = 'check_contract_expiration';
+
+        // Registrar início
+        $monitor->recordStart($jobName);
+
         $useCases = $GLOBALS['limpvix_contract_use_cases'] ?? null;
 
         if (!$useCases || !isset($useCases['expire'])) {
             self::logError('ExpireContract Use Case not available');
+            $monitor->recordEnd($jobName, 'failure', 'ExpireContract Use Case not available');
             return;
         }
 
@@ -270,8 +320,15 @@ final class ContractBootstrap
         try {
             $expiredCount = $expireUseCase->execute();
             self::logInfo("Contract expiration check completed: {$expiredCount} contracts expired");
+
+            // Registrar sucesso
+            $monitor->recordEnd($jobName, 'success');
+
         } catch (\Exception $e) {
             self::logError('Contract expiration check failed: ' . $e->getMessage());
+
+            // Registrar falha
+            $monitor->recordEnd($jobName, 'failure', $e->getMessage());
         }
     }
 
@@ -576,6 +633,8 @@ final class ContractBootstrap
             'use_case_count' => count($GLOBALS['limpvix_contract_use_cases'] ?? []),
             'management_page_class_exists' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\ContractManagementPage'),
             'controller_class_exists' => class_exists('LimpVix\\Infrastructure\\API\\ContractController'),
+            'health_controller_class_exists' => class_exists('LimpVix\\Infrastructure\\API\\HealthController'),
+            'cron_health_widget_class_exists' => class_exists('LimpVix\\Infrastructure\\Admin\\Widgets\\CronHealthWidget'),
             'domain_class_exists' => class_exists('LimpVix\\Domain\\Contract\\Contract'),
             'aggregate_root_exists' => class_exists('LimpVix\\Domain\\Contract\\Contract'),
             'cron_scheduled' => (bool) wp_next_scheduled('limpvix_check_contract_expiration'),

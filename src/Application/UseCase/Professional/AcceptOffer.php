@@ -34,10 +34,18 @@ final class AcceptOffer
     /**
      * Execute Use Case
      *
-     * @param int $professionalId Professional ID
-     * @param int $offerId Offer ID
+     * IMPORTANTE - ID Semantics:
+     * @param int $professionalId Professional database ID (wp_limpvix_professionals.id PK)
+     *                            NÃO é user_id! Este é o ID da tabela professionals, não wp_users.
+     *                            Obtido via Professional::getId() ou URL /professionals/{id}
+     * @param int $offerId Offer ID (wp_limpvix_contract_offers.id)
      * @return array Result with offer_id and contract_id
      * @throws \RuntimeException If offer not found, expired, or not available
+     *
+     * FLUXO:
+     * 1. Valida professional exists usando findById() (busca por PK)
+     * 2. Valida oferta exists e pertence ao professional (via PK)
+     * 3. Aloca contract usando professional PK (allocated_professional_id = PK)
      */
     public function execute(int $professionalId, int $offerId): array
     {
