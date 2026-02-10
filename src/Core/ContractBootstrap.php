@@ -4,7 +4,7 @@
  *
  * RESPONSABILIDADES:
  * - Registrar Repository (WpContractRepository)
- * - Registrar Use Cases (8 Use Cases)
+ * - Registrar Use Cases (10 Use Cases)
  * - Registrar Admin Pages (ContractManagementPage)
  * - Registrar REST API (ContractController)
  * - Registrar Cron Jobs (ContractAutomation - expiração)
@@ -24,6 +24,7 @@ namespace LimpVix\Core;
 
 use LimpVix\Infrastructure\Persistence\Contract\WpContractRepository;
 use LimpVix\Application\UseCase\Contract\CreateContract;
+use LimpVix\Application\UseCase\Contract\SubmitForAllocation;
 use LimpVix\Application\UseCase\Contract\ActivateContract;
 use LimpVix\Application\UseCase\Contract\PauseContract;
 use LimpVix\Application\UseCase\Contract\ResumeContract;
@@ -113,6 +114,7 @@ final class ContractBootstrap
         // Registrar Use Cases
         $GLOBALS['limpvix_contract_use_cases'] = [
             'create' => new CreateContract($repository),
+            'submit_for_allocation' => new SubmitForAllocation($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
             'resume' => new ResumeContract($repository),
@@ -123,7 +125,7 @@ final class ContractBootstrap
             'schedule_next' => new ScheduleNextExecution($repository),
         ];
 
-        self::logInfo('9 Contract Use Cases registered');
+        self::logInfo('10 Contract Use Cases registered');
     }
 
     /**
