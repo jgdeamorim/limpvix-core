@@ -172,49 +172,122 @@ class ExecuteTransfer
                 );
             }
 
-            // 6. Criar payout no banco (status: approved)
-            $payoutId = $this->payoutRepository->create([
-                'order_id' => $order->getId(),
-                'professional_id' => $order->getProfessionalId(),
-                'gross_amount' => $order->getTotalAmount(),
-                'platform_fee' => $order->getPlatformFeeAmount(),
-                'net_amount' => $netAmount,
-                'status' => 'approved',
-                'gateway' => 'mercadopago',
-                'recipient_type' => $professionalData['recipient_type'],
-                'recipient_key' => $professionalData['recipient_key'],
-                'recipient_name' => $professionalData['recipient_name'],
-                'recipient_document' => $professionalData['recipient_document'],
-            ]);
+            // REFATORADO (SPRINT 7): Saga Pattern multi-step
+            // 3-way consistency: Payout record, MercadoPago transfer, Order status
+            //
+            // FLUXO:
+            // 1. CREATE payout (status: pending) - transação curta
+            // 2. CALL MercadoPago (irreversível, fora de transação)
+            // 3. IF success:
+            //    a. UPDATE payout (status: processing) - transação
+            //    b. TRANSITION order (AUTHORIZED → TRANSFERRED) - transação interna
+            // 4. IF failure:
+            //    a. UPDATE payout (status: failed) - transação
+            //    b. Return rejected
 
-            if (!$payoutId) {
+            $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+            if (!$transactionManager) {
                 return ExecuteTransferResult::rejected(
-                    "Falha ao criar payout no banco"
+                    'TransactionManager não disponível. Sistema em estado inconsistente.'
                 );
             }
 
-            error_log("[ExecuteTransfer] Payout #{$payoutId} criado - executando via Mercado Pago...");
+            // STEP 1: Criar payout no banco (status: pending)
+            // Transação curta e focada - apenas INSERT
+            $transactionManager->beginTransaction();
 
-            // 7. Executar via MercadoPagoPayoutProvider
+            try {
+                $payoutId = $this->payoutRepository->create([
+                    'order_id' => $order->getId(),
+                    'professional_id' => $order->getProfessionalId(),
+                    'gross_amount' => $order->getTotalAmount(),
+                    'platform_fee' => $order->getPlatformFeeAmount(),
+                    'net_amount' => $netAmount,
+                    'status' => 'pending', // Status inicial: pending (antes de chamar provider)
+                    'gateway' => 'mercadopago',
+                    'recipient_type' => $professionalData['recipient_type'],
+                    'recipient_key' => $professionalData['recipient_key'],
+                    'recipient_name' => $professionalData['recipient_name'],
+                    'recipient_document' => $professionalData['recipient_document'],
+                ]);
+
+                if (!$payoutId) {
+                    throw new \RuntimeException('Falha ao criar payout no banco');
+                }
+
+                $transactionManager->commit();
+
+            } catch (\Exception $e) {
+                $transactionManager->rollback();
+                error_log("[ExecuteTransfer] ❌ Falha ao criar payout: " . $e->getMessage());
+                return ExecuteTransferResult::rejected(
+                    "Falha ao criar payout no banco: " . $e->getMessage()
+                );
+            }
+
+            error_log("[ExecuteTransfer] Payout #{$payoutId} criado (pending) - executando via Mercado Pago...");
+
+            // STEP 2: Executar via MercadoPagoPayoutProvider (IRREVERSÍVEL, fora de transação)
             $success = $this->payoutProvider->createPayout($payoutId);
 
             if (!$success) {
-                error_log("[ExecuteTransfer] ❌ Payout #{$payoutId} falhou");
+                // STEP 2a: Provider falhou - marcar payout como "failed"
+                $transactionManager->beginTransaction();
+                try {
+                    $this->payoutRepository->updateStatus($payoutId, 'failed');
+                    $transactionManager->commit();
+                } catch (\Exception $e) {
+                    $transactionManager->rollback();
+                    error_log("[ExecuteTransfer] ⚠️  Falha ao atualizar status failed: " . $e->getMessage());
+                }
+
+                error_log("[ExecuteTransfer] ❌ Payout #{$payoutId} falhou no MercadoPago");
                 return ExecuteTransferResult::rejected(
                     "Falha ao executar payout via Mercado Pago"
                 );
             }
 
-            // 8. Buscar dados atualizados do payout
-            $payoutData = $this->payoutRepository->getById($payoutId);
-            $mpTransferId = $payoutData['gateway_transfer_id'] ?? null;
+            // STEP 3: Provider sucedeu - persistir resultado e transicionar order
+            $transactionManager->beginTransaction();
 
-            error_log(sprintf(
-                "[ExecuteTransfer] ✅ Payout #{$payoutId} executado com sucesso! MP Transfer ID: %s",
-                $mpTransferId ?? 'N/A'
-            ));
+            try {
+                // 3a. Atualizar status do payout para "processing" (já tem gateway_transfer_id do provider)
+                $this->payoutRepository->updateStatus($payoutId, 'processing');
 
-            // 9. Se sucesso: transicionar para TRANSFERRED
+                // 3b. Buscar dados atualizados do payout
+                $payoutData = $this->payoutRepository->getById($payoutId);
+                $mpTransferId = $payoutData['gateway_transfer_id'] ?? null;
+
+                $transactionManager->commit();
+
+                error_log(sprintf(
+                    "[ExecuteTransfer] ✅ Payout #{$payoutId} executado com sucesso! MP Transfer ID: %s",
+                    $mpTransferId ?? 'N/A'
+                ));
+
+            } catch (\Exception $e) {
+                $transactionManager->rollback();
+
+                // CRITICAL: Provider executou mas DB update falhou
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log(sprintf(
+                        '[ExecuteTransfer] CRITICAL: Payout #%d created on MercadoPago but DB update failed: %s. Manual reconciliation required.',
+                        $payoutId,
+                        $e->getMessage()
+                    ));
+                }
+
+                return ExecuteTransferResult::rejected(
+                    sprintf(
+                        'Payout executado no MercadoPago mas falha ao persistir localmente: %s. Reconciliation necessária.',
+                        $e->getMessage()
+                    )
+                );
+            }
+
+            // STEP 4: Transicionar para TRANSFERRED
+            // TransitionFinancialStatus já tem transação interna (refatorado anteriormente)
             $this->transitionToTransferred($orderUuid, $payoutId);
 
             return ExecuteTransferResult::success(

@@ -43,16 +43,27 @@ class ExecutePayout
     /**
      * Executar payout com validação Golden Rule
      *
-     * FLUXO:
+     * FLUXO (REFATORADO - SPRINT 7):
      * 1. Buscar payout no banco
      * 2. Buscar Execution correspondente
      * 3. ✅ GOLDEN RULE: VALIDAR Execution::VALIDATED
-     * 4. Se validado, executar payout via Provider
-     * 5. Retornar Result com status
+     * 4. Chamar MercadoPago Provider (IRREVERSÍVEL - fora de transação)
+     * 5. SE sucesso no provider:
+     *    a. START TRANSACTION
+     *    b. Atualizar payout status no banco local
+     *    c. COMMIT
+     * 6. Retornar Result com status
      *
      * REGRA CRÍTICA:
      * - Payout SÓ executa se Execution::VALIDATED
-     * - Caso contrário, Result::fail com mensagem clara
+     * - Provider call ANTES de DB transaction (chamadas externas são irreversíveis)
+     * - DB update DEPOIS de provider success (protegido por transação)
+     *
+     * SAGA PATTERN FOR EXTERNAL PROVIDERS:
+     * - Provider call não pode ser revertido (transferência já processada)
+     * - DB transaction protege APENAS o update local
+     * - Ordem: Validate → Call Provider → Persist Result
+     * - Se provider sucede mas DB falha, reconciliation job corrige depois
      *
      * @param int $payoutId ID do payout
      * @return Result<array, string>
@@ -60,7 +71,7 @@ class ExecutePayout
     public function execute(int $payoutId): Result
     {
         try {
-            // 1. Buscar payout
+            // 1. Buscar payout (FORA de transação - read-only)
             $payout = $this->payoutRepository->getById($payoutId);
 
             if (!$payout) {
@@ -70,7 +81,7 @@ class ExecutePayout
                 ));
             }
 
-            // 2. Buscar Execution correspondente
+            // 2. Buscar Execution correspondente (FORA de transação - read-only)
             $execution = $this->executionRepository->findByOrderUuid($payout['order_uuid']);
 
             if (!$execution) {
@@ -80,7 +91,7 @@ class ExecutePayout
                 ));
             }
 
-            // 3. ✅ GOLDEN RULE: VALIDAR Execution::VALIDATED
+            // 3. ✅ GOLDEN RULE: VALIDAR Execution::VALIDATED (FORA de transação - validação apenas)
             if (!$execution->getStatus()->isValidated()) {
                 return Result::fail(sprintf(
                     'Cannot execute payout: Execution must be VALIDATED (current status: %s). ' .
@@ -89,25 +100,81 @@ class ExecutePayout
                 ));
             }
 
-            // 4. Executar payout no MercadoPago
+            // 4. Executar payout no MercadoPago (IRREVERSÍVEL - fora de transação)
+            // CRITICAL: Esta chamada é irreversível. Se suceder, o dinheiro foi transferido.
+            // Não podemos fazer rollback no MercadoPago, apenas no banco local.
             $success = $this->payoutProvider->createPayout($payoutId);
 
             if (!$success) {
+                // Provider falhou - nada foi alterado no banco, safe return
                 return Result::fail(sprintf(
                     'Failed to create payout #%d on MercadoPago. Check error logs for details.',
                     $payoutId
                 ));
             }
 
-            // 5. Retornar sucesso
-            return Result::ok([
-                'payout_id' => $payoutId,
-                'order_uuid' => $payout['order_uuid'],
-                'execution_uuid' => $execution->getExecutionUuid(),
-                'execution_status' => $execution->getStatus()->value,
-                'status' => 'processing',
-                'message' => 'Payout created successfully on MercadoPago'
-            ]);
+            // 5. Provider sucedeu - agora persistir resultado no banco (TRANSAÇÃO)
+            // REFATORADO (SPRINT 7): DB update protegido por transação
+            // Se falhar aqui, reconciliation job detectará inconsistência:
+            // - MercadoPago tem transferência processada
+            // - Banco local ainda mostra "pending"
+            // - Job consulta MP API e corrige status
+
+            $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+            if (!$transactionManager) {
+                // CRITICAL: Provider já executou, mas não podemos persistir
+                // Log para reconciliation manual
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log(sprintf(
+                        '[ExecutePayout] CRITICAL: Payout #%d created on MercadoPago but TransactionManager unavailable. Manual reconciliation required.',
+                        $payoutId
+                    ));
+                }
+
+                return Result::fail(
+                    'TransactionManager não disponível. Payout criado no MercadoPago mas não persistido localmente. Reconciliation necessária.'
+                );
+            }
+
+            $transactionManager->beginTransaction();
+
+            try {
+                // Atualizar status do payout para "processing" ou "completed"
+                $this->payoutRepository->updateStatus($payoutId, 'processing');
+
+                // COMMIT: Status persistido com sucesso
+                $transactionManager->commit();
+
+                // 6. Retornar sucesso
+                return Result::ok([
+                    'payout_id' => $payoutId,
+                    'order_uuid' => $payout['order_uuid'],
+                    'execution_uuid' => $execution->getExecutionUuid(),
+                    'execution_status' => $execution->getStatus()->value,
+                    'status' => 'processing',
+                    'message' => 'Payout created successfully on MercadoPago and persisted locally'
+                ]);
+
+            } catch (\Exception $e) {
+                // ROLLBACK: Falha ao persistir status
+                $transactionManager->rollback();
+
+                // CRITICAL: Provider já executou, mas DB update falhou
+                // Log para reconciliation
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log(sprintf(
+                        '[ExecutePayout] CRITICAL: Payout #%d created on MercadoPago but DB update failed: %s. Manual reconciliation required.',
+                        $payoutId,
+                        $e->getMessage()
+                    ));
+                }
+
+                return Result::fail(sprintf(
+                    'Payout created on MercadoPago but failed to persist locally: %s. Reconciliation required.',
+                    $e->getMessage()
+                ));
+            }
 
         } catch (\Exception $e) {
             return Result::fail(sprintf(

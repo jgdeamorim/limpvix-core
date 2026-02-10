@@ -62,23 +62,44 @@ class CompleteServiceWithPayout
      */
     public function execute(Order $order, Financial $financial, Execution $execution): Result
     {
-        try {
-            // 0. VALIDAÇÃO CRÍTICA (Sprint 1 - DIA 4): Execution DEVE estar VALIDATED
-            if (!$execution->getStatus()->isValidated()) {
-                return Result::fail(sprintf(
-                    'Cannot authorize payout: Execution must be VALIDATED (current status: %s)',
-                    $execution->getStatus()->value
-                ));
-            }
+        // 0. VALIDAÇÃO CRÍTICA (Sprint 1 - DIA 4): Execution DEVE estar VALIDATED
+        // (FORA da transação - early return se falhar)
+        if (!$execution->getStatus()->isValidated()) {
+            return Result::fail(sprintf(
+                'Cannot authorize payout: Execution must be VALIDATED (current status: %s)',
+                $execution->getStatus()->value
+            ));
+        }
 
-            // 1. Completar Order
+        // REFATORADO (SPRINT 7): Atomic Order.complete() + Financial state transitions
+        // Order e Financial são aggregates diferentes que devem transicionar atomicamente:
+        // - Se Order.complete() falha, Financial não deve ser modificado
+        // - Se Financial.authorizePayout() falha, Order não deve ficar COMPLETED
+        // CRITICAL: Evita payout stuck (Order COMPLETED sem Financial authorization)
+        // CRITICAL: Evita duplicate payment (Financial authorized sem Order completion)
+
+        $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+        if (!$transactionManager) {
+            return Result::fail(
+                'TransactionManager não disponível. Sistema em estado inconsistente.'
+            );
+        }
+
+        $transactionManager->beginTransaction();
+
+        try {
+            // 1. Completar Order (DENTRO DA TRANSAÇÃO)
             $order->complete();
 
-            // 2. Atualizar Financial com novo status da Order
+            // 2. Atualizar Financial com novo status da Order (DENTRO DA TRANSAÇÃO)
             $financial->updateOrderStatus($order->getStatus());
 
-            // 3. Autorizar Payout (valida Order::COMPLETED internamente)
+            // 3. Autorizar Payout (valida Order::COMPLETED internamente) (DENTRO DA TRANSAÇÃO)
             $financial->authorizePayout();
+
+            // COMMIT: Order e Financial transitam atomicamente
+            $transactionManager->commit();
 
             return Result::ok([
                 'order' => $order,
@@ -92,19 +113,48 @@ class CompleteServiceWithPayout
             ]);
 
         } catch (InvalidOrderTransitionException $e) {
+            // ROLLBACK: Falha em Order.complete() reverte tudo
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[CompleteServiceWithPayout] Transaction rolled back (Order transition failed): %s',
+                    $e->getMessage()
+                ));
+            }
+
             return Result::fail(sprintf(
                 'Cannot complete order: %s',
                 $e->getMessage()
             ));
 
         } catch (InvalidFinancialTransitionException $e) {
-            // Inclui violação de regra Order::COMPLETED
+            // ROLLBACK: Falha em Financial.authorizePayout() reverte Order.complete()
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[CompleteServiceWithPayout] Transaction rolled back (Financial transition failed): %s',
+                    $e->getMessage()
+                ));
+            }
+
             return Result::fail(sprintf(
                 'Cannot authorize payout: %s',
                 $e->getMessage()
             ));
 
         } catch (\Exception $e) {
+            // ROLLBACK: Qualquer falha inesperada reverte tudo
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[CompleteServiceWithPayout] Transaction rolled back (Unexpected error): %s',
+                    $e->getMessage()
+                ));
+            }
+
             return Result::fail(sprintf(
                 'Unexpected error completing service: %s',
                 $e->getMessage()

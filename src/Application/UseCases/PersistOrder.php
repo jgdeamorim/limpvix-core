@@ -73,17 +73,108 @@ class PersistOrder
     /**
      * Executar Use Case
      *
-     * LÓGICA:
+     * LÓGICA (REFATORADO - SPRINT 7):
      * - Se Order já existe (por UUID): UPDATE
      * - Se Order não existe: INSERT
+     * - Ambas operações protegidas por transação atômica
      *
      * RESULTADO:
      * - PersistOrderResult com success/failure
+     *
+     * ATOMICIDADE (SPRINT 7):
+     * - exists() + save()/update() devem ser atômicos
+     * - Evita race condition: dois processos tentando criar mesma Order
+     * - Evita duplicate key errors
+     * - Garante consistência: ou cria ou atualiza, nunca ambos
      *
      * @param Order $order Order a ser persistida
      * @return PersistOrderResult Resultado da operação
      */
     public function execute(Order $order): PersistOrderResult
+    {
+        // REFATORADO (SPRINT 7): Atomic exists + save/update
+        // Race condition scenario sem transação:
+        // Process A: exists() = false → save()
+        // Process B: exists() = false → save() (DUPLICATE KEY ERROR)
+        // Com transação:
+        // Process A: BEGIN → exists() = false → save() → COMMIT
+        // Process B: BEGIN → waits... → exists() = true → update() → COMMIT
+
+        $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+        if (!$transactionManager) {
+            // Fallback: executar sem transação (backward compatibility)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PersistOrder] WARNING: TransactionManager not available, executing without transaction');
+            }
+            return $this->executeWithoutTransaction($order);
+        }
+
+        $transactionManager->beginTransaction();
+
+        try {
+            // Decisão explícita: save ou update? (DENTRO DA TRANSAÇÃO)
+            if ($this->repository->exists($order->getUuid())) {
+                // Já existe → UPDATE
+                $this->repository->update($order);
+                $operation = 'updated';
+            } else {
+                // Não existe → INSERT
+                $this->repository->save($order);
+                $operation = 'created';
+            }
+
+            // COMMIT: Persistência bem-sucedida
+            $transactionManager->commit();
+
+            return PersistOrderResult::success(
+                $order->getUuid(),
+                $operation
+            );
+
+        } catch (\RuntimeException $e) {
+            // ROLLBACK: Exceção de infraestrutura (Repository falhou)
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[PersistOrder] Transaction rolled back (persistence error): %s',
+                    $e->getMessage()
+                ));
+            }
+
+            return PersistOrderResult::failure(
+                $order->getUuid(),
+                'persistence_error',
+                $e->getMessage()
+            );
+
+        } catch (\Exception $e) {
+            // ROLLBACK: Exceção inesperada
+            $transactionManager->rollback();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[PersistOrder] Transaction rolled back (unexpected error): %s',
+                    $e->getMessage()
+                ));
+            }
+
+            return PersistOrderResult::failure(
+                $order->getUuid(),
+                'unexpected_error',
+                $e->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Executar sem transação (fallback para backward compatibility)
+     *
+     * @param Order $order
+     * @return PersistOrderResult
+     */
+    private function executeWithoutTransaction(Order $order): PersistOrderResult
     {
         try {
             // Decisão explícita: save ou update?

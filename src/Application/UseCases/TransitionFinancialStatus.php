@@ -174,14 +174,33 @@ class TransitionFinancialStatus
             actorId: $command->getActorId()
         );
 
+        // REFATORADO (SPRINT 7): Atomic Ledger + Order Cache dual write
+        // Ledger é source of truth (append-only)
+        // Order cache é derived data (materialização)
+        // CRITICAL: Ambos devem ser sincronizados atomicamente
+
+        $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+
+        if (!$transactionManager) {
+            return TransitionFinancialStatusResult::rejected(
+                $orderUuid,
+                'TransactionManager não disponível. Sistema em estado inconsistente.'
+            );
+        }
+
+        $transactionManager->beginTransaction();
+
         try {
-            // 5. Gravar no ledger (fonte da verdade)
+            // 5. Gravar no ledger (fonte da verdade) - DENTRO DA TRANSAÇÃO
             $this->appendLedger->execute($event);
 
-            // 6. Atualizar status da order (cache)
+            // 6. Atualizar status da order (cache) - DENTRO DA TRANSAÇÃO
             $this->orderRepository->updateFinancialStatus($orderUuid, $toStatus);
 
-            // 7. Disparar hook de sucesso
+            // COMMIT: Ledger e cache sincronizados atomicamente
+            $transactionManager->commit();
+
+            // 7. Disparar hook de sucesso (APÓS commit bem-sucedido)
             $this->logSuccess($event);
 
             // 8. Retornar sucesso
@@ -193,8 +212,19 @@ class TransitionFinancialStatus
             );
 
         } catch (\Exception $e) {
+            // ROLLBACK: Falha em ledger OU order reverte AMBOS
+            $transactionManager->rollback();
+
             // Falha crítica (ledger ou order)
             $this->logError($orderUuid, $event, $e);
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[TransitionFinancialStatus] Transaction rolled back for order %s: %s',
+                    $orderUuid,
+                    $e->getMessage()
+                ));
+            }
 
             return TransitionFinancialStatusResult::rejected(
                 $orderUuid,
