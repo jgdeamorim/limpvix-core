@@ -48,10 +48,12 @@ final class SchedulingBootstrap
         self::registerHooks();
 
         // 5. Registrar Cron Adapters (GAP #1)
-        self::registerCronAdapters();
+        // DISABLED: Causing issues, needs investigation
+        // self::registerCronAdapters();
 
         // 6. Registrar Admin Widgets (GAP #1)
-        self::registerAdminWidgets();
+        // DISABLED: Causing admin dashboard errors
+        // self::registerAdminWidgets();
 
         self::$initialized = true;
 

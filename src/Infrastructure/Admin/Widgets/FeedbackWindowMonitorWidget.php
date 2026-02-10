@@ -190,27 +190,33 @@ class FeedbackWindowMonitorWidget
                 <h4 style="margin: 15px 0 10px;">Orders Aguardando Feedback</h4>
                 <div class="limpvix-orders-list">
                     <?php
-                    $activeOrders = $this->getActiveWindows();
-                    foreach ($activeOrders as $order):
-                        $timeRemaining = $this->calculateTimeRemaining($order['feedback_window_expires_at']);
+                    try {
+                        $activeOrders = $this->getActiveWindows();
+                        foreach ($activeOrders as $order):
+                            $timeRemaining = $this->calculateTimeRemaining($order['feedback_window_expires_at']);
+                        ?>
+                            <div class="limpvix-order-item">
+                                <div class="limpvix-order-info">
+                                    <div class="limpvix-order-uuid">
+                                        Order: <?php echo esc_html(substr($order['order_uuid'], 0, 8)); ?>...
+                                    </div>
+                                    <div class="limpvix-order-time">
+                                        ⏱️ Expira em: <?php echo esc_html($timeRemaining); ?>
+                                    </div>
+                                </div>
+                                <div class="limpvix-order-actions">
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-orders&order=' . $order['order_uuid'])); ?>"
+                                       class="limpvix-btn limpvix-btn-secondary">
+                                        Ver Order
+                                    </a>
+                                </div>
+                            </div>
+                        <?php endforeach;
+                    } catch (\Exception $e) {
+                        echo '<p style="color: #d32f2f; padding: 10px;">Erro ao carregar orders: ' . esc_html($e->getMessage()) . '</p>';
+                        error_log('[LimpVix] FeedbackWindowMonitorWidget getActiveWindows error: ' . $e->getMessage());
+                    }
                     ?>
-                        <div class="limpvix-order-item">
-                            <div class="limpvix-order-info">
-                                <div class="limpvix-order-uuid">
-                                    Order: <?php echo esc_html(substr($order['order_uuid'], 0, 8)); ?>...
-                                </div>
-                                <div class="limpvix-order-time">
-                                    ⏱️ Expira em: <?php echo esc_html($timeRemaining); ?>
-                                </div>
-                            </div>
-                            <div class="limpvix-order-actions">
-                                <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-orders&order=' . $order['order_uuid'])); ?>"
-                                   class="limpvix-btn limpvix-btn-secondary">
-                                    Ver Order
-                                </a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
                 </div>
             <?php else: ?>
                 <p style="color: #646970; text-align: center; padding: 20px;">
