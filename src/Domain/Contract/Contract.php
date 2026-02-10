@@ -309,6 +309,79 @@ final class Contract
     }
 
     /**
+     * Renovar contrato com pagamento recorrente confirmado
+     *
+     * Diferente do renew() normal, este método:
+     * - É chamado automaticamente após pagamento confirmado
+     * - Requer pagamento completed (validação de segurança)
+     * - Estende end_date do contrato ativo
+     * - Dispara evento ContractRenewed para tracking
+     *
+     * @param \LimpVix\Domain\Finance\RecurringPayment $payment
+     * @param \DateTimeImmutable $newEndDate
+     * @return void
+     * @throws InvalidContractTransition
+     * @throws \DomainException
+     */
+    public function renewWithPayment($payment, \DateTimeImmutable $newEndDate): void
+    {
+        // Validate payment is completed
+        if (!$payment->getStatus()->isCompleted()) {
+            throw new \DomainException(
+                sprintf(
+                    'Cannot renew contract without completed payment (payment status: %s)',
+                    $payment->getStatus()->getValue()
+                )
+            );
+        }
+
+        // Validate contract belongs to this payment
+        if ($payment->getContractId() !== $this->id->toInt()) {
+            throw new \DomainException(
+                sprintf(
+                    'Payment contract_id (%d) does not match Contract id (%d)',
+                    $payment->getContractId(),
+                    $this->id->toInt()
+                )
+            );
+        }
+
+        // Validate contract is active (auto-renew only works for active contracts)
+        if (!$this->status->isActive()) {
+            throw new InvalidContractTransition(
+                sprintf(
+                    'Cannot auto-renew contract: status is %s (expected: active)',
+                    $this->status->getValue()
+                )
+            );
+        }
+
+        // Update end_date (extend contract period)
+        $this->endDate = $newEndDate;
+
+        // Recalculate next execution date
+        $this->nextExecutionDate = $this->calculateNextExecutionDate();
+
+        // Update timestamp
+        $this->updatedAt = new \DateTimeImmutable();
+
+        // Record domain event for tracking
+        $this->recordEvent(new Events\ContractRenewed(
+            $this,
+            $payment,
+            $this->updatedAt,
+            $this->endDate
+        ));
+
+        error_log(sprintf(
+            '[LimpVix] Contract %d auto-renewed via payment %s. New end_date: %s',
+            $this->id->toInt(),
+            $payment->getPaymentUuid(),
+            $newEndDate->format('Y-m-d')
+        ));
+    }
+
+    /**
      * Atualizar próxima execução (após execução concluída)
      */
     public function scheduleNextExecution(): void

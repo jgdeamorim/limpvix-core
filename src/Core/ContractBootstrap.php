@@ -136,6 +136,48 @@ final class ContractBootstrap
         ];
 
         self::logInfo('12 Contract Use Cases registered');
+
+        // GAP #2: Register Recurring Payment components
+        self::registerRecurringPaymentComponents($repository);
+    }
+
+    /**
+     * Register Recurring Payment components (GAP #2)
+     * - RecurringPayment repository
+     * - RecurringPayment use cases
+     * - MercadoPago payment provider
+     *
+     * @param \LimpVix\Domain\Contract\ContractRepositoryInterface $contractRepository
+     * @return void
+     */
+    private static function registerRecurringPaymentComponents($contractRepository): void
+    {
+        // Register RecurringPaymentRepository
+        $paymentRepository = new \LimpVix\Infrastructure\Persistence\Finance\WpRecurringPaymentRepository();
+
+        // Register MercadoPagoPaymentProvider
+        $paymentProvider = new \LimpVix\Infrastructure\Finance\Providers\MercadoPagoPaymentProvider();
+
+        // Register Recurring Payment Use Cases
+        $GLOBALS['limpvix_recurring_payment_use_cases'] = [
+            'charge' => new \LimpVix\Application\UseCases\Finance\ChargeRecurringPayment(
+                $contractRepository,
+                $paymentRepository,
+                $paymentProvider
+            ),
+            'process_webhook' => new \LimpVix\Application\UseCases\Finance\ProcessPaymentWebhook(
+                $paymentRepository,
+                $contractRepository,
+                $paymentProvider
+            ),
+            'retry' => new \LimpVix\Application\UseCases\Finance\RetryFailedPayment(
+                $paymentRepository,
+                $contractRepository,
+                $paymentProvider
+            ),
+        ];
+
+        self::logInfo('GAP #2: RecurringPayment components registered (3 use cases)');
     }
 
     /**
@@ -262,6 +304,20 @@ final class ContractBootstrap
 
             self::logInfo('HealthController REST API registered (cron monitoring)');
         }
+
+        // 3. Register MercadoPagoWebhookController (GAP #2)
+        if (class_exists('LimpVix\\Infrastructure\\API\\Controllers\\MercadoPagoWebhookController')) {
+            $paymentUseCases = $GLOBALS['limpvix_recurring_payment_use_cases'] ?? [];
+
+            if (isset($paymentUseCases['process_webhook'])) {
+                $webhookController = new \LimpVix\Infrastructure\API\Controllers\MercadoPagoWebhookController(
+                    $paymentUseCases['process_webhook']
+                );
+                $webhookController->register();
+
+                self::logInfo('GAP #2: MercadoPagoWebhookController registered at /webhooks/mercadopago');
+            }
+        }
     }
 
     /**
@@ -269,6 +325,7 @@ final class ContractBootstrap
      *
      * CRON JOBS:
      * - limpvix_check_contract_expiration: Expirar contratos diariamente
+     * - limpvix_charge_recurring_payments: Cobrar renovações automáticas (GAP #2)
      *
      * @return void
      */
@@ -282,6 +339,14 @@ final class ContractBootstrap
 
         // Registrar handler do cron
         add_action('limpvix_check_contract_expiration', [self::class, 'onCheckContractExpiration']);
+
+        // GAP #2: Register recurring payment cron
+        \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter::register();
+
+        // GAP #2: Register cron handler
+        add_action('limpvix_charge_recurring_payments', [self::class, 'onChargeRecurringPayments']);
+
+        self::logInfo('GAP #2: Recurring payment cron registered');
     }
 
     /**
@@ -360,7 +425,10 @@ final class ContractBootstrap
         // Evento: Contract Expired
         add_action('limpvix_contract_expired', [self::class, 'onContractExpired'], 10, 1);
 
-        self::logInfo('Contract Event Listeners registered');
+        // GAP #2: Contract Renewed (auto-renewal via payment)
+        add_action('limpvix_contract_renewed', [self::class, 'onContractRenewed'], 10, 1);
+
+        self::logInfo('Contract Event Listeners registered (including GAP #2 renewal)');
     }
 
     /**
@@ -584,6 +652,79 @@ final class ContractBootstrap
             self::logError("Failed to update acceptance_rate for professional ID {$professionalId}: " . $wpdb->last_error);
         } else {
             self::logInfo("Professional {$professionalId}: acceptance_rate recalculated to {$acceptanceRate}%");
+        }
+    }
+
+    /**
+     * Handler: Charge Recurring Payments (GAP #2)
+     *
+     * Executado diariamente via WP Cron às 00:00
+     * - Cobra contratos próximos ao vencimento
+     * - Retenta payments falhados
+     *
+     * @return void
+     */
+    public static function onChargeRecurringPayments(): void
+    {
+        $useCases = $GLOBALS['limpvix_recurring_payment_use_cases'] ?? [];
+
+        if (!isset($useCases['charge'], $useCases['retry'])) {
+            self::logError('GAP #2: RecurringPayment use cases not available for cron');
+            return;
+        }
+
+        $contractRepository = $GLOBALS['limpvix_contract_repository'] ?? null;
+
+        if (!$contractRepository) {
+            self::logError('GAP #2: ContractRepository not available for cron');
+            return;
+        }
+
+        try {
+            // Execute cron adapter
+            $adapter = new \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter(
+                $useCases['charge'],
+                $useCases['retry'],
+                $contractRepository
+            );
+
+            $stats = $adapter->execute();
+
+            self::logInfo(sprintf(
+                'GAP #2: Recurring payment cron completed - Charged: %d/%d, Retries: %d (%.2fs)',
+                $stats['charges_created'],
+                $stats['contracts_found'],
+                $stats['retries_succeeded'],
+                $stats['execution_time']
+            ));
+
+        } catch (\Exception $e) {
+            self::logError('GAP #2: Recurring payment cron failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Handler: Contract Renewed (GAP #2)
+     *
+     * Triggered when contract is auto-renewed via payment
+     * Delegates to ContractRenewedListener
+     *
+     * @param \LimpVix\Domain\Contract\Events\ContractRenewed $event
+     * @return void
+     */
+    public static function onContractRenewed($event): void
+    {
+        try {
+            \LimpVix\Infrastructure\Integration\ContractRenewedListener::handle($event);
+
+            self::logInfo(sprintf(
+                'GAP #2: Contract renewed - ID: %d, Payment: %s',
+                $event->getContract()->getId()->toInt(),
+                $event->getPayment()->getPaymentUuid()
+            ));
+
+        } catch (\Exception $e) {
+            self::logError('GAP #2: ContractRenewed event handler failed: ' . $e->getMessage());
         }
     }
 
