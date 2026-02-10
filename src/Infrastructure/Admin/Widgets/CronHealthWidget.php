@@ -54,8 +54,7 @@ class CronHealthWidget
      */
     public function register(): void
     {
-        // DISABLED: Dashboard widgets causing critical errors in admin
-        // add_action('wp_dashboard_setup', [$this, 'addDashboardWidget']);
+        add_action('wp_dashboard_setup', [$this, 'addDashboardWidget']);
     }
 
     /**

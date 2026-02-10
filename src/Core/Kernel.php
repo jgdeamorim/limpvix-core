@@ -133,10 +133,9 @@ class Kernel
         }
 
         // Inicializar módulo Scheduling
-        // TEMPORARILY DISABLED: Causing admin dashboard errors
-        // if (class_exists('LimpVix\\Core\\SchedulingBootstrap')) {
-        //     SchedulingBootstrap::init();
-        // }
+        if (class_exists('LimpVix\\Core\\SchedulingBootstrap')) {
+            SchedulingBootstrap::init();
+        }
 
         // Inicializar módulo Professional (CRÍTICO: desbloqueia marketplace)
         if (class_exists('LimpVix\\Core\\ProfessionalBootstrap')) {

@@ -30,12 +30,10 @@ class FeedbackWindowMonitorWidget
 
     /**
      * Register widget
-     * DISABLED: Causing admin dashboard errors
      */
     public function register(): void
     {
-        // DISABLED: Dashboard widget causing critical errors in admin
-        // add_action('wp_dashboard_setup', [$this, 'addDashboardWidget']);
+        add_action('wp_dashboard_setup', [$this, 'addDashboardWidget']);
     }
 
     /**

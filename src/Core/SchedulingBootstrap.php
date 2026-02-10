@@ -48,12 +48,10 @@ final class SchedulingBootstrap
         self::registerHooks();
 
         // 5. Registrar Cron Adapters (GAP #1)
-        // DISABLED: Causing issues, needs investigation
-        // self::registerCronAdapters();
+        self::registerCronAdapters();
 
         // 6. Registrar Admin Widgets (GAP #1)
-        // DISABLED: Causing admin dashboard errors
-        // self::registerAdminWidgets();
+        self::registerAdminWidgets();
 
         self::$initialized = true;
 
@@ -102,8 +100,7 @@ final class SchedulingBootstrap
         add_action('admin_bar_menu', [__CLASS__, 'addAdminBarInfo'], 999);
 
         // Hook: Dashboard widget
-        // DISABLED: Causing admin dashboard errors
-        // add_action('wp_dashboard_setup', [__CLASS__, 'addDashboardWidget']);
+        add_action('wp_dashboard_setup', [__CLASS__, 'addDashboardWidget']);
     }
 
     /**
