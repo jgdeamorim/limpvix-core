@@ -79,21 +79,21 @@ add_filter('cron_schedules', function($schedules) {
  * - Registrar hooks de ativação/desativação
  */
 function limpvix_core_init() {
-    // Verificar se Booknetic está ativo
-    if (!is_plugin_active('booknetic/init.php')) {
-        add_action('admin_notices', 'limpvix_core_missing_booknetic_notice');
-        return;
-    }
+    // NOTA: NÃO bloqueamos inicialização se Booknetic ausente
+    // Plugin deve carregar SEMPRE para mostrar menu admin
+    // Alertas de dependências são mostrados em Configurações > Dependências
 
     // Inicializar Kernel (bootstrap do sistema)
     if (class_exists('LimpVix\\Core\\Kernel')) {
         LimpVix\Core\Kernel::getInstance()->boot();
     }
 
-    // Inicializar módulo Admin
-    //     if (is_admin() && class_exists('LimpVix\\Admin\\Bootstrap\\AdminBootstrap')) {
-    //         $adminBootstrap = new LimpVix\Admin\Bootstrap\AdminBootstrap();
-    //         $adminBootstrap->boot();
+    // NOTA: AdminBootstrap é inicializado via Kernel->boot() -> Hooks->register()
+    // NÃO inicializar aqui para evitar duplicação de menus e conteúdo
+    // if (is_admin() && class_exists('LimpVix\\Admin\\Bootstrap\\AdminBootstrap')) {
+    //     $adminBootstrap = new LimpVix\Admin\Bootstrap\AdminBootstrap();
+    //     $adminBootstrap->boot();
+    // }
 
     // Inicializar módulo de Comunicação
     if (class_exists('LimpVix\\Infrastructure\\Communication\\CommunicationBootstrap')) {

@@ -74,6 +74,10 @@ class Hooks
 
         // PASSO 5.6: Admin Interface
         $this->registerAdminInterface();
+        $this->registerGlobalRestApi();
+        // AJAX Handlers
+        $this->registerAjaxHandlers();
+
 
         // Lifecycle hooks (FUTURO - ainda não habilitados)
         // $this->registerLifecycleHooks();
@@ -184,10 +188,7 @@ class Hooks
      */
     private function registerAdminInterface(): void
     {
-        // Só executar no admin
-        if (!is_admin()) {
-            return;
-        }
+        error_log("=== Hooks::registerAdminInterface() CALLED ===");
 
         // Verificar feature flag
         if (!$this->featureFlags->isEnabled('admin_interface')) {
@@ -728,5 +729,65 @@ class Hooks
                 json_encode($data, JSON_UNESCAPED_UNICODE)
             ));
         }
+    }
+
+    /**
+     * Registra REST API endpoints globais
+     * 
+     * @return void
+     */
+    private function registerGlobalRestApi(): void
+    {
+        add_action('rest_api_init', function() {
+            // CepController (consulta de CEP via ViaCEP)
+            if (class_exists('LimpVix\Infrastructure\API\CepController')) {
+                $cepController = new \LimpVix\Infrastructure\API\CepController();
+                $cepController->register_routes();
+            }
+        });
+    }
+
+    /**
+     * Register AJAX Handlers
+     *
+     * Handlers para chamadas AJAX do admin
+     */
+    private function registerAjaxHandlers(): void
+    {
+        // PPID - Test Connection
+        add_action('wp_ajax_limpvix_test_ppid_connection', function() {
+            check_ajax_referer('limpvix_ppid_test', 'nonce');
+
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error([
+                    'message' => 'Permissão negada'
+                ]);
+                return;
+            }
+
+            $email = sanitize_email($_POST['email'] ?? '');
+            $senha = sanitize_text_field($_POST['senha'] ?? '');
+
+            if (empty($email) || empty($senha)) {
+                wp_send_json_error([
+                    'message' => 'Email e senha são obrigatórios'
+                ]);
+                return;
+            }
+
+            $result = \LimpVix\Infrastructure\KYC\PPIDProviderFactory::testConnection($email, $senha);
+
+            if ($result['success']) {
+                wp_send_json_success([
+                    'message' => $result['message'],
+                    'saldo' => $result['saldo'],
+                    'nome' => $result['nome'],
+                ]);
+            } else {
+                wp_send_json_error([
+                    'message' => $result['message']
+                ]);
+            }
+        });
     }
 }

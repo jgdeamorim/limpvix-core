@@ -150,6 +150,11 @@ class Kernel
         // Inicializar módulo Execution (Contract Executions)
         if (class_exists('LimpVix\\Core\\ExecutionBootstrap')) {
             ExecutionBootstrap::init();
+
+        // Inicializar módulo Professional (KYC + Management)
+        if (class_exists('LimpVix\\Core\\ProfessionalBootstrap')) {
+            ProfessionalBootstrap::init();
+        }
         }
 
         // Inicializar automação de contratos
