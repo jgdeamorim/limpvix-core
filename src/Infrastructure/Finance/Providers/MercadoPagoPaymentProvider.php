@@ -30,7 +30,7 @@ defined('ABSPATH') || exit;
 
 final class MercadoPagoPaymentProvider
 {
-    private string $accessToken;
+    private ?string $accessToken;
     private string $apiUrl;
     private bool $isSandbox;
 
@@ -43,7 +43,8 @@ final class MercadoPagoPaymentProvider
     public function __construct(?string $accessToken = null, bool $useSandbox = false)
     {
         $this->isSandbox = $useSandbox || (defined('WP_DEBUG') && WP_DEBUG);
-        $this->accessToken = $accessToken ?? $this->getAccessTokenFromConfig();
+        // NÃO lançar exceção no construtor - validar apenas quando usar
+        $this->accessToken = $accessToken;
         $this->apiUrl = 'https://api.mercadopago.com';
     }
 
@@ -59,6 +60,9 @@ final class MercadoPagoPaymentProvider
         RecurringPayment $payment,
         array $paymentMethodData
     ): array {
+        // Validar credenciais apenas quando usar (lazy validation)
+        $this->ensureAccessToken();
+
         $payload = $this->buildPaymentPayload($payment, $paymentMethodData);
 
         $response = wp_remote_post(
@@ -108,6 +112,9 @@ final class MercadoPagoPaymentProvider
      */
     public function getPaymentStatus(string $paymentId): array
     {
+        // Validar credenciais apenas quando usar (lazy validation)
+        $this->ensureAccessToken();
+
         $response = wp_remote_get(
             $this->apiUrl . '/v1/payments/' . $paymentId,
             [
@@ -153,6 +160,9 @@ final class MercadoPagoPaymentProvider
      */
     public function cancelPayment(string $paymentId): array
     {
+        // Validar credenciais apenas quando usar (lazy validation)
+        $this->ensureAccessToken();
+
         $response = wp_remote_request(
             $this->apiUrl . '/v1/payments/' . $paymentId,
             [
@@ -231,6 +241,18 @@ final class MercadoPagoPaymentProvider
     private function getWebhookUrl(): string
     {
         return rest_url('limpvix/v1/webhooks/mercadopago');
+    }
+
+    /**
+     * Ensure access token is loaded (lazy loading)
+     *
+     * @throws \RuntimeException if not configured when trying to use
+     */
+    private function ensureAccessToken(): void
+    {
+        if ($this->accessToken === null) {
+            $this->accessToken = $this->getAccessTokenFromConfig();
+        }
     }
 
     /**
