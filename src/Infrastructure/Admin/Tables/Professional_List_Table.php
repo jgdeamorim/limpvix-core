@@ -294,7 +294,7 @@ class Professional_List_Table extends \WP_List_Table
      */
     public function no_items(): void
     {
-        echo 'Nenhum profissional encontrado. <a href="#" id="btn-register-professional">Cadastrar primeiro profissional</a>';
+        echo 'Nenhum profissional encontrado. <a href="?page=limpvix-professionals&action=create">Cadastrar primeiro profissional</a>';
     }
 
     /**

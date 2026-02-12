@@ -48,14 +48,15 @@ class WpMarketplaceProfessionalRepository implements ProfessionalRepositoryInter
         return $row ? Professional::reconstitute($row) : null;
     }
 
-    public function findEligibleFor(float $targetLat, float $targetLng, array $requiredSkills, \DateTimeImmutable $serviceDateTime): array
+    public function findEligibleFor(float $targetLat, float $targetLng, array $requiredSkills, \DateTimeImmutable $serviceDateTime, int $limit = 50, int $offset = 0): array
     {
         $sql = "SELECT * FROM {$this->table}
                 WHERE is_active = 1 AND is_verified = 1 AND is_permanently_banned = 0
                 AND (suspended_until IS NULL OR suspended_until < NOW())
-                ORDER BY score DESC";
+                ORDER BY score DESC LIMIT %d OFFSET %d";
 
-        $results = $this->wpdb->get_results($sql, ARRAY_A);
+        $results = $this->wpdb->get_results($this->wpdb->prepare($sql, $limit, $offset), ARRAY_A);
+
         $eligible = [];
 
         foreach ($results as $row) {
@@ -70,25 +71,25 @@ class WpMarketplaceProfessionalRepository implements ProfessionalRepositoryInter
         return $eligible;
     }
 
-    public function findByRegion(float $centerLat, float $centerLng, int $radiusKm): array
+    public function findByRegion(float $centerLat, float $centerLng, int $radiusKm, int $limit = 100, int $offset = 0): array
     {
         $sql = $this->wpdb->prepare(
             "SELECT * FROM {$this->table}
              WHERE is_active = 1 AND latitude IS NOT NULL
              AND (6371 * acos(cos(radians(%f)) * cos(radians(latitude)) * cos(radians(longitude) - radians(%f)) + sin(radians(%f)) * sin(radians(latitude)))) <= %d
-             ORDER BY score DESC",
-            $centerLat, $centerLng, $centerLat, $radiusKm
+             ORDER BY score DESC LIMIT %d OFFSET %d",
+            $centerLat, $centerLng, $centerLat, $radiusKm, $limit, $offset
         );
 
         $results = $this->wpdb->get_results($sql, ARRAY_A);
         return array_map(fn($row) => Professional::reconstitute($row), $results);
     }
 
-    public function findBySkills(array $skills): array
+    public function findBySkills(array $skills, int $limit = 100, int $offset = 0): array
     {
         $results = [];
         foreach ($skills as $skill) {
-            $sql = $this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND JSON_CONTAINS(skills, %s)", json_encode($skill));
+            $sql = $this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND JSON_CONTAINS(skills, %s) LIMIT %d OFFSET %d", json_encode($skill), $limit, $offset);
             $rows = $this->wpdb->get_results($sql, ARRAY_A);
             foreach ($rows as $row) {
                 $id = (int) $row['id'];
@@ -98,27 +99,27 @@ class WpMarketplaceProfessionalRepository implements ProfessionalRepositoryInter
         return array_values($results);
     }
 
-    public function findActiveAndVerified(): array
+    public function findActiveAndVerified(int $limit = 100, int $offset = 0): array
     {
-        $results = $this->wpdb->get_results("SELECT * FROM {$this->table} WHERE is_active = 1 AND is_verified = 1 ORDER BY score DESC", ARRAY_A);
+        $results = $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND is_verified = 1 ORDER BY score DESC LIMIT %d OFFSET %d", $limit, $offset), ARRAY_A);
         return array_map(fn($row) => Professional::reconstitute($row), $results);
     }
 
-    public function findSuspended(): array
+    public function findSuspended(int $limit = 100, int $offset = 0): array
     {
-        $results = $this->wpdb->get_results("SELECT * FROM {$this->table} WHERE suspended_until IS NOT NULL AND suspended_until > NOW()", ARRAY_A);
+        $results = $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table} WHERE suspended_until IS NOT NULL AND suspended_until > NOW() LIMIT %d OFFSET %d", $limit, $offset), ARRAY_A);
         return array_map(fn($row) => Professional::reconstitute($row), $results);
     }
 
-    public function findPendingVerification(): array
+    public function findPendingVerification(int $limit = 100, int $offset = 0): array
     {
-        $results = $this->wpdb->get_results("SELECT * FROM {$this->table} WHERE is_active = 1 AND is_verified = 0 ORDER BY created_at ASC", ARRAY_A);
+        $results = $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND is_verified = 0 ORDER BY created_at ASC LIMIT %d OFFSET %d", $limit, $offset), ARRAY_A);
         return array_map(fn($row) => Professional::reconstitute($row), $results);
     }
 
-    public function findByMinScore(float $minScore): array
+    public function findByMinScore(float $minScore, int $limit = 100, int $offset = 0): array
     {
-        $sql = $this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND score >= %f ORDER BY score DESC", $minScore);
+        $sql = $this->wpdb->prepare("SELECT * FROM {$this->table} WHERE is_active = 1 AND score >= %f ORDER BY score DESC LIMIT %d OFFSET %d", $minScore, $limit, $offset);
         $results = $this->wpdb->get_results($sql, ARRAY_A);
         return array_map(fn($row) => Professional::reconstitute($row), $results);
     }
@@ -152,6 +153,25 @@ class WpMarketplaceProfessionalRepository implements ProfessionalRepositoryInter
             'is_active' => $professional->isActive(),
             'is_verified' => $professional->isVerified(),
             'updated_at' => current_time('mysql'),
+            // KYC fields
+            "kyc_status" => $professional->getKycStatus(),
+            "kyc_started_at" => $professional->getKycStartedAt()?->format("Y-m-d H:i:s"),
+            "kyc_submitted_at" => $professional->getKycSubmittedAt()?->format("Y-m-d H:i:s"),
+            "kyc_approved_at" => $professional->getKycApprovedAt()?->format("Y-m-d H:i:s"),
+            "kyc_rejected_at" => $professional->getKycRejectedAt()?->format("Y-m-d H:i:s"),
+            "kyc_expires_at" => $professional->getKycExpiresAt()?->format("Y-m-d H:i:s"),
+            "kyc_document_url" => $professional->getKycDocumentUrl(),
+            "kyc_selfie_url" => $professional->getKycSelfieUrl(),
+            "kyc_ocr_data" => $professional->getKycOcrData() ? json_encode($professional->getKycOcrData()) : null,
+            "kyc_liveness_data" => $professional->getKycLivenessData() ? json_encode($professional->getKycLivenessData()) : null,
+            "kyc_facematch_data" => $professional->getKycFaceMatchData() ? json_encode($professional->getKycFaceMatchData()) : null,
+            "kyc_rejection_reason" => $professional->getKycRejectionReason(),
+            "kyc_admin_notes" => $professional->getKycAdminNotes(),
+            "kyc_approved_by" => $professional->getKycApprovedBy(),
+            "kyc_rejected_by" => $professional->getKycRejectedBy(),
+            "kyc_document_type" => $professional->getKycDocumentType(),
+            "kyc_retry_count" => $professional->getKycRetryCount(),
+            "kyc_last_retry_at" => $professional->getKycLastRetryAt()?->format("Y-m-d H:i:s"),
         ];
 
         if ($professional->getId()) {
@@ -224,14 +244,14 @@ class WpMarketplaceProfessionalRepository implements ProfessionalRepositoryInter
         return ['total' => (int) $stats['total'], 'active' => (int) $stats['active'], 'avg_score' => round((float) $stats['avg_score'], 2)];
     }
 
-    public function getAllocationHistory(int $professionalId): array
+    public function getAllocationHistory(int $professionalId, int $limit = 50, int $offset = 0): array
     {
         $table = $this->wpdb->prefix . 'limpvix_professional_allocations_history';
-        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$table} WHERE professional_id = %d ORDER BY allocated_at DESC", $professionalId), ARRAY_A);
+        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$table} WHERE professional_id = %d ORDER BY allocated_at DESC LIMIT %d OFFSET %d", $professionalId, $limit, $offset), ARRAY_A);
     }
 
-    public function getScoreHistory(int $professionalId, int $limit = 50): array
+    public function getScoreHistory(int $professionalId, int $limit = 50, int $offset = 0): array
     {
-        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->scoreHistoryTable} WHERE professional_id = %d ORDER BY changed_at DESC LIMIT %d", $professionalId, $limit), ARRAY_A);
+        return $this->wpdb->get_results($this->wpdb->prepare("SELECT * FROM {$this->scoreHistoryTable} WHERE professional_id = %d ORDER BY changed_at DESC LIMIT %d OFFSET %d", $professionalId, $limit, $offset), ARRAY_A);
     }
 }

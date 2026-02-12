@@ -83,6 +83,26 @@ class Professional
     // EPI
     private bool $hasEpi;
     private ?\DateTimeImmutable $epiLastCheck;
+    // KYC (Know Your Customer) - Verificação Biométrica
+    private string $kycStatus;
+    private ?DateTimeImmutable $kycStartedAt;
+    private ?DateTimeImmutable $kycSubmittedAt;
+    private ?DateTimeImmutable $kycApprovedAt;
+    private ?DateTimeImmutable $kycRejectedAt;
+    private ?DateTimeImmutable $kycExpiresAt;
+    private ?string $kycDocumentUrl;
+    private ?string $kycSelfieUrl;
+    private ?array $kycOcrData;
+    private ?array $kycLivenessData;
+    private ?array $kycFaceMatchData;
+    private ?string $kycRejectionReason;
+    private ?string $kycAdminNotes;
+    private ?int $kycApprovedBy;
+    private ?int $kycRejectedBy;
+    private ?string $kycDocumentType;
+    private int $kycRetryCount;
+    private ?DateTimeImmutable $kycLastRetryAt;
+
 
     // Timestamps
     private \DateTimeImmutable $createdAt;
@@ -124,6 +144,25 @@ class Professional
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
         $this->lastActivityAt = null;
+        // KYC initialization
+        $this->kycStatus = "not_started";
+        $this->kycStartedAt = null;
+        $this->kycSubmittedAt = null;
+        $this->kycApprovedAt = null;
+        $this->kycRejectedAt = null;
+        $this->kycExpiresAt = null;
+        $this->kycDocumentUrl = null;
+        $this->kycSelfieUrl = null;
+        $this->kycOcrData = null;
+        $this->kycLivenessData = null;
+        $this->kycFaceMatchData = null;
+        $this->kycRejectionReason = null;
+        $this->kycAdminNotes = null;
+        $this->kycApprovedBy = null;
+        $this->kycRejectedBy = null;
+        $this->kycDocumentType = null;
+        $this->kycRetryCount = 0;
+        $this->kycLastRetryAt = null;
     }
 
     /**
@@ -211,6 +250,26 @@ class Professional
 
         $professional->hasEpi = (bool) $data['has_epi'];
         $professional->epiLastCheck = $data['epi_last_check'] ? new \DateTimeImmutable($data['epi_last_check']) : null;
+
+        // KYC fields
+        $professional->kycStatus = $data['kyc_status'] ?? 'not_started';
+        $professional->kycStartedAt = $data['kyc_started_at'] ? new \DateTimeImmutable($data['kyc_started_at']) : null;
+        $professional->kycSubmittedAt = $data['kyc_submitted_at'] ? new \DateTimeImmutable($data['kyc_submitted_at']) : null;
+        $professional->kycApprovedAt = $data['kyc_approved_at'] ? new \DateTimeImmutable($data['kyc_approved_at']) : null;
+        $professional->kycRejectedAt = $data['kyc_rejected_at'] ? new \DateTimeImmutable($data['kyc_rejected_at']) : null;
+        $professional->kycExpiresAt = $data['kyc_expires_at'] ? new \DateTimeImmutable($data['kyc_expires_at']) : null;
+        $professional->kycDocumentUrl = $data['kyc_document_url'] ?? null;
+        $professional->kycSelfieUrl = $data['kyc_selfie_url'] ?? null;
+        $professional->kycOcrData = $data['kyc_ocr_data'] ? json_decode($data['kyc_ocr_data'], true) : null;
+        $professional->kycLivenessData = $data['kyc_liveness_data'] ? json_decode($data['kyc_liveness_data'], true) : null;
+        $professional->kycFaceMatchData = $data['kyc_facematch_data'] ? json_decode($data['kyc_facematch_data'], true) : null;
+        $professional->kycRejectionReason = $data['kyc_rejection_reason'] ?? null;
+        $professional->kycAdminNotes = $data['kyc_admin_notes'] ?? null;
+        $professional->kycApprovedBy = $data['kyc_approved_by'] ? (int) $data['kyc_approved_by'] : null;
+        $professional->kycRejectedBy = $data['kyc_rejected_by'] ? (int) $data['kyc_rejected_by'] : null;
+        $professional->kycDocumentType = $data['kyc_document_type'] ?? null;
+        $professional->kycRetryCount = (int) ($data['kyc_retry_count'] ?? 0);
+        $professional->kycLastRetryAt = $data['kyc_last_retry_at'] ? new \DateTimeImmutable($data['kyc_last_retry_at']) : null;
 
         $professional->createdAt = new \DateTimeImmutable($data['created_at']);
         $professional->updatedAt = new \DateTimeImmutable($data['updated_at']);
@@ -415,6 +474,306 @@ class Professional
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new \InvalidArgumentException("Email inválido");
     }
 
+
+    // ========================================================================
+    // KYC (Know Your Customer) - Métodos de Verificação Biométrica
+    // ========================================================================
+
+    /**
+     * Inicia processo de KYC
+     */
+    public function startKyc(): void
+    {
+        if ($this->kycStatus !== 'not_started' && $this->kycStatus !== 'rejected') {
+            throw new \DomainException('KYC já iniciado ou aprovado');
+        }
+
+        if ($this->kycRetryCount >= 3) {
+            throw new \DomainException('Limite de tentativas de KYC excedido (3 tentativas). Contate o suporte.');
+        }
+
+        $this->kycStatus = 'pending';
+        $this->kycStartedAt = new \DateTimeImmutable();
+        $this->recordActivity();
+    }
+
+    /**
+     * Submete documentos para processamento KYC
+     */
+    public function submitKycDocuments(
+        string $documentUrl,
+        string $selfieUrl,
+        string $documentType
+    ): void {
+        if ($this->kycStatus !== 'pending') {
+            throw new \DomainException('KYC deve estar em status pending para submeter documentos');
+        }
+
+        $validTypes = ['rg', 'cnh', 'passport', 'other'];
+        if (!in_array($documentType, $validTypes, true)) {
+            throw new \InvalidArgumentException("Tipo de documento inválido: {$documentType}");
+        }
+
+        $this->kycDocumentUrl = $documentUrl;
+        $this->kycSelfieUrl = $selfieUrl;
+        $this->kycDocumentType = $documentType;
+        $this->kycSubmittedAt = new \DateTimeImmutable();
+        $this->kycStatus = 'processing';
+        $this->recordActivity();
+    }
+
+    /**
+     * Armazena resultado do OCR (extraído do documento)
+     */
+    public function storeOcrData(array $ocrData): void
+    {
+        $this->kycOcrData = $ocrData;
+        $this->recordActivity();
+    }
+
+    /**
+     * Armazena resultado do Liveness Detection
+     */
+    public function storeLivenessData(array $livenessData): void
+    {
+        $this->kycLivenessData = $livenessData;
+        $this->recordActivity();
+    }
+
+    /**
+     * Armazena resultado do Face Match
+     */
+    public function storeFaceMatchData(array $faceMatchData): void
+    {
+        $this->kycFaceMatchData = $faceMatchData;
+        $this->recordActivity();
+    }
+
+    /**
+     * Aprova KYC (automaticamente ou manualmente pelo admin)
+     */
+    public function approveKyc(?int $approvedBy = null, int $validityMonths = 24): void
+    {
+        if ($this->kycStatus !== 'processing' && $this->kycStatus !== 'pending') {
+            throw new \DomainException('KYC deve estar em processing ou pending para aprovar');
+        }
+
+        $this->kycStatus = 'approved';
+        $this->kycApprovedAt = new \DateTimeImmutable();
+        $this->kycApprovedBy = $approvedBy;
+        $this->kycExpiresAt = (new \DateTimeImmutable())->modify("+{$validityMonths} months");
+        $this->kycRejectionReason = null;
+        $this->kycRetryCount = 0; // Reset retry count on approval
+        $this->recordActivity();
+    }
+
+    /**
+     * Rejeita KYC (falha na validação biométrica ou manual)
+     */
+    public function rejectKyc(string $reason, ?int $rejectedBy = null): void
+    {
+        if ($this->kycStatus !== 'processing' && $this->kycStatus !== 'pending') {
+            throw new \DomainException('KYC deve estar em processing ou pending para rejeitar');
+        }
+
+        $this->kycStatus = 'rejected';
+        $this->kycRejectedAt = new \DateTimeImmutable();
+        $this->kycRejectedBy = $rejectedBy;
+        $this->kycRejectionReason = $reason;
+        $this->kycRetryCount++;
+        $this->kycLastRetryAt = new \DateTimeImmutable();
+        $this->recordActivity();
+    }
+
+    /**
+     * Adiciona notas do admin sobre o KYC
+     */
+    public function addKycAdminNotes(string $notes): void
+    {
+        $timestamp = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $existingNotes = $this->kycAdminNotes ?? '';
+        
+        $this->kycAdminNotes = $existingNotes 
+            ? "{$existingNotes}\n\n[{$timestamp}] {$notes}"
+            : "[{$timestamp}] {$notes}";
+        
+        $this->recordActivity();
+    }
+
+    /**
+     * Verifica se KYC está expirado
+     */
+    public function isKycExpired(): bool
+    {
+        if ($this->kycStatus !== 'approved') {
+            return false;
+        }
+
+        if ($this->kycExpiresAt === null) {
+            return false;
+        }
+
+        return $this->kycExpiresAt < new \DateTimeImmutable();
+    }
+
+    /**
+     * Marca KYC como expirado (executado por cron job)
+     */
+    public function expireKyc(): void
+    {
+        if ($this->kycStatus !== 'approved') {
+            throw new \DomainException('Apenas KYC aprovado pode expirar');
+        }
+
+        if (!$this->isKycExpired()) {
+            throw new \DomainException('KYC ainda não expirou');
+        }
+
+        $this->kycStatus = 'expired';
+        $this->recordActivity();
+    }
+
+    /**
+     * Verifica se profissional pode aceitar offers (KYC aprovado e não expirado)
+     */
+    public function canAcceptOffers(): bool
+    {
+        // KYC deve estar aprovado
+        if ($this->kycStatus !== 'approved') {
+            return false;
+        }
+
+        // KYC não pode estar expirado
+        if ($this->isKycExpired()) {
+            return false;
+        }
+
+        // Profissional deve estar ativo e verificado
+        if (!$this->isActive || !$this->isVerified) {
+            return false;
+        }
+
+        // Não pode estar suspenso
+        if ($this->isSuspended()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // ========================================================================
+    // KYC Getters
+    // ========================================================================
+
+    public function getKycStatus(): string
+    {
+        return $this->kycStatus;
+    }
+
+    public function getKycStartedAt(): ?\DateTimeImmutable
+    {
+        return $this->kycStartedAt;
+    }
+
+    public function getKycSubmittedAt(): ?\DateTimeImmutable
+    {
+        return $this->kycSubmittedAt;
+    }
+
+    public function getKycApprovedAt(): ?\DateTimeImmutable
+    {
+        return $this->kycApprovedAt;
+    }
+
+    public function getKycRejectedAt(): ?\DateTimeImmutable
+    {
+        return $this->kycRejectedAt;
+    }
+
+    public function getKycExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->kycExpiresAt;
+    }
+
+    public function getKycDocumentUrl(): ?string
+    {
+        return $this->kycDocumentUrl;
+    }
+
+    public function getKycSelfieUrl(): ?string
+    {
+        return $this->kycSelfieUrl;
+    }
+
+    public function getKycOcrData(): ?array
+    {
+        return $this->kycOcrData;
+    }
+
+    public function getKycLivenessData(): ?array
+    {
+        return $this->kycLivenessData;
+    }
+
+    public function getKycFaceMatchData(): ?array
+    {
+        return $this->kycFaceMatchData;
+    }
+
+    public function getKycRejectionReason(): ?string
+    {
+        return $this->kycRejectionReason;
+    }
+
+    public function getKycAdminNotes(): ?string
+    {
+        return $this->kycAdminNotes;
+    }
+
+    public function getKycApprovedBy(): ?int
+    {
+        return $this->kycApprovedBy;
+    }
+
+    public function getKycRejectedBy(): ?int
+    {
+        return $this->kycRejectedBy;
+    }
+
+    public function getKycDocumentType(): ?string
+    {
+        return $this->kycDocumentType;
+    }
+
+    public function getKycRetryCount(): int
+    {
+        return $this->kycRetryCount;
+    }
+
+    public function getKycLastRetryAt(): ?\DateTimeImmutable
+    {
+        return $this->kycLastRetryAt;
+    }
+
+    /**
+     * Retorna informações resumidas do KYC para exibição
+     */
+    public function getKycSummary(): array
+    {
+        return [
+            'status' => $this->kycStatus,
+            'started_at' => $this->kycStartedAt?->format('Y-m-d H:i:s'),
+            'submitted_at' => $this->kycSubmittedAt?->format('Y-m-d H:i:s'),
+            'approved_at' => $this->kycApprovedAt?->format('Y-m-d H:i:s'),
+            'rejected_at' => $this->kycRejectedAt?->format('Y-m-d H:i:s'),
+            'expires_at' => $this->kycExpiresAt?->format('Y-m-d H:i:s'),
+            'is_expired' => $this->isKycExpired(),
+            'can_accept_offers' => $this->canAcceptOffers(),
+            'retry_count' => $this->kycRetryCount,
+            'rejection_reason' => $this->kycRejectionReason,
+            'document_type' => $this->kycDocumentType,
+        ];
+    }
     public function __toString(): string
     {
         return sprintf('Professional(id: %d, name: %s, score: %.2f)', $this->id ?? 0, $this->fullName, $this->score);
