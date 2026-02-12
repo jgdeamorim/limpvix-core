@@ -42,3 +42,27 @@ tmp/
 temp/
 _temp-tests/
 *.backup
+
+# Project-specific backups
+*.bak2
+*.bak3
+*.bak4
+*.old
+*.obsolete
+*.OBSOLETE
+*.before_*
+*_PATCH.txt
+
+# Diagnostics
+diagnostics/
+tests/diagnostics/
+
+# Archived docs
+docs-archive/
+
+# Legacy scripts
+scripts/legacy-migrations/
+
+# PHPUnit
+.phpunit.result.cache
+coverage/
