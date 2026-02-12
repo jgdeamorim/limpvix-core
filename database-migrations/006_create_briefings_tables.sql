@@ -44,12 +44,14 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_briefings (
     INDEX idx_user_id (user_id),
     INDEX idx_status (status),
     INDEX idx_created_at (created_at),
-    INDEX idx_locked_at (locked_at),
+    INDEX idx_locked_at (locked_at)
 
-    -- Foreign key para WordPress users
-    CONSTRAINT fk_briefing_user FOREIGN KEY (user_id) REFERENCES wp_users(ID) ON DELETE CASCADE
+    -- Foreign key para WordPress users (soft reference - external table)
+    -- FK removed for compatibility - wp_users may have different ENGINE/charset in some WordPress installations
+    -- Referential integrity enforced at application layer
+    -- CONSTRAINT fk_briefing_user FOREIGN KEY (user_id) REFERENCES wp_users(ID) ON DELETE CASCADE
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Briefings - Tabela principal';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Briefings - Tabela principal';
 
 -- =====================================================
 -- Tabela 2: wp_limpvix_briefing_data (Dados por step)
@@ -65,15 +67,13 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_briefing_data (
     -- Índices
     UNIQUE KEY unique_briefing_key (briefing_uuid, data_key),
     INDEX idx_briefing_uuid (briefing_uuid),
-    INDEX idx_data_key (data_key),
+    INDEX idx_data_key (data_key)
 
     -- Foreign key
-    CONSTRAINT fk_briefing_data_uuid
-        FOREIGN KEY (briefing_uuid)
-        REFERENCES wp_limpvix_briefings(uuid)
-        ON DELETE CASCADE
+    -- CONSTRAINT fk_briefing_data_uuid
+        -- FOREIGN KEY (briefing_uuid)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Briefing Data - Dados JSON por step';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Briefing Data - Dados JSON por step';
 
 -- =====================================================
 -- Tabela 3: wp_limpvix_briefing_ledger (Event Sourcing)
@@ -103,41 +103,19 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_briefing_ledger (
     INDEX idx_briefing_uuid (briefing_uuid),
     INDEX idx_event_type (event_type),
     INDEX idx_occurred_at (occurred_at),
-    INDEX idx_actor (actor, actor_id),
+    INDEX idx_actor (actor, actor_id)
 
     -- Foreign key
-    CONSTRAINT fk_briefing_ledger_uuid
-        FOREIGN KEY (briefing_uuid)
-        REFERENCES wp_limpvix_briefings(uuid)
-        ON DELETE CASCADE
+    -- CONSTRAINT fk_briefing_ledger_uuid
+        -- FOREIGN KEY (briefing_uuid)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Briefing Ledger - Event Sourcing (append-only)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Briefing Ledger - Event Sourcing (append-only)';
 
 -- =====================================================
--- Triggers para updated_at automático
+-- Triggers para updated_at automático (REMOVIDOS - incompatível com multi_query)
 -- =====================================================
-
--- Trigger para wp_limpvix_briefings
-DROP TRIGGER IF EXISTS before_update_briefings;
-DELIMITER //
-CREATE TRIGGER before_update_briefings
-BEFORE UPDATE ON wp_limpvix_briefings
-FOR EACH ROW
-BEGIN
-    SET NEW.updated_at = NOW();
-END//
-DELIMITER ;
-
--- Trigger para wp_limpvix_briefing_data
-DROP TRIGGER IF EXISTS before_update_briefing_data;
-DELIMITER //
-CREATE TRIGGER before_update_briefing_data
-BEFORE UPDATE ON wp_limpvix_briefing_data
-FOR EACH ROW
-BEGIN
-    SET NEW.updated_at = NOW();
-END//
-DELIMITER ;
+-- Triggers removidos para compatibilidade com mysqli_multi_query()
+-- WordPress usa ON UPDATE CURRENT_TIMESTAMP nas colunas updated_at
 
 -- =====================================================
 -- Comentários finais

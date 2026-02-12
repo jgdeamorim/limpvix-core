@@ -105,13 +105,13 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professionals (
     INDEX idx_score (score DESC),
     INDEX idx_location (latitude, longitude),
     INDEX idx_active_verified (is_active, is_verified),
-    INDEX idx_acceptance_rate (acceptance_rate DESC),
+    INDEX idx_acceptance_rate (acceptance_rate DESC)
 
-    -- Foreign Keys
-    FOREIGN KEY (user_id) REFERENCES wp_users(ID) ON DELETE CASCADE,
-    FOREIGN KEY (verified_by) REFERENCES wp_users(ID) ON DELETE SET NULL
+    -- Foreign Keys (soft reference - external table)
+    -- FOREIGN KEY (user_id) REFERENCES wp_users(ID) ON DELETE CASCADE
+    -- FOREIGN KEY (verified_by) REFERENCES wp_users(ID) ON DELETE SET NULL
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT 'Profissionais autônomos da plataforma marketplace';
 
 
@@ -150,13 +150,13 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professional_allocations_history (
     INDEX idx_contract (contract_id),
     INDEX idx_professional (professional_id),
     INDEX idx_dates (allocated_at, deallocated_at),
-    INDEX idx_deallocation_reason (deallocation_reason),
+    INDEX idx_deallocation_reason (deallocation_reason)
 
-    -- Foreign Keys
-    FOREIGN KEY (contract_id) REFERENCES wp_limpvix_contracts(id) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_limpvix_professionals(id) ON DELETE CASCADE
+    -- Foreign Keys (soft references for maximum compatibility)
+    -- FOREIGN KEY (contract_id) REFERENCES wp_limpvix_contracts(id) ON DELETE CASCADE
+    -- FOREIGN KEY (professional_id) REFERENCES wp_limpvix_professionals(id) ON DELETE CASCADE
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT 'Histórico de alocações de profissionais em contratos';
 
 
@@ -184,120 +184,4 @@ ADD COLUMN allocated_professional_id BIGINT UNSIGNED NULL COMMENT 'FK para wp_li
 ADD COLUMN allocation_status VARCHAR(50) DEFAULT 'pending' COMMENT 'pending|allocated|rejected|reallocating',
 ADD COLUMN allocation_attempts INT DEFAULT 0 COMMENT 'Tentativas de alocação',
 ADD COLUMN last_allocation_attempt DATETIME NULL,
-ADD INDEX idx_allocated_professional (allocated_professional_id),
-ADD FOREIGN KEY (allocated_professional_id) REFERENCES wp_limpvix_professionals(id) ON DELETE SET NULL;
-
-
--- 5. TABELA DE OFERTAS (para sistema first-to-accept)
--- ============================================================================
--- Profissionais recebem ofertas e podem aceitar/rejeitar
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS wp_limpvix_contract_offers (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    contract_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_contracts.id',
-    professional_id BIGINT UNSIGNED NOT NULL COMMENT 'FK para wp_limpvix_professionals.id (PK, NÃO user_id)',
-
-    -- Score de Alocação (calculado pelo algoritmo)
-    allocation_score DECIMAL(5,2) NOT NULL COMMENT '0-100, score de match do profissional',
-    proximity_score DECIMAL(5,2) NOT NULL COMMENT 'Score de proximidade (40%)',
-    availability_score DECIMAL(5,2) NOT NULL COMMENT 'Score de disponibilidade (30%)',
-    rating_score DECIMAL(5,2) NOT NULL COMMENT 'Score de rating (20%)',
-    workload_score DECIMAL(5,2) NOT NULL COMMENT 'Score de carga de trabalho (10%)',
-
-    -- Status da Oferta
-    status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending|accepted|rejected|expired',
-
-    -- Timestamps
-    offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME NOT NULL COMMENT 'Oferta expira após X minutos',
-    responded_at DATETIME NULL,
-
-    -- Motivo de Rejeição
-    rejection_reason VARCHAR(100) NULL COMMENT 'too_far|busy|not_interested|other',
-    rejection_notes TEXT NULL,
-
-    -- Indexes
-    INDEX idx_contract (contract_id),
-    INDEX idx_professional (professional_id),
-    INDEX idx_status (status),
-    INDEX idx_expires_at (expires_at),
-    UNIQUE KEY unique_contract_professional (contract_id, professional_id),
-
-    -- Foreign Keys
-    FOREIGN KEY (contract_id) REFERENCES wp_limpvix_contracts(id) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_limpvix_professionals(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT 'Ofertas de contratos enviadas para profissionais';
-
-
--- 6. TABELA DE SCORE HISTORY (para auditoria de score)
--- ============================================================================
--- Registra todas mudanças de score com motivo
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS wp_limpvix_professional_score_history (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    professional_id BIGINT UNSIGNED NOT NULL,
-
-    -- Score
-    old_score DECIMAL(3,2) NOT NULL,
-    new_score DECIMAL(3,2) NOT NULL,
-    score_change DECIMAL(3,2) NOT NULL COMMENT 'Pode ser negativo',
-
-    -- Motivo da mudança
-    change_reason VARCHAR(100) NOT NULL COMMENT 'feedback|late_checkin|no_show|good_execution|epi_violation',
-    related_contract_id BIGINT UNSIGNED NULL,
-    related_execution_id BIGINT UNSIGNED NULL,
-
-    -- Detalhes
-    change_details JSON NULL COMMENT 'Dados extras sobre o motivo',
-
-    -- Timestamps
-    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    changed_by VARCHAR(50) DEFAULT 'system' COMMENT 'system|admin|client',
-
-    -- Indexes
-    INDEX idx_professional (professional_id),
-    INDEX idx_changed_at (changed_at),
-    INDEX idx_reason (change_reason),
-
-    -- Foreign Keys
-    FOREIGN KEY (professional_id) REFERENCES wp_limpvix_professionals(id) ON DELETE CASCADE
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT 'Histórico de mudanças de score dos profissionais';
-
-
--- 7. INSERIR ROLE DE PROFISSIONAL NO WORDPRESS
--- ============================================================================
-
--- Nota: Esta parte será executada via PHP (add_role)
--- Aqui apenas documentamos a estrutura esperada
-
-/*
-Role: 'limpvix_professional'
-Capabilities:
-- read (acesso ao painel)
-- limpvix_view_offers (ver ofertas)
-- limpvix_accept_offers (aceitar ofertas)
-- limpvix_checkin (fazer check-in)
-- limpvix_checkout (fazer checkout)
-- limpvix_view_schedule (ver agenda)
-- limpvix_update_profile (atualizar perfil)
-*/
-
-
--- ============================================================================
--- FIM DA MIGRATION 010
--- ============================================================================
-
--- CHANGELOG:
--- v0.2.0 - 2026-02-09 - Criação inicial do módulo de profissionais
---   - Tabela wp_limpvix_professionals
---   - Tabela wp_limpvix_professional_allocations_history
---   - Campos de recorrência em wp_limpvix_briefings
---   - Vinculação de profissionais em wp_limpvix_contracts
---   - Sistema de ofertas (wp_limpvix_contract_offers)
---   - Histórico de score (wp_limpvix_professional_score_history)
+ADD INDEX idx_allocated_professional (allocated_professional_id)

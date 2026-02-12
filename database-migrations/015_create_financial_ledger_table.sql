@@ -49,9 +49,9 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_financial_ledger (
     KEY idx_professional_event (professional_id, event_type),
     KEY idx_dispute_resolved (professional_id, event_type, resolved)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Ledger financeiro imutável para auditoria';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Ledger financeiro imutável para auditoria';
 
--- Registrar versão da migration
-INSERT INTO wp_options (option_name, option_value, autoload)
-VALUES ('limpvix_db_version_financial_ledger', '1.0.0', 'no')
-ON DUPLICATE KEY UPDATE option_value = '1.0.0';
+-- Registrar versão da migration (COMENTADO - requer WordPress instalado)
+-- INSERT INTO wp_options (option_name, option_value, autoload)
+-- VALUES ('limpvix_db_version_financial_ledger', '1.0.0', 'no')
+-- ON DUPLICATE KEY UPDATE option_value = '1.0.0';

@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_message_templates (
     INDEX idx_is_active (is_active),
     INDEX idx_created_at (created_at)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Message Templates - Templates versionados';
 
 -- =====================================================
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_message_log (
     INDEX idx_created_at (created_at),
     INDEX idx_failed_at (failed_at)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Message Log - Histórico de envios (append-only)';
 
 -- =====================================================
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_message_queue (
     INDEX idx_scheduled_at (scheduled_at),
     INDEX idx_status_scheduled (status, scheduled_at)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Message Queue - Fila de retry';
 
 -- =====================================================

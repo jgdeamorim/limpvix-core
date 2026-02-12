@@ -36,14 +36,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_recurring_payments (
     INDEX idx_status (status),
     INDEX idx_due_date (due_date),
     INDEX idx_gateway_transaction_id (gateway_transaction_id),
-    UNIQUE INDEX idx_contract_cycle (contract_id, billing_cycle_number),
+    UNIQUE INDEX idx_contract_cycle (contract_id, billing_cycle_number)
 
-    CONSTRAINT fk_recurring_payment_contract
-        FOREIGN KEY (contract_id)
-        REFERENCES wp_limpvix_contracts(id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    -- CONSTRAINT fk_recurring_payment_contract
+        -- FOREIGN KEY (contract_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Recurring payments for contract renewals - automatic billing';
 
 -- ================================================================

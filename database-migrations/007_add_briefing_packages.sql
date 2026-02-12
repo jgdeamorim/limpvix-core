@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_package_configs (
 
     UNIQUE KEY unique_package_type (package_type),
     INDEX idx_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Configuração de pacotes de serviço';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Configuração de pacotes de serviço';
 
 -- 4. Inserir pacotes padrão (INSERT IGNORE para idempotência)
 INSERT IGNORE INTO wp_limpvix_package_configs (

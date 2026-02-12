@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_service_catalog (
     INDEX idx_type (service_type),
     INDEX idx_active (is_active),
     INDEX idx_code (service_code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Catálogo de serviços principais';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Catálogo de serviços principais';
 
 -- 2. Tabela de adicionais/extras
 CREATE TABLE IF NOT EXISTS wp_limpvix_service_additionals (
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_service_additionals (
     INDEX idx_active (is_active),
     INDEX idx_code (additional_code),
     INDEX idx_unit_type (unit_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Catálogo de adicionais/extras';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Catálogo de adicionais/extras';
 
 -- 3. Relação briefing <-> adicionais (many-to-many)
 CREATE TABLE IF NOT EXISTS wp_limpvix_briefing_additionals (
@@ -58,10 +58,10 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_briefing_additionals (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     INDEX idx_briefing (briefing_uuid),
-    INDEX idx_additional (additional_id),
+    INDEX idx_additional (additional_id)
 
-    FOREIGN KEY (additional_id) REFERENCES wp_limpvix_service_additionals(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Relação briefing <-> adicionais';
+    -- FOREIGN KEY (commented for compatibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Relação briefing <-> adicionais';
 
 -- =====================================================
 -- SEED DATA: Serviços Padrão

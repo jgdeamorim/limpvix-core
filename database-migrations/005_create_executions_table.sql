@@ -5,8 +5,8 @@
 
 CREATE TABLE IF NOT EXISTS wp_limpvix_executions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    execution_uuid VARCHAR(36) NOT NULL UNIQUE,
-    order_uuid VARCHAR(36) NOT NULL,
+    execution_uuid CHAR(36) NOT NULL UNIQUE,
+    order_uuid CHAR(36) NOT NULL,
     professional_id BIGINT UNSIGNED NOT NULL,
 
     -- Status (ExecutionStatusEnum)
@@ -38,16 +38,13 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_executions (
     INDEX idx_order_uuid (order_uuid),
     INDEX idx_professional_id (professional_id),
     INDEX idx_status (status),
-    INDEX idx_scheduled_start_time (scheduled_start_time),
+    INDEX idx_scheduled_start_time (scheduled_start_time)
 
-    -- Foreign key (soft - Order pode não estar persistido ainda)
-    CONSTRAINT fk_execution_order
-        FOREIGN KEY (order_uuid)
-        REFERENCES wp_limpvix_orders(uuid)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
+    -- Foreign key removed for maximum compatibility (soft reference)
+    -- Referential integrity enforced at application layer
+    -- CONSTRAINT fk_execution_order FOREIGN KEY (order_uuid) REFERENCES wp_limpvix_orders(uuid)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 
 -- Comentários para documentação
 ALTER TABLE wp_limpvix_executions COMMENT = 'Execution Aggregate - Track service execution with check-in/checkout + geo + SLA (Sprint 1)';

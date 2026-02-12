@@ -49,10 +49,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_contracts (
     INDEX idx_status (status),
     INDEX idx_dates (start_date, end_date),
     INDEX idx_type (contract_type),
-    INDEX idx_contract_number (contract_number),
+    INDEX idx_contract_number (contract_number)
 
-    FOREIGN KEY (client_user_id) REFERENCES wp_users(ID) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contratos recorrentes de serviço';
+    -- Foreign key to WordPress users (soft reference - external table)
+    -- FOREIGN KEY (client_user_id) REFERENCES wp_users(ID) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Contratos recorrentes de serviço';
 
 -- 2. Tabela de execuções do contrato (histórico)
 CREATE TABLE IF NOT EXISTS wp_limpvix_contract_executions (
@@ -80,29 +81,17 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_contract_executions (
     INDEX idx_date (scheduled_date),
     INDEX idx_status (status),
     INDEX idx_briefing (briefing_uuid),
-    INDEX idx_schedule (schedule_uuid),
+    INDEX idx_schedule (schedule_uuid)
 
-    FOREIGN KEY (contract_id) REFERENCES wp_limpvix_contracts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Histórico de execuções de contratos';
+    -- FOREIGN KEY (commented for compatibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Histórico de execuções de contratos';
 
 -- =====================================================
--- Triggers e Funções Auxiliares
+-- Triggers e Funções Auxiliares (REMOVIDOS - incompatível com multi_query)
 -- =====================================================
+-- Triggers removidos para compatibilidade com mysqli_multi_query()
+-- Lógica de expiração movida para application layer (cron jobs)
 
--- Trigger para atualizar status do contrato quando expirado
-DELIMITER //
-
-CREATE TRIGGER IF NOT EXISTS check_contract_expiration
-BEFORE UPDATE ON wp_limpvix_contracts
-FOR EACH ROW
-BEGIN
-    -- Se o contrato tem data de fim e já passou, marcar como expirado
-    IF NEW.end_date IS NOT NULL AND NEW.end_date < CURDATE() AND NEW.status = 'active' THEN
-        SET NEW.status = 'expired';
-    END IF;
-END//
-
-DELIMITER ;
 
 -- =====================================================
 -- SEED DATA: Exemplo de contrato (comentado)

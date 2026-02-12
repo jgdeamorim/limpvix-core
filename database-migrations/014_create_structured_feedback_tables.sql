@@ -42,11 +42,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_structured_feedbacks (
     INDEX idx_status (status),
     INDEX idx_final_score (final_score),
     INDEX idx_service_category (service_category),
-    INDEX idx_submitted_at (submitted_at),
+    INDEX idx_submitted_at (submitted_at)
 
-    FOREIGN KEY (order_uuid) REFERENCES wp_limpvix_orders(uuid) ON DELETE CASCADE
+    -- FOREIGN KEY (commented for compatibility)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Structured Feedbacks - Feedback estruturado com checklist';
 
 -- =====================================================
@@ -75,12 +75,12 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_feedback_disputes (
     INDEX idx_order_uuid (order_uuid),
     INDEX idx_professional_id (professional_id),
     INDEX idx_status (status),
-    INDEX idx_created_at (created_at),
+    INDEX idx_created_at (created_at)
 
-    FOREIGN KEY (feedback_uuid) REFERENCES wp_limpvix_structured_feedbacks(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff(id)
+    -- FOREIGN KEY (commented for compatibility)
+    --     FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff -- EXTERNAL PLUGIN(id)
 
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci
 COMMENT='Feedback Disputes - Disputas/arbitragem de feedbacks';
 
 -- =====================================================

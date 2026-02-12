@@ -40,11 +40,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_schedules (
     INDEX idx_order_uuid (order_uuid),
     INDEX idx_status (status),
     INDEX idx_requested_time (requested_time),
-    INDEX idx_created_at (created_at),
+    INDEX idx_created_at (created_at)
 
-    -- Foreign Keys
-    FOREIGN KEY (order_uuid) REFERENCES wp_limpvix_orders(uuid) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agendamentos de serviços';
+    -- Foreign Keys (requires migration 001 to run first)
+    -- FOREIGN KEY (commented for compatibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Agendamentos de serviços';
 
 -- TABELA 2: wp_limpvix_professional_allocations
 -- Alocações de profissionais aos schedules
@@ -69,12 +69,12 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professional_allocations (
     INDEX idx_schedule_uuid (schedule_uuid),
     INDEX idx_professional_id (professional_id),
     INDEX idx_professional_date (professional_id, allocated_start),
-    INDEX idx_status (status),
+    INDEX idx_status (status)
 
     -- Foreign Keys
-    FOREIGN KEY (schedule_uuid) REFERENCES wp_limpvix_schedules(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Alocações de profissionais';
+    -- FOREIGN KEY (commented for compatibility)
+    --     FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff -- EXTERNAL PLUGIN(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Alocações de profissionais';
 
 -- TABELA 3: wp_limpvix_professional_availability
 -- Disponibilidade semanal dos profissionais
@@ -102,11 +102,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_professional_availability (
     INDEX idx_professional_id (professional_id),
     INDEX idx_day_of_week (day_of_week),
     INDEX idx_active (is_active),
-    UNIQUE KEY unique_professional_day (professional_id, day_of_week),
+    UNIQUE KEY unique_professional_day (professional_id, day_of_week)
 
     -- Foreign Keys
-    FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Disponibilidade semanal de profissionais';
+    --     FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff -- EXTERNAL PLUGIN(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Disponibilidade semanal de profissionais';
 
 -- TABELA 4: wp_limpvix_check_ins
 -- Check-ins dos profissionais
@@ -137,12 +137,12 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_check_ins (
     INDEX idx_uuid (uuid),
     INDEX idx_schedule_uuid (schedule_uuid),
     INDEX idx_professional_id (professional_id),
-    INDEX idx_timestamp (timestamp),
+    INDEX idx_timestamp (timestamp)
 
     -- Foreign Keys
-    FOREIGN KEY (schedule_uuid) REFERENCES wp_limpvix_schedules(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Check-ins de profissionais';
+    -- FOREIGN KEY (commented for compatibility)
+    --     FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff -- EXTERNAL PLUGIN(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Check-ins de profissionais';
 
 -- TABELA 5: wp_limpvix_check_outs
 -- Check-outs dos profissionais
@@ -168,13 +168,13 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_check_outs (
     INDEX idx_schedule_uuid (schedule_uuid),
     INDEX idx_professional_id (professional_id),
     INDEX idx_check_in_uuid (check_in_uuid),
-    INDEX idx_timestamp (timestamp),
+    INDEX idx_timestamp (timestamp)
 
     -- Foreign Keys
-    FOREIGN KEY (schedule_uuid) REFERENCES wp_limpvix_schedules(uuid) ON DELETE CASCADE,
-    FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff(id) ON DELETE CASCADE,
-    FOREIGN KEY (check_in_uuid) REFERENCES wp_limpvix_check_ins(uuid) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Check-outs de profissionais';
+    -- FOREIGN KEY (commented for compatibility)
+    --     FOREIGN KEY (professional_id) REFERENCES wp_bkntc_staff -- EXTERNAL PLUGIN(id) ON DELETE CASCADE
+    -- FOREIGN KEY (commented for compatibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Check-outs de profissionais';
 
 -- TABELA 6: wp_limpvix_scheduling_ledger
 -- Ledger de eventos do scheduling (append-only, auditoria)
@@ -202,11 +202,11 @@ CREATE TABLE IF NOT EXISTS wp_limpvix_scheduling_ledger (
     INDEX idx_ledger_uuid (ledger_uuid),
     INDEX idx_schedule_uuid (schedule_uuid),
     INDEX idx_event_type (event_type),
-    INDEX idx_occurred_at (occurred_at),
+    INDEX idx_occurred_at (occurred_at)
 
     -- Foreign Keys
-    FOREIGN KEY (schedule_uuid) REFERENCES wp_limpvix_schedules(uuid) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Ledger de eventos do scheduling (append-only)';
+    -- FOREIGN KEY (commented for compatibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci COMMENT='Ledger de eventos do scheduling (append-only)';
 
 -- =====================================================
 -- FIM DA MIGRATION
