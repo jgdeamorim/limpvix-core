@@ -48,7 +48,7 @@ class ContractManagementPage
     public function addMenu(): void
     {
         add_submenu_page(
-            'limpvix',
+            'limpvix-finance',
             'Contratos Recorrentes',
             'Contratos',
             'manage_options',

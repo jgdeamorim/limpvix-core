@@ -34,6 +34,7 @@ use LimpVix\Application\UseCase\Contract\CompleteContract;
 use LimpVix\Application\UseCase\Contract\ExpireContract;
 use LimpVix\Application\UseCase\Contract\RenewContract;
 use LimpVix\Application\UseCase\Contract\ScheduleNextExecution;
+use LimpVix\Infrastructure\Events\WordPressEventDispatcher;
 
 defined('ABSPATH') || exit;
 
@@ -119,6 +120,9 @@ final class ContractBootstrap
         // Registrar ContractNumberGenerator (SPRINT 7 - Item 1.8)
         $contractNumberGenerator = new \LimpVix\Application\Services\ContractNumberGenerator($wpdb);
 
+        // Registrar Event Dispatcher (ONDA 1 - Task #104)
+        $eventDispatcher = new WordPressEventDispatcher();
+
         // Registrar Use Cases
         $GLOBALS['limpvix_contract_use_cases'] = [
             'create' => new CreateContract($repository, $contractNumberGenerator),
@@ -127,11 +131,11 @@ final class ContractBootstrap
             'submit_for_allocation' => new SubmitForAllocation($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
-            'resume' => new ResumeContract($repository),
-            'cancel' => new CancelContract($repository),
-            'complete' => new CompleteContract($repository),
-            'expire' => new ExpireContract($repository),
-            'renew' => new RenewContract($repository),
+            'resume' => new ResumeContract($repository, $eventDispatcher),
+            'cancel' => new CancelContract($repository, $eventDispatcher),
+            'complete' => new CompleteContract($repository, $eventDispatcher),
+            'expire' => new ExpireContract($repository, $eventDispatcher),
+            'renew' => new RenewContract($repository, $eventDispatcher),
             'schedule_next' => new ScheduleNextExecution($repository),
         ];
 

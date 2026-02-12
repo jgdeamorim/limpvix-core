@@ -17,16 +17,21 @@
 namespace LimpVix\Application\UseCase\Contract;
 
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
+use LimpVix\Infrastructure\Events\WordPressEventDispatcher;
 
 defined('ABSPATH') || exit;
 
 final class ExpireContract
 {
     private ContractRepositoryInterface $repository;
+    private WordPressEventDispatcher $eventDispatcher;
 
-    public function __construct(ContractRepositoryInterface $repository)
-    {
+    public function __construct(
+        ContractRepositoryInterface $repository,
+        WordPressEventDispatcher $eventDispatcher
+    ) {
         $this->repository = $repository;
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     /**
@@ -50,9 +55,9 @@ final class ExpireContract
                 $contract->expire();
                 $this->repository->save($contract);
 
-                // Opcional: Dispatch events
+                // Dispatch events
                 $events = $contract->releaseEvents();
-                // TODO: Implementar Event Dispatcher
+                $this->eventDispatcher->dispatchAll($events);
 
                 $expiredCount++;
             }
