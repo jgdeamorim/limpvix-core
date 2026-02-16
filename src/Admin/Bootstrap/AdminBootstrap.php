@@ -3028,6 +3028,261 @@ class AdminBootstrap
                 transform: translateX(26px);
             }
         </style>
+
+        <!-- SEÇÃO: FLUXOS OPERACIONAIS -->
+        <div class="limpvix-card" style="margin-top: 30px;">
+            <div class="limpvix-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h3 style="color: white; margin: 0;">
+                    <span class="dashicons dashicons-admin-tools"></span>
+                    ⚙️ Fluxos Operacionais - Status do Sistema
+                </h3>
+                <p style="color: #f0f0f0; margin: 5px 0 0 0;">Monitoramento de fluxos operacionais de execução de serviços</p>
+            </div>
+            <div class="limpvix-card-body">
+                <!-- Resumo Geral -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;">
+                    <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 4px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #155724;">7</div>
+                        <div style="font-size: 12px; color: #155724;">COMPLETOS</div>
+                    </div>
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #856404;">1</div>
+                        <div style="font-size: 12px; color: #856404;">PARCIAL</div>
+                    </div>
+                    <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 4px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #721c24;">2</div>
+                        <div style="font-size: 12px; color: #721c24;">PENDENTES</div>
+                    </div>
+                    <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 4px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #0c5460;">70%</div>
+                        <div style="font-size: 12px; color: #0c5460;">COMPLETUDE</div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Fluxos Operacionais -->
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Status</th>
+                            <th style="width: 300px;">Fluxo Operacional</th>
+                            <th>Descrição</th>
+                            <th style="width: 100px;">Completude</th>
+                            <th style="width: 150px;">Gaps</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- FLUXO 1: Check-in Básico -->
+                        <tr>
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Check-in Básico</strong></td>
+                            <td>
+                                Validação de geofence (150m), time window (±60min), registro de chegada
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">Nenhum</td>
+                        </tr>
+
+                        <!-- FLUXO 2: Check-in com EPI -->
+                        <tr style="background: #fff3cd;">
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #ffc107;">⚠️</span>
+                            </td>
+                            <td><strong>Check-in com EPI</strong></td>
+                            <td>
+                                <strong style="color: #856404;">⚠️ IMPLEMENTADO (GAP #1)</strong><br>
+                                Validação de EPI video selfie obrigatório implementada (Sprint 1 - Dia 6)
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">✅ Completo (commit e9ae591)</td>
+                        </tr>
+
+                        <!-- FLUXO 3: Check-out Básico -->
+                        <tr>
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Check-out Básico</strong></td>
+                            <td>
+                                Registro de conclusão, validação de estado, cálculo de duração
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">Nenhum</td>
+                        </tr>
+
+                        <!-- FLUXO 4: Evidências no Check-out -->
+                        <tr>
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Evidências no Check-out</strong></td>
+                            <td>
+                                Professional adiciona fotos/vídeos ao concluir serviço
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">Nenhum</td>
+                        </tr>
+
+                        <!-- FLUXO 5: Evidências Durante Execução -->
+                        <tr>
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Evidências Durante Execução</strong></td>
+                            <td>
+                                Professional adiciona evidências durante trabalho (IN_PROGRESS)
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">Nenhum</td>
+                        </tr>
+
+                        <!-- FLUXO 6: Cliente Adiciona Evidências -->
+                        <tr style="background: #fff3cd;">
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #ffc107;">⚠️</span>
+                            </td>
+                            <td><strong>Cliente Adiciona Evidências</strong></td>
+                            <td>
+                                Cliente pode adicionar fotos de problemas encontrados
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #ffc107; color: #856404; padding: 3px 8px; border-radius: 3px; font-weight: bold;">60%</div>
+                            </td>
+                            <td style="color: #856404;">Sem endpoint específico</td>
+                        </tr>
+
+                        <!-- FLUXO 7: Categorização de Evidências (EPI, Local, Problema) -->
+                        <tr style="background: #d4edda;">
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Categorização de Evidências</strong></td>
+                            <td>
+                                <strong style="color: #155724;">✅ IMPLEMENTADO (GAP #2)</strong><br>
+                                Sistema de categorização: EPI check-in, EPI check-out, location, issue
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">✅ Completo (commit f9f9281)</td>
+                        </tr>
+
+                        <!-- FLUXO 8: Notificação ao Cliente (Check-in) -->
+                        <tr style="background: #f8d7da;">
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #dc3545;">❌</span>
+                            </td>
+                            <td><strong>Notificação ao Cliente (Check-in)</strong></td>
+                            <td>
+                                <strong style="color: #721c24;">GAP #3 (P1)</strong><br>
+                                Sistema de notificação quando professional faz check-in
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #dc3545; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">0%</div>
+                            </td>
+                            <td style="color: #721c24;">4-6h estimadas</td>
+                        </tr>
+
+                        <!-- FLUXO 9: Cliente Reporta Problemas -->
+                        <tr style="background: #f8d7da;">
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #dc3545;">❌</span>
+                            </td>
+                            <td><strong>Issue Reporting (Cliente + Professional)</strong></td>
+                            <td>
+                                <strong style="color: #721c24;">GAP #4 (P1)</strong><br>
+                                Sistema de reporte de problemas durante execução
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #dc3545; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">0%</div>
+                            </td>
+                            <td style="color: #721c24;">6-8h estimadas</td>
+                        </tr>
+
+                        <!-- FLUXO 10: Validation Workflow -->
+                        <tr>
+                            <td style="text-align: center;">
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
+                            </td>
+                            <td><strong>Validation Workflow</strong></td>
+                            <td>
+                                Transição de estados: CHECKED_IN → IN_PROGRESS → COMPLETED → VALIDATED
+                            </td>
+                            <td style="text-align: center;">
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
+                            </td>
+                            <td style="color: #28a745;">Nenhum</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Gaps P1 Identificados -->
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 4px; margin-top: 30px;">
+                    <h4 style="margin-top: 0;">📋 Gaps P1 Pendentes (Não-bloqueadores)</h4>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th style="width: 120px;">Gap</th>
+                                <th>Descrição</th>
+                                <th style="width: 100px;">Prioridade</th>
+                                <th style="width: 120px;">Estimativa</th>
+                                <th style="width: 150px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>GAP #3</strong></td>
+                                <td>
+                                    <strong>Notificação Check-in:</strong> Cliente recebe notificação quando professional chega
+                                </td>
+                                <td><span style="background: #ffc107; color: #856404; padding: 3px 8px; border-radius: 3px; font-size: 11px;">P1 ALTO</span></td>
+                                <td>4-6h</td>
+                                <td>⏳ Pós-launch</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GAP #4</strong></td>
+                                <td>
+                                    <strong>Issue Reporting:</strong> Sistema para reportar problemas durante execução
+                                </td>
+                                <td><span style="background: #ffc107; color: #856404; padding: 3px 8px; border-radius: 3px; font-size: 11px;">P1 MÉDIO</span></td>
+                                <td>6-8h</td>
+                                <td>⏳ Pós-launch</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Links para Documentação -->
+                <div style="background: #d1ecf1; padding: 15px; border-left: 4px solid #17a2b8; margin-top: 20px;">
+                    <h4 style="margin-top: 0;">📚 Documentação Relacionada</h4>
+                    <p style="margin-bottom: 10px;">
+                        <a href="/media/jeffer/5aab5a95-8290-d3f7-2e4f-8c27cc2d09a9/PROJETOS/LIMPVIX/WP/wp-limpo/ANALISE-FLUXOS-OPERACIONAIS-COMPLETA.md" target="_blank" class="button">
+                            📄 Análise Completa de Fluxos (2.254 linhas)
+                        </a>
+                        <a href="/media/jeffer/5aab5a95-8290-d3f7-2e4f-8c27cc2d09a9/PROJETOS/LIMPVIX/WP/wp-limpo/STATUS-FINAL-SISTEMA.md" target="_blank" class="button">
+                            ✅ Status Final do Sistema (100% Go-Live Ready)
+                        </a>
+                        <a href="/media/jeffer/5aab5a95-8290-d3f7-2e4f-8c27cc2d09a9/PROJETOS/LIMPVIX/WP/wp-limpo/GO-LIVE-100-PERCENT-READY.md" target="_blank" class="button">
+                            🚀 Go-Live 100% Ready Report
+                        </a>
+                    </p>
+                    <p style="margin: 0; font-size: 12px; color: #0c5460;">
+                        <strong>Próximos Passos:</strong> Implementar GAPs #3 e #4 (estimativa: 10-14h) para completar 100% dos fluxos operacionais.
+                    </p>
+                </div>
+            </div>
+        </div>
         <?php
     }
 
