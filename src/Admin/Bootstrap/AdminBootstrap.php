@@ -1754,8 +1754,24 @@ class AdminBootstrap
                            !empty(get_option('limpvix_twilio_auth_token'));
         $twilioFromNumber = get_option('limpvix_twilio_from_number', '');
 
-        // Provider ativo (pode ser selecionado via settings)
-        $activeProvider = get_option('limpvix_active_sms_provider', 'nvoip'); // nvoip ou twilio
+        // Verificar se NVoip está configurado
+        $nvoipConfigured = $providers['nvoip']['connected'] ?? false;
+
+        // Detectar provider ativo automaticamente
+        // Lógica: Se apenas um está configurado, ele é o ativo
+        // Se ambos estão configurados, usar a option 'limpvix_active_sms_provider'
+        // Se nenhum está configurado, mostrar 'nenhum'
+        if ($twilioConfigured && !$nvoipConfigured) {
+            $activeProvider = 'twilio';
+        } elseif ($nvoipConfigured && !$twilioConfigured) {
+            $activeProvider = 'nvoip';
+        } elseif ($twilioConfigured && $nvoipConfigured) {
+            // Ambos configurados, usar preferência salva
+            $activeProvider = get_option('limpvix_active_sms_provider', 'twilio');
+        } else {
+            // Nenhum configurado
+            $activeProvider = 'nenhum';
+        }
         ?>
 
         <!-- HERO CARD -->
