@@ -4040,88 +4040,145 @@ class AdminBootstrap
         // Inicializar CronMonitor
         $cronMonitor = new \LimpVix\Application\Services\CronMonitor();
 
-        // Lista de cron jobs do sistema
-        $cronJobs = [
-            'check_contract_expiration' => [
+        // Buscar cron jobs agendados DINAMICAMENTE do WordPress
+        $allCrons = _get_cron_array();
+        $limpvixCrons = [];
+
+        // Filtrar apenas cron jobs LimpVix
+        foreach ($allCrons as $timestamp => $cron_array) {
+            foreach ($cron_array as $hook => $details) {
+                if (strpos($hook, 'limpvix_') === 0) {
+                    $schedule_name = $details[array_key_first($details)]['schedule'] ?? 'single';
+                    $limpvixCrons[$hook] = [
+                        'hook' => $hook,
+                        'next_run' => $timestamp,
+                        'schedule_name' => $schedule_name,
+                        'is_overdue' => $timestamp < time(),
+                    ];
+                }
+            }
+        }
+
+        // Mapa de nomes amigáveis e descrições (baseado no hook name)
+        $cronMetadata = [
+            'limpvix_check_contract_expiration' => [
                 'name' => 'Verificar Contratos Expirando',
-                'schedule' => 'Diário (midnight)',
-                'max_age_hours' => 25,
                 'description' => 'Verifica contratos que estão próximos de expirar e envia notificações'
             ],
-            'process_review_timer' => [
+            'limpvix_process_review_timer' => [
                 'name' => 'Processar Timer de Reviews',
-                'schedule' => 'A cada hora',
-                'max_age_hours' => 2,
                 'description' => 'Processa timers de janela de feedback e reviews de clientes'
             ],
-            'send_feedback_reminders' => [
+            'limpvix_send_feedback_reminders' => [
                 'name' => 'Enviar Lembretes de Feedback',
-                'schedule' => 'A cada hora',
-                'max_age_hours' => 2,
                 'description' => 'Envia lembretes para clientes que ainda não deram feedback'
             ],
-            'process_payout_batch' => [
+            'limpvix_process_payout_batch' => [
                 'name' => 'Processar Batch de Payouts',
-                'schedule' => 'A cada hora',
-                'max_age_hours' => 2,
                 'description' => 'Processa lotes de payouts pendentes para profissionais'
             ],
-            'sync_payouts' => [
+            'limpvix_sync_payouts' => [
                 'name' => 'Sincronizar Payouts MercadoPago',
-                'schedule' => 'A cada 15 minutos',
-                'max_age_hours' => 1,
                 'description' => 'Sincroniza status de payouts com MercadoPago API'
             ],
-            'retry_failed_payouts' => [
+            'limpvix_retry_failed_payouts' => [
                 'name' => 'Retentar Payouts Falhos',
-                'schedule' => '2x ao dia',
-                'max_age_hours' => 13,
                 'description' => 'Tenta reprocessar payouts que falharam anteriormente'
             ],
-            'contracts_daily_check' => [
+            'limpvix_contracts_daily_check' => [
                 'name' => 'Check Diário de Contratos',
-                'schedule' => 'Diário (midnight)',
-                'max_age_hours' => 25,
                 'description' => 'Verificação diária de status e automações de contratos'
             ],
-            'contracts_weekly_briefing' => [
+            'limpvix_contracts_weekly_briefing' => [
                 'name' => 'Briefing Semanal de Contratos',
-                'schedule' => 'Semanal (domingo)',
-                'max_age_hours' => 169, // 7 dias + 1 hora
                 'description' => 'Gera briefing semanal de contratos ativos e métricas'
             ],
-            'fallback_send_offers' => [
+            'limpvix_fallback_send_offers' => [
                 'name' => 'Fallback Envio de Offers',
-                'schedule' => 'A cada hora',
-                'max_age_hours' => 2,
                 'description' => 'Fallback para garantir envio de offers aos profissionais'
             ],
-            'clean_message_queue' => [
+            'limpvix_clean_message_queue' => [
                 'name' => 'Limpar Fila de Mensagens',
-                'schedule' => 'Diário',
-                'max_age_hours' => 25,
                 'description' => 'Remove mensagens antigas e processadas da fila'
             ],
-            'mp_periodic_sync' => [
+            'limpvix_mp_periodic_sync' => [
                 'name' => 'Sincronização MercadoPago',
-                'schedule' => 'A cada 5 minutos',
-                'max_age_hours' => 1,
                 'description' => 'Sincronização periódica de dados com MercadoPago'
+            ],
+            'limpvix_charge_recurring_payments' => [
+                'name' => 'Cobrar Pagamentos Recorrentes',
+                'description' => 'Processa cobranças automáticas de contratos recorrentes'
+            ],
+            'limpvix_reconcile_payouts' => [
+                'name' => 'Reconciliar Payouts',
+                'description' => 'Reconcilia status de payouts com gateway de pagamento'
+            ],
+            'limpvix_payment_authorization_timeout' => [
+                'name' => 'Timeout de Autorização de Pagamento',
+                'description' => 'Verifica e processa timeouts de autorização de pagamento'
             ],
         ];
 
-        // Obter status de todos os jobs
+        // Calcular threshold baseado no schedule
+        $scheduleThresholds = [
+            'limpvix_five_minutes' => 0.5, // 30 minutos
+            'every_15_minutes' => 1, // 1 hora
+            'hourly' => 2, // 2 horas
+            'twicedaily' => 13, // 13 horas
+            'daily' => 25, // 25 horas
+            'limpvix_daily' => 25, // 25 horas
+            'weekly' => 169, // 7 dias + 1 hora
+            'limpvix_6hours' => 7, // 7 horas
+        ];
+
+        // Obter status de todos os jobs AGENDADOS
         $allStatuses = [];
         $healthyCount = 0;
         $warningCount = 0;
         $criticalCount = 0;
         $unknownCount = 0;
 
-        foreach ($cronJobs as $jobKey => $jobInfo) {
-            $status = $cronMonitor->getJobStatus($jobKey, $jobInfo['max_age_hours']);
-            $status['schedule'] = $jobInfo['schedule'];
-            $status['description'] = $jobInfo['description'];
-            $status['display_name'] = $jobInfo['name'];
+        foreach ($limpvixCrons as $hook => $cronInfo) {
+            // Remover prefixo limpvix_ para usar como job key no CronMonitor
+            $jobKey = str_replace('limpvix_', '', $hook);
+
+            // Obter threshold baseado no schedule
+            $maxAgeHours = $scheduleThresholds[$cronInfo['schedule_name']] ?? 25;
+
+            // Obter status do CronMonitor
+            $status = $cronMonitor->getJobStatus($jobKey, $maxAgeHours);
+
+            // Adicionar informações do cron agendado
+            $status['hook'] = $hook;
+            $status['schedule_name'] = $cronInfo['schedule_name'];
+            $status['next_run'] = date('Y-m-d H:i:s', $cronInfo['next_run']);
+            $status['is_overdue'] = $cronInfo['is_overdue'];
+
+            // Converter schedule name para display amigável
+            $schedules = wp_get_schedules();
+            if (isset($schedules[$cronInfo['schedule_name']])) {
+                $status['schedule'] = $schedules[$cronInfo['schedule_name']]['display'];
+            } else {
+                $status['schedule'] = ucfirst(str_replace('_', ' ', $cronInfo['schedule_name']));
+            }
+
+            // Adicionar metadata (nome e descrição)
+            if (isset($cronMetadata[$hook])) {
+                $status['display_name'] = $cronMetadata[$hook]['name'];
+                $status['description'] = $cronMetadata[$hook]['description'];
+            } else {
+                // Fallback: usar o hook name como display name
+                $status['display_name'] = ucwords(str_replace(['limpvix_', '_'], ['', ' '], $hook));
+                $status['description'] = 'Cron job registrado no sistema';
+            }
+
+            // Se está atrasado, forçar health para critical
+            if ($cronInfo['is_overdue'] && $status['health'] !== 'healthy') {
+                $status['health'] = 'critical';
+                $hoursLate = round((time() - $cronInfo['next_run']) / 3600, 1);
+                $status['message'] = "Cron atrasado em {$hoursLate}h (deveria ter executado em {$status['next_run']})";
+            }
+
             $allStatuses[] = $status;
 
             // Contar por health
@@ -4140,7 +4197,7 @@ class AdminBootstrap
             }
         }
 
-        $totalJobs = count($cronJobs);
+        $totalJobs = count($limpvixCrons);
         $healthPercentage = $totalJobs > 0 ? round(($healthyCount / $totalJobs) * 100) : 0;
 
         // Verificar ações pendentes no Action Scheduler (simulado - precisa do plugin Action Scheduler)
