@@ -212,6 +212,46 @@ class Execution
         $this->status = ExecutionStatusEnum::VALIDATED;
     }
 
+    /**
+     * Check if execution can be validated
+     *
+     * Helper method to verify if execution meets all preconditions
+     * for validation without performing the actual transition.
+     *
+     * PRECONDITIONS:
+     * - Status must be CHECKED_OUT
+     * - Evidence must be present
+     * - Check-in must have occurred
+     * - Check-out must have occurred
+     *
+     * @return bool True if execution can be validated, false otherwise
+     * @since 1.0.0 (Validation Workflow - Flow #10)
+     */
+    public function canBeValidated(): bool
+    {
+        // Must be in CHECKED_OUT status
+        if ($this->status !== ExecutionStatusEnum::CHECKED_OUT) {
+            return false;
+        }
+
+        // Evidence must be present
+        if ($this->evidence === null || $this->evidence->isEmpty()) {
+            return false;
+        }
+
+        // Check-in must have occurred
+        if ($this->checkInAt === null) {
+            return false;
+        }
+
+        // Check-out must have occurred
+        if ($this->checkOutAt === null) {
+            return false;
+        }
+
+        return true;
+    }
+
     // ========================================
     // ISSUE REPORTING (GAP #4)
     // ========================================
