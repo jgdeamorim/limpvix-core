@@ -1,0 +1,634 @@
+<?php
+/**
+ * WpBriefingRepository - Implementação WordPress do BriefingRepositoryInterface
+ *
+ * RESPONSABILIDADE:
+ * - Persistir/recuperar Briefings no banco de dados WordPress
+ * - Hidratação: DB arrays → Value Objects → Briefing
+ * - Desidratação: Briefing → Value Objects → DB arrays
+ * - Gerenciar 3 tabelas: briefings, briefing_data, briefing_ledger
+ *
+ * PADRÕES:
+ * - Repository Pattern
+ * - Hidratação/Desidratação completa
+ * - Transações para integridade
+ * - JSON para dados complexos (estrutura, frequência, etc)
+ *
+ * @package LimpVix\Infrastructure\Persistence
+ * @since 0.2.0
+ */
+
+namespace LimpVix\Infrastructure\Persistence;
+
+use LimpVix\Domain\Briefing\Briefing;
+use LimpVix\Domain\Briefing\BriefingStatus;
+use LimpVix\Domain\Briefing\PropertyType;
+use LimpVix\Domain\Briefing\PropertyStructure;
+use LimpVix\Domain\Briefing\Frequency;
+use LimpVix\Domain\Briefing\EstimatedMetrics;
+use LimpVix\Domain\Briefing\Package;
+use LimpVix\Domain\Briefing\PackageType;
+use LimpVix\Domain\Briefing\Complexity;
+use LimpVix\Domain\Briefing\ComplexityLevel;
+use LimpVix\Domain\Briefing\BriefingRepositoryInterface;
+
+defined('ABSPATH') || exit;
+
+class WpBriefingRepository implements BriefingRepositoryInterface
+{
+    /**
+     * @var \wpdb
+     */
+    private $wpdb;
+
+    /**
+     * Tabelas
+     */
+    private $tableBriefings;
+    private $tableBriefingData;
+    private $tableBriefingLedger;
+
+    /**
+     * Construtor
+     */
+    public function __construct()
+    {
+        global $wpdb;
+        $this->wpdb = $wpdb;
+        $this->tableBriefings = $wpdb->prefix . 'limpvix_briefings';
+        $this->tableBriefingData = $wpdb->prefix . 'limpvix_briefing_data';
+        $this->tableBriefingLedger = $wpdb->prefix . 'limpvix_briefing_ledger';
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findByUuid(string $uuid): ?Briefing
+    {
+        // 1. Buscar registro principal
+        $sql = $this->wpdb->prepare(
+            "SELECT * FROM {$this->tableBriefings} WHERE uuid = %s",
+            $uuid
+        );
+
+        $row = $this->wpdb->get_row($sql, ARRAY_A);
+
+        if ($row === null) {
+            return null;
+        }
+
+        // 2. Buscar dados JSON
+        $dataRows = $this->findDataByUuid($uuid);
+
+        // 3. Hidratar Briefing
+        return $this->hydrate($row, $dataRows);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findByOrderId(int $orderId): ?Briefing
+    {
+        $sql = $this->wpdb->prepare(
+            "SELECT * FROM {$this->tableBriefings} WHERE order_id = %d",
+            $orderId
+        );
+
+        $row = $this->wpdb->get_row($sql, ARRAY_A);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $dataRows = $this->findDataByUuid($row['uuid']);
+        return $this->hydrate($row, $dataRows);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findByUserId(int $userId, int $limit = 10): array
+    {
+        $sql = $this->wpdb->prepare(
+            "SELECT * FROM {$this->tableBriefings} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+            $userId,
+            $limit
+        );
+
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+        $briefings = [];
+
+        foreach ($rows as $row) {
+            $dataRows = $this->findDataByUuid($row['uuid']);
+            $briefings[] = $this->hydrate($row, $dataRows);
+        }
+
+        return $briefings;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findByStatus(BriefingStatus $status, int $limit = 100): array
+    {
+        $sql = $this->wpdb->prepare(
+            "SELECT * FROM {$this->tableBriefings} WHERE status = %s ORDER BY created_at DESC LIMIT %d",
+            $status->getValue(),
+            $limit
+        );
+
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+        $briefings = [];
+
+        foreach ($rows as $row) {
+            $dataRows = $this->findDataByUuid($row['uuid']);
+            $briefings[] = $this->hydrate($row, $dataRows);
+        }
+
+        return $briefings;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function save(Briefing $briefing): bool
+    {
+        // Iniciar transação
+        $this->wpdb->query('START TRANSACTION');
+
+        try {
+            // 1. Verificar se existe
+            $exists = $this->exists($briefing->getUuid());
+
+            // 2. Desidratar
+            $mainData = $this->dehydrateMain($briefing);
+            $jsonData = $this->dehydrateData($briefing);
+
+            // 3. Salvar tabela principal
+            if ($exists) {
+                $updated = $this->wpdb->update(
+                    $this->tableBriefings,
+                    $mainData,
+                    ['uuid' => $briefing->getUuid()],
+                    $this->getMainFormats(),
+                    ['%s']
+                );
+
+                if ($updated === false) {
+                    throw new \RuntimeException("Erro ao atualizar Briefing");
+                }
+            } else {
+                $inserted = $this->wpdb->insert(
+                    $this->tableBriefings,
+                    $mainData,
+                    $this->getMainFormats()
+                );
+
+                if ($inserted === false) {
+                    throw new \RuntimeException("Erro ao inserir Briefing");
+                }
+            }
+
+            // 4. Salvar dados JSON
+            foreach ($jsonData as $key => $value) {
+                $this->saveData($briefing->getUuid(), $key, $value);
+            }
+
+            // 5. Commit
+            $this->wpdb->query('COMMIT');
+            return true;
+
+        } catch (\Exception $e) {
+            $this->wpdb->query('ROLLBACK');
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[LimpVix] Erro ao salvar Briefing: ' . $e->getMessage());
+            }
+
+            return false;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function exists(string $uuid): bool
+    {
+        $sql = $this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->tableBriefings} WHERE uuid = %s",
+            $uuid
+        );
+
+        return (int) $this->wpdb->get_var($sql) > 0;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function delete(string $uuid): bool
+    {
+        // Verificar se está locked
+        $briefing = $this->findByUuid($uuid);
+
+        if ($briefing && $briefing->isLocked()) {
+            return false; // Não pode deletar locked
+        }
+
+        // Soft delete (apenas muda status) ou hard delete?
+        // Por enquanto: hard delete
+        $deleted = $this->wpdb->delete(
+            $this->tableBriefings,
+            ['uuid' => $uuid],
+            ['%s']
+        );
+
+        return $deleted !== false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function count(?BriefingStatus $status = null): int
+    {
+        if ($status === null) {
+            $sql = "SELECT COUNT(*) FROM {$this->tableBriefings}";
+            return (int) $this->wpdb->get_var($sql);
+        }
+
+        $sql = $this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->tableBriefings} WHERE status = %s",
+            $status->getValue()
+        );
+
+        return (int) $this->wpdb->get_var($sql);
+    }
+
+    /**
+     * Buscar todos os briefings
+     *
+     * @return Briefing[]
+     */
+    public function findAll(): array
+    {
+        $sql = "SELECT * FROM {$this->tableBriefings} ORDER BY created_at DESC";
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        // OTIMIZAÇÃO: Batch loading de dados (1 query ao invés de N queries)
+        $uuids = array_column($rows, 'uuid');
+        $dataBatch = $this->findDataBatch($uuids);
+
+        $briefings = [];
+        foreach ($rows as $row) {
+            try {
+                // Usar dados pré-carregados
+                $dataRows = $dataBatch[$row['uuid']] ?? [];
+
+                // Hidratar com ambos os parâmetros
+                $briefings[] = $this->hydrate($row, $dataRows);
+            } catch (\Exception $e) {
+                // Log error but continue
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[WpBriefingRepository] Erro ao hidratar briefing UUID ' . $row['uuid'] . ': ' . $e->getMessage());
+                }
+            }
+        }
+
+        return $briefings;
+    }
+
+    // ==================== MÉTODOS AUXILIARES ====================
+
+    /**
+     * Buscar dados JSON por UUID
+     *
+     * @param string $uuid
+     * @return array ['structure' => {...}, 'frequency' => {...}, etc]
+     */
+    /**
+     * Batch loading de dados JSON para múltiplos briefings
+     * SOLUÇÃO PARA N+1 QUERY PROBLEM
+     *
+     * @param array $uuids Array de UUIDs
+     * @return array Array associativo [uuid => ['structure' => {...}, 'frequency' => {...}]]
+     */
+    private function findDataBatch(array $uuids): array
+    {
+        if (empty($uuids)) {
+            return [];
+        }
+
+        // Sanitizar UUIDs
+        $uuids = array_map('sanitize_text_field', $uuids);
+        $placeholders = implode(',', array_fill(0, count($uuids), '%s'));
+
+        // UMA query para buscar todos os dados
+        $sql = $this->wpdb->prepare(
+            "SELECT briefing_uuid, data_key, data_value 
+             FROM {$this->tableBriefingData} 
+             WHERE briefing_uuid IN ({$placeholders})",
+            ...$uuids
+        );
+
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+
+        // Organizar dados por UUID
+        $dataBatch = [];
+        foreach ($rows as $row) {
+            $uuid = $row['briefing_uuid'];
+            $key = $row['data_key'];
+            $value = json_decode($row['data_value'], true);
+
+            if (!isset($dataBatch[$uuid])) {
+                $dataBatch[$uuid] = [];
+            }
+
+            $dataBatch[$uuid][$key] = $value;
+        }
+
+        // Preencher UUIDs sem dados com array vazio
+        foreach ($uuids as $uuid) {
+            if (!isset($dataBatch[$uuid])) {
+                $dataBatch[$uuid] = [];
+            }
+        }
+
+        return $dataBatch;
+    }
+
+    private function findDataByUuid(string $uuid): array
+    {
+        $sql = $this->wpdb->prepare(
+            "SELECT data_key, data_value FROM {$this->tableBriefingData} WHERE briefing_uuid = %s",
+            $uuid
+        );
+
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+        $data = [];
+
+        foreach ($rows as $row) {
+            $data[$row['data_key']] = json_decode($row['data_value'], true);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Salvar dado JSON
+     *
+     * @param string $uuid
+     * @param string $key
+     * @param mixed $value
+     * @return void
+     */
+    private function saveData(string $uuid, string $key, $value): void
+    {
+        $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+        $this->wpdb->replace(
+            $this->tableBriefingData,
+            [
+                'briefing_uuid' => $uuid,
+                'data_key' => $key,
+                'data_value' => $json,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%s']
+        );
+    }
+
+    /**
+     * Hidratar: DB → Briefing
+     *
+     * @param array $mainRow Linha da tabela principal
+     * @param array $dataRows Dados JSON por key
+     * @return Briefing
+     */
+    private function hydrate(array $mainRow, array $dataRows): Briefing
+    {
+        // Status
+        $status = BriefingStatus::fromString($mainRow['status']);
+
+        // PropertyType
+        $propertyType = PropertyType::fromString($mainRow['property_type']);
+
+        // PropertyStructure (pode ser null)
+        $structure = null;
+        if (isset($dataRows['structure'])) {
+            $structure = PropertyStructure::fromArray($dataRows['structure']);
+        }
+
+        // Frequency (pode ser null)
+        $frequency = null;
+        if (isset($dataRows['frequency'])) {
+            $frequency = Frequency::fromArray($dataRows['frequency']);
+        }
+
+        // EstimatedMetrics (pode ser null)
+        $metrics = null;
+        if ($mainRow['estimated_m2'] !== null) {
+            $metrics = new EstimatedMetrics(
+                (float) $mainRow['estimated_m2'],
+                (int) $mainRow['estimated_duration_minutes'],
+                (int) $mainRow['buffer_minutes']
+            );
+        }
+
+        // Package (pode ser null)
+        $package = null;
+        if (!empty($mainRow['package_type'])) {
+            $package = $this->hydratePackage($mainRow['package_type'], $mainRow['package_percentage']);
+        }
+
+        // Complexity (pode ser null)
+        $complexity = null;
+        if (!empty($mainRow['complexity_level'])) {
+            $complexity = $this->hydrateComplexity($mainRow['complexity_level'], $mainRow['complexity_multiplier']);
+        }
+
+        // Construir Briefing
+        return new Briefing(
+            uuid: $mainRow['uuid'],
+            userId: (int) $mainRow['user_id'],
+            propertyType: $propertyType,
+            status: $status,
+            orderId: $mainRow['order_id'] !== null ? (int) $mainRow['order_id'] : null,
+            structure: $structure,
+            frequency: $frequency,
+            metrics: $metrics,
+            package: $package,
+            complexity: $complexity,
+            phoneVerified: (bool) $mainRow['phone_verified'],
+            version: $mainRow['version'],
+            createdAt: new \DateTimeImmutable($mainRow['created_at']),
+            updatedAt: new \DateTimeImmutable($mainRow['updated_at']),
+            lockedAt: $mainRow['locked_at'] ? new \DateTimeImmutable($mainRow['locked_at']) : null
+        );
+    }
+
+    /**
+     * Desidratar: Briefing → DB (tabela principal)
+     *
+     * @param Briefing $briefing
+     * @return array
+     */
+    private function dehydrateMain(Briefing $briefing): array
+    {
+        $metrics = $briefing->getMetrics();
+        $package = $briefing->getPackage();
+        $complexity = $briefing->getComplexity();
+
+        // Calcular required_professionals_count
+        $requiredProfessionals = 1;
+        if ($package && $metrics) {
+            $totalDuration = $metrics->getDurationMinutes() + $metrics->getBufferMinutes();
+            $requiredProfessionals = $package->determineProfessionalsCount($totalDuration);
+        }
+
+        return [
+            'uuid' => $briefing->getUuid(),
+            'order_id' => $briefing->getOrderId(),
+            'user_id' => $briefing->getUserId(),
+            'status' => $briefing->getStatus()->getValue(),
+            'property_type' => $briefing->getPropertyType()->getValue(),
+            'estimated_m2' => $metrics ? $metrics->getM2() : null,
+            'estimated_duration_minutes' => $metrics ? $metrics->getDurationMinutes() : null,
+            'buffer_minutes' => $metrics ? $metrics->getBufferMinutes() : 30,
+            'package_type' => $package ? $package->getType()->getValue() : null,
+            'package_percentage' => $package ? $package->getPercentageIncrease() : null,
+            'required_professionals_count' => $requiredProfessionals,
+            'complexity_level' => $complexity ? $complexity->getLevel()->getValue() : null,
+            'complexity_multiplier' => $complexity ? $complexity->getMultiplier() : null,
+            'requires_contract' => $briefing->requiresContract(),
+            'phone_verified' => $briefing->isPhoneVerified(),
+            'version' => $briefing->getVersion(),
+            'created_at' => $briefing->getCreatedAt()->format('Y-m-d H:i:s'),
+            'updated_at' => $briefing->getUpdatedAt()->format('Y-m-d H:i:s'),
+            'locked_at' => $briefing->getLockedAt() ? $briefing->getLockedAt()->format('Y-m-d H:i:s') : null
+        ];
+    }
+
+    /**
+     * Desidratar: Briefing → DB (dados JSON)
+     *
+     * @param Briefing $briefing
+     * @return array
+     */
+    private function dehydrateData(Briefing $briefing): array
+    {
+        $data = [];
+
+        if ($briefing->getStructure() !== null) {
+            $data['structure'] = $briefing->getStructure()->toArray();
+        }
+
+        if ($briefing->getFrequency() !== null) {
+            $data['frequency'] = $briefing->getFrequency()->toArray();
+        }
+
+        return $data;
+    }
+
+    /**
+     * Formatos para wpdb (tabela principal)
+     *
+     * @return array
+     */
+    private function getMainFormats(): array
+    {
+        return [
+            '%s', // uuid
+            '%d', // order_id
+            '%d', // user_id
+            '%s', // status
+            '%s', // property_type
+            '%f', // estimated_m2
+            '%d', // estimated_duration_minutes
+            '%d', // buffer_minutes
+            '%s', // package_type
+            '%f', // package_percentage
+            '%d', // required_professionals_count
+            '%s', // complexity_level
+            '%f', // complexity_multiplier
+            '%d', // requires_contract
+            '%d', // phone_verified
+            '%s', // version
+            '%s', // created_at
+            '%s', // updated_at
+            '%s'  // locked_at
+        ];
+    }
+
+    /**
+     * Hidratar Package a partir dos dados do banco
+     *
+     * @param string $packageType
+     * @param float|null $packagePercentage
+     * @return Package|null
+     */
+    private function hydratePackage(string $packageType, ?float $packagePercentage): ?Package
+    {
+        try {
+            // Tentar buscar configuração do banco
+            $config = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT
+                    package_type AS type,
+                    percentage_increase,
+                    min_professionals,
+                    max_professionals,
+                    required_skills,
+                    description
+                FROM {$this->wpdb->prefix}limpvix_package_configs
+                WHERE package_type = %s
+                AND is_active = 1",
+                $packageType
+            ), ARRAY_A);
+
+            if ($config) {
+                $config['required_skills'] = json_decode($config['required_skills'], true) ?: [];
+                return Package::fromConfig($config);
+            }
+
+            // Fallback: usar factory methods padrão
+            switch ($packageType) {
+                case 'basic':
+                    return Package::basic();
+                case 'standard':
+                    return Package::standard();
+                case 'premium':
+                    return Package::premium();
+                default:
+                    return null;
+            }
+
+        } catch (\Exception $e) {
+            error_log("WpBriefingRepository::hydratePackage error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Hidratar Complexity a partir dos dados do banco
+     *
+     * @param string $complexityLevel
+     * @param float|null $complexityMultiplier
+     * @return Complexity|null
+     */
+    private function hydrateComplexity(string $complexityLevel, ?float $complexityMultiplier): ?Complexity
+    {
+        try {
+            $level = ComplexityLevel::fromString($complexityLevel);
+            $multiplier = $complexityMultiplier ?? $level->getDefaultMultiplier();
+
+            return new Complexity($level, $multiplier, []);
+
+        } catch (\Exception $e) {
+            error_log("WpBriefingRepository::hydrateComplexity error: " . $e->getMessage());
+            return null;
+        }
+    }
+}

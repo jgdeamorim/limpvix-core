@@ -1,0 +1,287 @@
+<?php
+/**
+ * ExecutionBootstrap - Inicialização do módulo Execution
+ *
+ * RESPONSABILIDADES:
+ * - Registrar Repository (WpContractExecutionRepository)
+ * - Registrar Use Cases (7 Use Cases)
+ * - Registrar Event Listeners (6 Domain Events)
+ *
+ * @package LimpVix\Core
+ * @since 0.9.0
+ */
+
+namespace LimpVix\Core;
+
+use LimpVix\Infrastructure\Persistence\Execution\WpContractExecutionRepository;
+use LimpVix\Application\UseCase\Execution\CreateExecution;
+use LimpVix\Application\UseCase\Execution\ScheduleExecution;
+use LimpVix\Application\UseCase\Execution\StartExecution;
+use LimpVix\Application\UseCase\Execution\CompleteExecution;
+use LimpVix\Application\UseCase\Execution\CancelExecution;
+use LimpVix\Application\UseCase\Execution\MarkNoShow;
+use LimpVix\Application\UseCase\Execution\RescheduleExecution;
+
+defined('ABSPATH') || exit;
+
+final class ExecutionBootstrap
+{
+    /**
+     * Inicializa o módulo Execution
+     *
+     * @return void
+     */
+    public static function init(): void
+    {
+        // 1. Registrar Repository
+        add_action('init', [self::class, 'registerRepository'], 5);
+
+        // 2. Registrar Use Cases
+        add_action('init', [self::class, 'registerUseCases'], 10);
+
+        // 3. Registrar REST API
+        add_action('rest_api_init', [self::class, 'registerRestApi']);
+
+        // 4. Registrar Event Listeners
+        self::registerEventListeners();
+
+        self::logInfo('Execution Module Bootstrap initialized');
+    }
+
+    /**
+     * Registra o Repository no container global
+     *
+     * @return void
+     */
+    public static function registerRepository(): void
+    {
+        if (!isset($GLOBALS['limpvix_execution_repository'])) {
+            $GLOBALS['limpvix_execution_repository'] = new WpContractExecutionRepository();
+
+            self::logInfo('ExecutionRepository registered');
+        }
+    }
+
+    /**
+     * Registra Use Cases no container global
+     *
+     * @return void
+     */
+    public static function registerUseCases(): void
+    {
+        $repository = $GLOBALS['limpvix_execution_repository'] ?? null;
+
+        if (!$repository) {
+            self::logError('Execution Repository not found - cannot register Use Cases');
+            return;
+        }
+
+        $GLOBALS['limpvix_execution_use_cases'] = [
+            'create' => new CreateExecution($repository),
+            'list' => new \LimpVix\Application\UseCase\Execution\ListExecutions($repository),
+            'get' => new \LimpVix\Application\UseCase\Execution\GetExecution($repository),
+            'schedule' => new ScheduleExecution($repository),
+            'start' => new StartExecution($repository),
+            'complete' => new CompleteExecution($repository),
+            'cancel' => new CancelExecution($repository),
+            'mark_no_show' => new MarkNoShow($repository),
+            'reschedule' => new RescheduleExecution($repository),
+        ];
+
+        self::logInfo('9 Execution Use Cases registered');
+    }
+
+    /**
+     * Registra REST API endpoints
+     *
+     * CRIADO (ONDA 2): ExecutionController com 9 endpoints
+     *
+     * @return void
+     */
+    public static function registerRestApi(): void
+    {
+        if (class_exists('LimpVix\\Infrastructure\\API\\ExecutionController')) {
+            $useCases = $GLOBALS['limpvix_execution_use_cases'] ?? [];
+            $authService = $GLOBALS['limpvix_authorization_service'] ?? null;
+
+            if (empty($useCases)) {
+                self::logInfo('Execution Use Cases not found - controller will use fallback');
+            }
+
+            if (!$authService) {
+                self::logInfo('AuthorizationService not found - controller will use fallback');
+            }
+
+            $controller = new \LimpVix\Infrastructure\API\ExecutionController($useCases, $authService);
+            $controller->register_routes();
+
+            self::logInfo('ExecutionController REST API registered with ' . count($useCases) . ' Use Cases');
+        }
+    }
+
+    /**
+     * Registra Event Listeners para eventos de domínio
+     *
+     * @return void
+     */
+    private static function registerEventListeners(): void
+    {
+        // Evento: Execution Scheduled
+        add_action('limpvix_execution_scheduled', [self::class, 'onExecutionScheduled'], 10, 1);
+
+        // Evento: Execution Started
+        add_action('limpvix_execution_started', [self::class, 'onExecutionStarted'], 10, 1);
+
+        // Evento: Execution Completed
+        add_action('limpvix_execution_completed', [self::class, 'onExecutionCompleted'], 10, 1);
+
+        // Evento: Execution Cancelled
+        add_action('limpvix_execution_cancelled', [self::class, 'onExecutionCancelled'], 10, 1);
+
+        // Evento: Execution NoShow
+        add_action('limpvix_execution_no_show', [self::class, 'onExecutionNoShow'], 10, 1);
+
+        // Evento: Execution Rescheduled
+        add_action('limpvix_execution_rescheduled', [self::class, 'onExecutionRescheduled'], 10, 1);
+
+        self::logInfo('Execution Event Listeners registered');
+    }
+
+    /**
+     * Handler: Execution Scheduled
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionScheduled($eventData): void
+    {
+        // @future: Enviar notificação ao profissional
+        // @future: Criar lembrete automático
+
+        self::logInfo('Execution scheduled: ' . ($eventData['execution_id'] ?? 'unknown') .
+                     ' - Date: ' . ($eventData['scheduled_date'] ?? 'N/A'));
+    }
+
+    /**
+     * Handler: Execution Started
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionStarted($eventData): void
+    {
+        // @future: Notificar cliente que serviço iniciou
+        // @future: Iniciar timer de SLA
+
+        self::logInfo('Execution started: ' . ($eventData['execution_id'] ?? 'unknown'));
+    }
+
+    /**
+     * Handler: Execution Completed
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionCompleted($eventData): void
+    {
+        // @future: Solicitar avaliação do cliente
+        // @future: Atualizar score do profissional
+        // @future: Gerar próxima execução (contratos recorrentes)
+
+        self::logInfo('Execution completed: ' . ($eventData['execution_id'] ?? 'unknown'));
+    }
+
+    /**
+     * Handler: Execution Cancelled
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionCancelled($eventData): void
+    {
+        // @future: Notificar partes interessadas
+        // @future: Reagendar automaticamente se aplicável
+
+        self::logInfo('Execution cancelled: ' . ($eventData['execution_id'] ?? 'unknown') .
+                     ' - Reason: ' . ($eventData['reason'] ?? 'N/A'));
+    }
+
+    /**
+     * Handler: Execution NoShow
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionNoShow($eventData): void
+    {
+        // @future: Penalizar profissional (incrementar no_show_count)
+        // @future: Notificar gestor
+        // @future: Reagendar automaticamente
+
+        self::logInfo('Execution no-show: ' . ($eventData['execution_id'] ?? 'unknown') .
+                     ' - Professional: ' . ($eventData['professional_user_id'] ?? 'N/A'));
+    }
+
+    /**
+     * Handler: Execution Rescheduled
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionRescheduled($eventData): void
+    {
+        // @future: Notificar profissional e cliente
+        // @future: Atualizar calendário
+
+        self::logInfo('Execution rescheduled: ' . ($eventData['execution_id'] ?? 'unknown') .
+                     ' - From: ' . ($eventData['old_scheduled_date'] ?? 'N/A') .
+                     ' - To: ' . ($eventData['new_scheduled_date'] ?? 'N/A'));
+    }
+
+    /**
+     * Log informativo (apenas se WP_DEBUG ativo)
+     *
+     * @param string $message
+     * @return void
+     */
+    private static function logInfo(string $message): void
+    {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log(sprintf(
+                '[LimpVix Execution Bootstrap] [%s] %s',
+                date('Y-m-d H:i:s'),
+                $message
+            ));
+        }
+    }
+
+    /**
+     * Log de erro
+     *
+     * @param string $message
+     * @return void
+     */
+    private static function logError(string $message): void
+    {
+        error_log(sprintf(
+            '[LimpVix Execution Bootstrap] [ERROR] [%s] %s',
+            date('Y-m-d H:i:s'),
+            $message
+        ));
+    }
+
+    /**
+     * Health check do módulo Execution
+     *
+     * @return array
+     */
+    public static function healthCheck(): array
+    {
+        return [
+            'module' => 'Execution',
+            'repository_loaded' => isset($GLOBALS['limpvix_execution_repository']),
+            'use_cases_loaded' => isset($GLOBALS['limpvix_execution_use_cases']),
+            'use_case_count' => count($GLOBALS['limpvix_execution_use_cases'] ?? []),
+        ];
+    }
+}

@@ -1,0 +1,68 @@
+# Composer
+/vendor/
+composer.lock
+
+# WordPress
+.htaccess
+wp-config.php
+wp-content/uploads/
+wp-content/blogs.dir/
+wp-content/upgrade/
+wp-content/backup-db/
+wp-content/advanced-cache.php
+wp-content/wp-cache-config.php
+wp-content/cache/
+wp-content/cache/supercache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+error_log
+debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*~
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary
+tmp/
+temp/
+_temp-tests/
+*.backup
+
+# Project-specific backups
+*.bak2
+*.bak3
+*.bak4
+*.old
+*.obsolete
+*.OBSOLETE
+*.before_*
+*_PATCH.txt
+
+# Diagnostics
+diagnostics/
+tests/diagnostics/
+
+# Archived docs
+docs-archive/
+
+# Legacy scripts
+scripts/legacy-migrations/
+
+# PHPUnit
+.phpunit.result.cache
+coverage/

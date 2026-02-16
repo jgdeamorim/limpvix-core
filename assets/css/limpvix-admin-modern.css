@@ -1,0 +1,679 @@
+/**
+ * LimpVix Admin - Modern UI
+ * Design System inspirado em Tailwind + Material Design
+ */
+
+/* ============================================
+   VARIÁVEIS CSS (Design Tokens)
+   ============================================ */
+:root {
+    /* Cores Primárias */
+    --lv-primary: #4F46E5;
+    --lv-primary-dark: #4338CA;
+    --lv-primary-light: #818CF8;
+
+    /* Cores de Status */
+    --lv-success: #10B981;
+    --lv-warning: #F59E0B;
+    --lv-danger: #EF4444;
+    --lv-info: #3B82F6;
+
+    /* Neutros */
+    --lv-gray-50: #F9FAFB;
+    --lv-gray-100: #F3F4F6;
+    --lv-gray-200: #E5E7EB;
+    --lv-gray-300: #D1D5DB;
+    --lv-gray-400: #9CA3AF;
+    --lv-gray-500: #6B7280;
+    --lv-gray-600: #4B5563;
+    --lv-gray-700: #374151;
+    --lv-gray-800: #1F2937;
+    --lv-gray-900: #111827;
+
+    /* Espaçamentos */
+    --lv-space-xs: 0.25rem;
+    --lv-space-sm: 0.5rem;
+    --lv-space-md: 1rem;
+    --lv-space-lg: 1.5rem;
+    --lv-space-xl: 2rem;
+    --lv-space-2xl: 3rem;
+
+    /* Bordas */
+    --lv-radius-sm: 0.375rem;
+    --lv-radius-md: 0.5rem;
+    --lv-radius-lg: 0.75rem;
+    --lv-radius-xl: 1rem;
+
+    /* Sombras */
+    --lv-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --lv-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --lv-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --lv-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+    /* Transições */
+    --lv-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================
+   RESET E BASE
+   ============================================ */
+.wrap.limpvix-admin {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--lv-gray-900);
+    background: var(--lv-gray-50);
+    margin: 0 -20px 0 -20px;
+    padding: var(--lv-space-2xl);
+    min-height: calc(100vh - 32px);
+}
+
+/* ============================================
+   HEADER DA PÁGINA
+   ============================================ */
+.limpvix-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--lv-space-2xl);
+    padding-bottom: var(--lv-space-lg);
+    border-bottom: 2px solid var(--lv-gray-200);
+}
+
+.limpvix-page-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--lv-gray-900);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--lv-space-md);
+}
+
+.limpvix-page-header h1 .dashicons {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 2.5rem;
+    color: var(--lv-primary);
+}
+
+.limpvix-page-subtitle {
+    color: var(--lv-gray-600);
+    font-size: 1rem;
+    margin-top: var(--lv-space-sm);
+}
+
+.limpvix-header-actions {
+    display: flex;
+    gap: var(--lv-space-md);
+}
+
+/* ============================================
+   GRID LAYOUT
+   ============================================ */
+.limpvix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--lv-space-xl);
+    margin-bottom: var(--lv-space-xl);
+}
+
+.limpvix-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.limpvix-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 768px) {
+    .limpvix-grid,
+    .limpvix-grid-2,
+    .limpvix-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   CARDS MODERNOS
+   ============================================ */
+.limpvix-card {
+    background: white;
+    border-radius: var(--lv-radius-lg);
+    box-shadow: var(--lv-shadow-md);
+    overflow: hidden;
+    transition: var(--lv-transition);
+}
+
+.limpvix-card:hover {
+    box-shadow: var(--lv-shadow-lg);
+    transform: translateY(-2px);
+}
+
+.limpvix-card-header {
+    padding: var(--lv-space-lg) var(--lv-space-xl);
+    border-bottom: 1px solid var(--lv-gray-200);
+    background: linear-gradient(to bottom, white, var(--lv-gray-50));
+}
+
+.limpvix-card-header h2,
+.limpvix-card-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--lv-gray-900);
+    display: flex;
+    align-items: center;
+    gap: var(--lv-space-sm);
+}
+
+.limpvix-card-header p {
+    margin: var(--lv-space-sm) 0 0 0;
+    color: var(--lv-gray-600);
+    font-size: 0.875rem;
+}
+
+.limpvix-card-body {
+    padding: var(--lv-space-xl);
+}
+
+.limpvix-card-footer {
+    padding: var(--lv-space-lg) var(--lv-space-xl);
+    background: var(--lv-gray-50);
+    border-top: 1px solid var(--lv-gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Card com destaque */
+.limpvix-card-primary {
+    border-top: 4px solid var(--lv-primary);
+}
+
+.limpvix-card-success {
+    border-top: 4px solid var(--lv-success);
+}
+
+.limpvix-card-warning {
+    border-top: 4px solid var(--lv-warning);
+}
+
+.limpvix-card-danger {
+    border-top: 4px solid var(--lv-danger);
+}
+
+/* ============================================
+   STAT BOXES (Métricas)
+   ============================================ */
+.limpvix-stat-box {
+    background: white;
+    border-radius: var(--lv-radius-lg);
+    padding: var(--lv-space-xl);
+    box-shadow: var(--lv-shadow-md);
+    transition: var(--lv-transition);
+    display: flex;
+    align-items: center;
+    gap: var(--lv-space-lg);
+}
+
+.limpvix-stat-box:hover {
+    box-shadow: var(--lv-shadow-lg);
+    transform: translateY(-2px);
+}
+
+.limpvix-stat-icon {
+    width: 4rem;
+    height: 4rem;
+    border-radius: var(--lv-radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.limpvix-stat-icon-primary {
+    background: linear-gradient(135deg, var(--lv-primary-light), var(--lv-primary));
+    color: white;
+}
+
+.limpvix-stat-icon-success {
+    background: linear-gradient(135deg, #34D399, var(--lv-success));
+    color: white;
+}
+
+.limpvix-stat-icon-warning {
+    background: linear-gradient(135deg, #FBBF24, var(--lv-warning));
+    color: white;
+}
+
+.limpvix-stat-icon-danger {
+    background: linear-gradient(135deg, #F87171, var(--lv-danger));
+    color: white;
+}
+
+.limpvix-stat-content {
+    flex: 1;
+}
+
+.limpvix-stat-label {
+    font-size: 0.875rem;
+    color: var(--lv-gray-600);
+    margin-bottom: var(--lv-space-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.limpvix-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--lv-gray-900);
+    line-height: 1;
+}
+
+.limpvix-stat-change {
+    font-size: 0.875rem;
+    margin-top: var(--lv-space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--lv-space-xs);
+}
+
+.limpvix-stat-change.positive {
+    color: var(--lv-success);
+}
+
+.limpvix-stat-change.negative {
+    color: var(--lv-danger);
+}
+
+/* ============================================
+   BADGES MODERNOS
+   ============================================ */
+.limpvix-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lv-space-xs);
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.limpvix-badge-primary {
+    background: #EEF2FF;
+    color: var(--lv-primary-dark);
+}
+
+.limpvix-badge-success {
+    background: #D1FAE5;
+    color: #065F46;
+}
+
+.limpvix-badge-warning {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.limpvix-badge-danger {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.limpvix-badge-info {
+    background: #DBEAFE;
+    color: #1E40AF;
+}
+
+.limpvix-badge-gray {
+    background: var(--lv-gray-200);
+    color: var(--lv-gray-700);
+}
+
+/* Badge com ícone de status */
+.limpvix-badge-dot::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* ============================================
+   BOTÕES MODERNOS
+   ============================================ */
+.limpvix-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--lv-space-sm);
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--lv-radius-md);
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: var(--lv-transition);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.limpvix-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.limpvix-btn-primary {
+    background: var(--lv-primary);
+    color: white;
+}
+
+.limpvix-btn-primary:hover {
+    background: var(--lv-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--lv-shadow-md);
+}
+
+.limpvix-btn-secondary {
+    background: var(--lv-gray-200);
+    color: var(--lv-gray-700);
+}
+
+.limpvix-btn-secondary:hover {
+    background: var(--lv-gray-300);
+}
+
+.limpvix-btn-success {
+    background: var(--lv-success);
+    color: white;
+}
+
+.limpvix-btn-success:hover {
+    background: #059669;
+}
+
+.limpvix-btn-danger {
+    background: var(--lv-danger);
+    color: white;
+}
+
+.limpvix-btn-danger:hover {
+    background: #DC2626;
+}
+
+.limpvix-btn-outline {
+    background: transparent;
+    border: 2px solid var(--lv-primary);
+    color: var(--lv-primary);
+}
+
+.limpvix-btn-outline:hover {
+    background: var(--lv-primary);
+    color: white;
+}
+
+.limpvix-btn-sm {
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+}
+
+.limpvix-btn-lg {
+    padding: 0.875rem 1.75rem;
+    font-size: 1rem;
+}
+
+/* ============================================
+   FORMULÁRIOS MODERNOS
+   ============================================ */
+.limpvix-form-group {
+    margin-bottom: var(--lv-space-lg);
+}
+
+.limpvix-form-label {
+    display: block;
+    font-weight: 600;
+    color: var(--lv-gray-700);
+    margin-bottom: var(--lv-space-sm);
+    font-size: 0.875rem;
+}
+
+.limpvix-form-input,
+.limpvix-form-select,
+.limpvix-form-textarea {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    border: 2px solid var(--lv-gray-300);
+    border-radius: var(--lv-radius-md);
+    font-size: 0.875rem;
+    transition: var(--lv-transition);
+    background: white;
+}
+
+.limpvix-form-input:focus,
+.limpvix-form-select:focus,
+.limpvix-form-textarea:focus {
+    outline: none;
+    border-color: var(--lv-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.limpvix-form-help {
+    margin-top: var(--lv-space-xs);
+    font-size: 0.8125rem;
+    color: var(--lv-gray-600);
+}
+
+/* Toggle Switch Moderno */
+.limpvix-toggle {
+    position: relative;
+    display: inline-block;
+    width: 3rem;
+    height: 1.5rem;
+}
+
+.limpvix-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.limpvix-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--lv-gray-300);
+    border-radius: 9999px;
+    transition: var(--lv-transition);
+}
+
+.limpvix-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 1.125rem;
+    width: 1.125rem;
+    left: 0.1875rem;
+    bottom: 0.1875rem;
+    background: white;
+    border-radius: 50%;
+    transition: var(--lv-transition);
+    box-shadow: var(--lv-shadow-sm);
+}
+
+.limpvix-toggle input:checked + .limpvix-toggle-slider {
+    background: var(--lv-primary);
+}
+
+.limpvix-toggle input:checked + .limpvix-toggle-slider:before {
+    transform: translateX(1.5rem);
+}
+
+/* ============================================
+   TABELAS MODERNAS
+   ============================================ */
+.limpvix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.limpvix-table thead th {
+    background: var(--lv-gray-50);
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--lv-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--lv-gray-200);
+}
+
+.limpvix-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--lv-gray-200);
+    font-size: 0.875rem;
+    color: var(--lv-gray-900);
+}
+
+.limpvix-table tbody tr:hover {
+    background: var(--lv-gray-50);
+}
+
+.limpvix-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================
+   TABS MODERNOS
+   ============================================ */
+.limpvix-tabs {
+    display: flex;
+    gap: var(--lv-space-sm);
+    border-bottom: 2px solid var(--lv-gray-200);
+    margin-bottom: var(--lv-space-xl);
+    overflow-x: auto;
+}
+
+.limpvix-tab {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    color: var(--lv-gray-600);
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: var(--lv-transition);
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.limpvix-tab:hover {
+    color: var(--lv-primary);
+    background: var(--lv-gray-50);
+}
+
+.limpvix-tab.active {
+    color: var(--lv-primary);
+    border-bottom-color: var(--lv-primary);
+}
+
+.limpvix-tab-content {
+    display: none;
+}
+
+.limpvix-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   ALERTAS MODERNOS
+   ============================================ */
+.limpvix-alert {
+    padding: 1rem 1.25rem;
+    border-radius: var(--lv-radius-md);
+    border-left: 4px solid;
+    margin-bottom: var(--lv-space-lg);
+    display: flex;
+    align-items: start;
+    gap: var(--lv-space-md);
+}
+
+.limpvix-alert-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.limpvix-alert-content {
+    flex: 1;
+}
+
+.limpvix-alert-title {
+    font-weight: 600;
+    margin-bottom: var(--lv-space-xs);
+}
+
+.limpvix-alert-info {
+    background: #EFF6FF;
+    border-color: var(--lv-info);
+    color: #1E40AF;
+}
+
+.limpvix-alert-success {
+    background: #F0FDF4;
+    border-color: var(--lv-success);
+    color: #166534;
+}
+
+.limpvix-alert-warning {
+    background: #FFFBEB;
+    border-color: var(--lv-warning);
+    color: #92400E;
+}
+
+.limpvix-alert-danger {
+    background: #FEF2F2;
+    border-color: var(--lv-danger);
+    color: #991B1B;
+}
+
+/* ============================================
+   LOADING STATES
+   ============================================ */
+.limpvix-spinner {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid var(--lv-gray-300);
+    border-top-color: var(--lv-primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   UTILITÁRIOS
+   ============================================ */
+.limpvix-text-center { text-align: center; }
+.limpvix-text-right { text-align: right; }
+.limpvix-mt-0 { margin-top: 0; }
+.limpvix-mb-md { margin-bottom: var(--lv-space-md); }
+.limpvix-mb-lg { margin-bottom: var(--lv-space-lg); }
+.limpvix-p-0 { padding: 0; }
+.limpvix-flex { display: flex; }
+.limpvix-items-center { align-items: center; }
+.limpvix-justify-between { justify-content: space-between; }
+.limpvix-gap-md { gap: var(--lv-space-md); }
