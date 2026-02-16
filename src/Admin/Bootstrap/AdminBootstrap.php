@@ -4030,18 +4030,316 @@ class AdminBootstrap
 
     private function renderPagamentosTab(): void
     {
+        // Buscar estatísticas de payouts
+        $payoutRepo = new \LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository();
+        $stats = $payoutRepo->getStats();
+
+        // Verificar configuração do MercadoPago
+        $mpAccessToken = get_option('limpvix_mercadopago_access_token');
+        $mpPublicKey = get_option('limpvix_mercadopago_public_key');
+        $mpConfigured = !empty($mpAccessToken) && !empty($mpPublicKey);
+
+        // Calcular totais
+        $totalPayouts = $stats['total_pending'] + $stats['total_approved'] + $stats['total_processing'] + $stats['total_completed'] + $stats['total_failed'];
+        $successRate = $totalPayouts > 0 ? round(($stats['total_completed'] / $totalPayouts) * 100, 1) : 0;
+
+        // Valor total processado (completed)
+        $totalProcessed = $stats['amount_completed'];
+
+        // Valor aguardando processamento
+        $totalPending = $stats['amount_pending'];
+
         ?>
-        <!-- Mercado Pago Settings -->
-        <div class="limpvix-card">
-            <div class="limpvix-card-header">
-                <h3>
-                    <span class="dashicons dashicons-admin-generic"></span>
-                    Integrações e Pagamentos
+        <!-- Hero Card -->
+        <div class="limpvix-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px; border: none; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);">
+            <div style="padding: 30px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <div>
+                        <h1 style="color: white; margin: 0 0 10px 0; font-size: 28px; font-weight: 600;">
+                            💳 Sistema de Pagamentos & Payouts
+                        </h1>
+                        <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 16px;">
+                            Integração com MercadoPago para pagamentos de clientes e repasses aos profissionais
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.3);">
+                            <div style="font-size: 32px; font-weight: 700; color: white; line-height: 1;">
+                                <?php echo $successRate; ?>%
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-top: 5px; font-weight: 500;">
+                                Taxa de Sucesso
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats Grid -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px;">
+                    <!-- Total Processado -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                        <div style="font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.8); margin-bottom: 8px;">💰 Total Processado</div>
+                        <div style="font-size: 24px; font-weight: 700; color: white; margin-bottom: 5px;">
+                            R$ <?php echo number_format($totalProcessed, 2, ',', '.'); ?>
+                        </div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                            <?php echo $stats['total_completed']; ?> transferências
+                        </div>
+                    </div>
+
+                    <!-- Aguardando -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                        <div style="font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.8); margin-bottom: 8px;">⏳ Aguardando</div>
+                        <div style="font-size: 24px; font-weight: 700; color: white; margin-bottom: 5px;">
+                            R$ <?php echo number_format($totalPending, 2, ',', '.'); ?>
+                        </div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                            <?php echo $stats['total_pending'] + $stats['total_approved']; ?> pendentes
+                        </div>
+                    </div>
+
+                    <!-- Em Processamento -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                        <div style="font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.8); margin-bottom: 8px;">🔄 Processando</div>
+                        <div style="font-size: 24px; font-weight: 700; color: white; margin-bottom: 5px;">
+                            <?php echo $stats['total_processing']; ?>
+                        </div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                            Em andamento
+                        </div>
+                    </div>
+
+                    <!-- Falhas -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                        <div style="font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.8); margin-bottom: 8px;">❌ Falhas</div>
+                        <div style="font-size: 24px; font-weight: 700; color: white; margin-bottom: 5px;">
+                            <?php echo $stats['total_failed']; ?>
+                        </div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                            <?php
+                            $failureRate = $totalPayouts > 0 ? round(($stats['total_failed'] / $totalPayouts) * 100, 1) : 0;
+                            echo $failureRate;
+                            ?>% do total
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status MercadoPago -->
+                <div style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                            💎
+                        </div>
+                        <div>
+                            <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 3px;">
+                                MercadoPago Integration
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                                <?php if ($mpConfigured): ?>
+                                    <span style="color: #4ade80;">✓ Configurado e Ativo</span>
+                                <?php else: ?>
+                                    <span style="color: #fbbf24;">⚠ Configuração Pendente</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="<?php echo admin_url('admin.php?page=limpvix-payouts'); ?>"
+                       class="button button-primary"
+                       style="background: white; color: #667eea; border: none; box-shadow: none; padding: 8px 16px; font-weight: 600;">
+                        Ver Todos os Payouts →
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid: MercadoPago Settings + Features -->
+        <div class="limpvix-grid limpvix-grid-2">
+            <!-- Mercado Pago Settings -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #009ee3 0%, #0077cc 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        💎 MercadoPago - Configuração
+                    </h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        Credenciais de acesso e configurações da API
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $mpConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php MercadoPagoSettings::render(); ?>
+                </div>
+            </div>
+
+            <!-- Payout Features -->
+            <div class="limpvix-card">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        🚀 Sistema de Payouts - Features
+                    </h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        Recursos implementados para repasses automáticos
+                    </p>
+                </div>
+                <div class="limpvix-card-body">
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- Feature 1 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Transferência Automática via PIX
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Repasses automáticos para profissionais após conclusão do serviço e feedback positivo
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature 2 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Feedback Window Enforcement
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Payouts retidos por 48h aguardando feedback do cliente (Golden Rule)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature 3 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Reconciliação Automática
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Cron job que sincroniza status de transferências com MercadoPago a cada 15 minutos
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature 4 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Retry Automático em Falhas
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Sistema tenta até 3x automaticamente quando transferência falha (backoff exponencial)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature 5 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Auditoria Completa
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Logs detalhados de todas as transações com raw_response do MercadoPago
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feature 6 -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                    Suporte a PIX, Conta Bancária e MP Account
+                                </div>
+                                <div style="font-size: 13px; color: #047857;">
+                                    Profissional escolhe método preferido: PIX (instantâneo), Conta Bancária ou MercadoPago
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Button -->
+                        <div style="margin-top: 10px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                            <a href="<?php echo admin_url('admin.php?page=limpvix-payouts'); ?>" class="button button-primary button-large" style="width: 100%; text-align: center; justify-content: center; display: flex; align-items: center; gap: 8px;">
+                                <span>📊</span>
+                                <span>Gerenciar Payouts</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informações Técnicas -->
+        <div class="limpvix-card" style="margin-top: 20px;">
+            <div class="limpvix-card-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                    🔧 Arquitetura Técnica
                 </h3>
-                <p>Configurações de integração com Mercado Pago e outros serviços</p>
+                <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                    Componentes e fluxo de processamento de payouts
+                </p>
             </div>
             <div class="limpvix-card-body">
-                <?php MercadoPagoSettings::render(); ?>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                    <!-- Domain Layer -->
+                    <div>
+                        <h4 style="color: #1f2937; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 20px;">🏗️</span>
+                            Domain Layer
+                        </h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
+                            <li>✓ <code>PayoutRepositoryInterface</code></li>
+                            <li>✓ Domain events & aggregates</li>
+                        </ul>
+                    </div>
+
+                    <!-- Application Layer -->
+                    <div>
+                        <h4 style="color: #1f2937; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 20px;">⚙️</span>
+                            Application Layer
+                        </h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
+                            <li>✓ <code>ExecutePayout</code></li>
+                            <li>✓ <code>CompleteServiceWithPayout</code></li>
+                            <li>✓ <code>PayoutReconciliationService</code></li>
+                            <li>✓ <code>AutomaticPayoutDispatcher</code></li>
+                        </ul>
+                    </div>
+
+                    <!-- Infrastructure Layer -->
+                    <div>
+                        <h4 style="color: #1f2937; font-size: 16px; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 20px;">🔌</span>
+                            Infrastructure Layer
+                        </h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
+                            <li>✓ <code>WpPayoutRepository</code></li>
+                            <li>✓ <code>MercadoPagoPayoutProvider</code></li>
+                            <li>✓ <code>PayoutReconciliationCronAdapter</code></li>
+                            <li>✓ <code>ReleasePayoutHoldOnFeedbackApproved</code></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Database Info -->
+                <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <h4 style="color: #1f2937; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
+                        💾 Database Table: <code>wp_limpvix_payouts</code>
+                    </h4>
+                    <div style="font-size: 13px; color: #6b7280; line-height: 1.6;">
+                        <strong>Status Flow:</strong> <code>pending</code> → <code>approved</code> → <code>processing</code> → <code>completed</code> / <code>failed</code>
+                        <br>
+                        <strong>Índices:</strong> order_uuid, professional_id, status, gateway_transfer_id, created_at
+                        <br>
+                        <strong>Auditoria:</strong> Todos os campos de timestamp + raw_response JSON completo
+                    </div>
+                </div>
             </div>
         </div>
         <?php
