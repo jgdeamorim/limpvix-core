@@ -61,6 +61,9 @@ class Execution
     // Feedback Window (GAP #1)
     private ?\DateTimeImmutable $feedbackWindowExpiresAt = null;
 
+    // Issues (GAP #4)
+    private ?ValueObjects\IssueCollection $issues = null;
+
     public function __construct(
         string $executionUuid,
         string $orderUuid,
@@ -207,6 +210,65 @@ class Execution
 
         $this->guardTransition(ExecutionStatusEnum::VALIDATED);
         $this->status = ExecutionStatusEnum::VALIDATED;
+    }
+
+    // ========================================
+    // ISSUE REPORTING (GAP #4)
+    // ========================================
+
+    /**
+     * Report an issue during execution
+     *
+     * GAP #4: Customer or Professional can report problems
+     *
+     * @param string $type Issue type (quality, damage, missing_items, access, equipment, other)
+     * @param string $description Problem description
+     * @param string $reportedBy Who reported (customer, professional, admin)
+     * @param int $reportedByUserId User ID of reporter
+     * @param array $evidenceUrls URLs of photos/videos
+     * @return void
+     * @since GAP #4
+     */
+    public function reportIssue(
+        string $type,
+        string $description,
+        string $reportedBy,
+        int $reportedByUserId,
+        array $evidenceUrls = []
+    ): void {
+        // Initialize issues collection if needed
+        if ($this->issues === null) {
+            $this->issues = ValueObjects\IssueCollection::empty();
+        }
+
+        // Create issue
+        $issue = Issue::create($type, $description, $reportedBy, $reportedByUserId, $evidenceUrls);
+
+        // Add to collection
+        $this->issues->add($issue);
+
+        // Dispatch event
+        do_action('limpvix_execution_issue_reported', $this->executionUuid, $issue);
+    }
+
+    /**
+     * Get all issues
+     *
+     * @return ValueObjects\IssueCollection
+     */
+    public function getIssues(): ValueObjects\IssueCollection
+    {
+        return $this->issues ?? ValueObjects\IssueCollection::empty();
+    }
+
+    /**
+     * Check if execution has open issues
+     *
+     * @return bool
+     */
+    public function hasOpenIssues(): bool
+    {
+        return $this->getIssues()->hasOpenIssues();
     }
 
     // ========================================

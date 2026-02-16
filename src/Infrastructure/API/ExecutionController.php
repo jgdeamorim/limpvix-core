@@ -197,6 +197,46 @@ class ExecutionController
             'callback' => [$this, 'rescheduleExecution'],
             'permission_callback' => [$this, 'checkPermissions']
         ]);
+
+        // POST /executions/{uuid}/issues - Report issue (GAP #4)
+        register_rest_route($this->namespace, '/executions/(?P<uuid>[a-f0-9-]+)/issues', [
+            'methods' => 'POST',
+            'callback' => [$this, 'reportIssue'],
+            'permission_callback' => [$this, 'checkPermissions'],
+            'args' => [
+                'uuid' => [
+                    'required' => true,
+                    'type' => 'string',
+                    'validate_callback' => function($param) {
+                        return !empty($param);
+                    }
+                ],
+                'type' => [
+                    'required' => true,
+                    'type' => 'string',
+                    'enum' => ['quality', 'damage', 'missing_items', 'access', 'equipment', 'other'],
+                    'description' => 'Issue type'
+                ],
+                'description' => [
+                    'required' => true,
+                    'type' => 'string',
+                    'description' => 'Problem description'
+                ],
+                'evidence_urls' => [
+                    'required' => false,
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => 'URLs of photos/videos showing the problem'
+                ]
+            ]
+        ]);
+
+        // GET /executions/{uuid}/issues - List issues
+        register_rest_route($this->namespace, '/executions/(?P<uuid>[a-f0-9-]+)/issues', [
+            'methods' => 'GET',
+            'callback' => [$this, 'listIssues'],
+            'permission_callback' => [$this, 'checkPermissions']
+        ]);
     }
 
     /**
@@ -596,6 +636,91 @@ class ExecutionController
      */
 
     // ========================================
+    // ISSUE REPORTING (GAP #4)
+    // ========================================
+
+    /**
+     * POST /limpvix/v1/executions/{uuid}/issues
+     * Report an issue during execution
+     *
+     * GAP #4: Customer or Professional can report problems
+     */
+    public function reportIssue(WP_REST_Request $request): WP_REST_Response
+    {
+        try {
+            $executionUuid = $request->get_param('uuid');
+            $type = $request->get_param('type');
+            $description = $request->get_param('description');
+            $evidenceUrls = $request->get_param('evidence_urls') ?? [];
+            $currentUserId = get_current_user_id();
+
+            // Determine who is reporting (customer or professional)
+            // TODO: Improve this logic to properly detect user role
+            $reportedBy = current_user_can('manage_options') ? 'admin' : 'customer';
+
+            // Use Case
+            $reportIssue = new \LimpVix\Application\UseCases\Execution\ReportIssue(
+                $GLOBALS['limpvix_execution_repository'] ?? new \LimpVix\Infrastructure\Persistence\WpExecutionRepository()
+            );
+
+            $result = $reportIssue->execute(
+                $executionUuid,
+                $type,
+                $description,
+                $reportedBy,
+                $currentUserId,
+                $evidenceUrls
+            );
+
+            if (!$result->isOk()) {
+                return ApiResponse::validationError([$result->error()]);
+            }
+
+            return ApiResponse::success(
+                $result->value(),
+                'Issue reported successfully'
+            );
+
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage());
+        }
+    }
+
+    /**
+     * GET /limpvix/v1/executions/{uuid}/issues
+     * List all issues for an execution
+     */
+    public function listIssues(WP_REST_Request $request): WP_REST_Response
+    {
+        try {
+            $executionUuid = $request->get_param('uuid');
+
+            // Get execution
+            $executionRepo = $GLOBALS['limpvix_execution_repository']
+                ?? new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();
+
+            $execution = $executionRepo->findByUuid($executionUuid);
+
+            if (!$execution) {
+                return ApiResponse::notFound('Execution not found');
+            }
+
+            // Get issues
+            $issues = $execution->getIssues();
+
+            return ApiResponse::success([
+                'execution_uuid' => $executionUuid,
+                'issues_count' => $issues->count(),
+                'has_open_issues' => $issues->hasOpenIssues(),
+                'issues' => $issues->toArray(),
+            ]);
+
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage());
+        }
+    }
+
+    // ========================================
 
     public function checkPermissions(): bool
     {
@@ -607,3 +732,4 @@ class ExecutionController
         return current_user_can('manage_options');
     }
 }
+
