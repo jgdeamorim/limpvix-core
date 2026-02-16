@@ -3550,6 +3550,10 @@ class AdminBootstrap
             'attempt2_hours' => 48,
             'attempt3_hours' => 72,
         ]);
+
+        // CALCULAR ESTATÍSTICAS DINÂMICAS
+        $stats = $this->calculateFluxosStats($enabledFlows);
+
         ?>
 
         <!-- RESUMO DE STATUS NO TOPO -->
@@ -3566,23 +3570,29 @@ class AdminBootstrap
                         <a href="#fluxos-operacionais"
                            class="button"
                            style="background: white; color: #667eea; border: none; font-weight: 600; margin-left: 10px;">
-                            📊 Ver Status Operacional (100%)
+                            📊 Ver Status Operacional (<?php echo esc_html($stats['operational_percentage']); ?>%)
                         </a>
                     </div>
                 </div>
 
-                <!-- Quick Stats -->
+                <!-- Quick Stats DINÂMICOS -->
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px;">
                     <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">10/10</div>
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">
+                            <?php echo esc_html($stats['operational_complete']); ?>/<?php echo esc_html($stats['operational_total']); ?>
+                        </div>
                         <div style="font-size: 11px; opacity: 0.9;">Fluxos Operacionais Completos</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">6</div>
-                        <div style="font-size: 11px; opacity: 0.9;">Fluxos de Comunicação (C1-C3, P1-P3)</div>
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">
+                            <?php echo esc_html($stats['communication_enabled']); ?>/<?php echo esc_html($stats['communication_total']); ?>
+                        </div>
+                        <div style="font-size: 11px; opacity: 0.9;">Fluxos de Comunicação Habilitados</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">4</div>
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">
+                            <?php echo esc_html($stats['gaps_implemented']); ?>/<?php echo esc_html($stats['gaps_total']); ?>
+                        </div>
                         <div style="font-size: 11px; opacity: 0.9;">GAPs Implementados</div>
                     </div>
                 </div>
@@ -3799,25 +3809,29 @@ class AdminBootstrap
                     <span class="dashicons dashicons-admin-tools"></span>
                     ⚙️ Fluxos Operacionais - Status do Sistema
                 </h3>
-                <p style="color: #f0f0f0; margin: 5px 0 0 0;">Monitoramento detalhado dos 10 fluxos operacionais de execução de serviços</p>
+                <p style="color: #f0f0f0; margin: 5px 0 0 0;">Monitoramento detalhado dos <?php echo esc_html($stats['operational_total']); ?> fluxos operacionais de execução de serviços</p>
             </div>
             <div class="limpvix-card-body">
-                <!-- Resumo Geral -->
+                <!-- Resumo Geral DINÂMICO -->
+                <?php
+                $operationalPending = $stats['operational_total'] - $stats['operational_complete'];
+                $operationalPartial = 0; // Para futuras implementações parciais
+                ?>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;">
                     <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #155724;">10</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #155724;"><?php echo esc_html($stats['operational_complete']); ?></div>
                         <div style="font-size: 12px; color: #155724;">COMPLETOS</div>
                     </div>
                     <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #856404;">0</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #856404;"><?php echo esc_html($operationalPartial); ?></div>
                         <div style="font-size: 12px; color: #856404;">PARCIAL</div>
                     </div>
-                    <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #721c24;">0</div>
-                        <div style="font-size: 12px; color: #721c24;">PENDENTES</div>
+                    <div style="background: <?php echo $operationalPending > 0 ? '#f8d7da' : '#d4edda'; ?>; border-left: 4px solid <?php echo $operationalPending > 0 ? '#dc3545' : '#28a745'; ?>; padding: 15px; border-radius: 4px;">
+                        <div style="font-size: 28px; font-weight: bold; color: <?php echo $operationalPending > 0 ? '#721c24' : '#155724'; ?>;"><?php echo esc_html($operationalPending); ?></div>
+                        <div style="font-size: 12px; color: <?php echo $operationalPending > 0 ? '#721c24' : '#155724'; ?>;">PENDENTES</div>
                     </div>
                     <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #155724;">100%</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #155724;"><?php echo esc_html($stats['operational_percentage']); ?>%</div>
                         <div style="font-size: 12px; color: #155724;">COMPLETUDE</div>
                     </div>
                 </div>
@@ -5079,6 +5093,133 @@ class AdminBootstrap
                     'trigger' => '15min após início',
                 ],
             ],
+        ];
+    }
+
+    /**
+     * Calcular estatísticas dinâmicas dos fluxos
+     */
+    private function calculateFluxosStats(array $enabledFlows): array
+    {
+        // 1. Contar fluxos de comunicação habilitados
+        $communicationTotal = 6; // C1-C3 + P1-P3
+        $communicationEnabled = 0;
+        foreach (['c1', 'c2', 'c3', 'p1', 'p2', 'p3'] as $flowId) {
+            if (!empty($enabledFlows[$flowId])) {
+                $communicationEnabled++;
+            }
+        }
+
+        // 2. Verificar fluxos operacionais completos (verificando classes reais)
+        $operationalFlows = [
+            [
+                'name' => 'Briefing → Contract',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Contract\\CreateContractFromBriefing',
+            ],
+            [
+                'name' => 'Check-in → IN_PROGRESS',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckIn',
+            ],
+            [
+                'name' => 'Check-out → COMPLETED',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckOut',
+            ],
+            [
+                'name' => 'Evidence Upload',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\UploadEvidence',
+            ],
+            [
+                'name' => 'Evidence Validation',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\ValidateEvidence',
+            ],
+            [
+                'name' => 'Feedback Window',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus',
+            ],
+            [
+                'name' => 'Submit Feedback',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Feedback\\SubmitFeedback',
+            ],
+            [
+                'name' => 'Payout Creation',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Financial\\ExecutePayout',
+            ],
+            [
+                'name' => 'Issue Reporting',
+                'entity' => 'LimpVix\\Domain\\Execution\\Issue',
+            ],
+            [
+                'name' => 'Validation Workflow',
+                'method' => 'LimpVix\\Domain\\Execution\\Execution::canBeValidated',
+            ],
+        ];
+
+        $operationalComplete = 0;
+        foreach ($operationalFlows as $flow) {
+            $exists = false;
+
+            if (isset($flow['use_case'])) {
+                $exists = class_exists($flow['use_case']);
+            } elseif (isset($flow['entity'])) {
+                $exists = class_exists($flow['entity']);
+            } elseif (isset($flow['method'])) {
+                list($class, $method) = explode('::', $flow['method']);
+                $exists = class_exists($class) && method_exists($class, $method);
+            }
+
+            if ($exists) {
+                $operationalComplete++;
+            }
+        }
+
+        $operationalTotal = count($operationalFlows);
+        $operationalPercentage = $operationalTotal > 0 ? round(($operationalComplete / $operationalTotal) * 100) : 0;
+
+        // 3. Verificar GAPs implementados
+        $gaps = [
+            [
+                'name' => 'GAP #1 - EPI Selfie Validation',
+                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\EvidenceCategory',
+            ],
+            [
+                'name' => 'GAP #2 - Evidence Categorization',
+                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\EvidenceCategory',
+            ],
+            [
+                'name' => 'GAP #3 - Client Check-in Notifications',
+                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckIn',
+            ],
+            [
+                'name' => 'GAP #4 - Issue Reporting',
+                'class' => 'LimpVix\\Domain\\Execution\\Issue',
+            ],
+        ];
+
+        $gapsImplemented = 0;
+        foreach ($gaps as $gap) {
+            $exists = false;
+
+            if (isset($gap['class'])) {
+                $exists = class_exists($gap['class']);
+            } elseif (isset($gap['use_case'])) {
+                $exists = class_exists($gap['use_case']);
+            }
+
+            if ($exists) {
+                $gapsImplemented++;
+            }
+        }
+
+        $gapsTotal = count($gaps);
+
+        return [
+            'communication_enabled' => $communicationEnabled,
+            'communication_total' => $communicationTotal,
+            'operational_complete' => $operationalComplete,
+            'operational_total' => $operationalTotal,
+            'operational_percentage' => $operationalPercentage,
+            'gaps_implemented' => $gapsImplemented,
+            'gaps_total' => $gapsTotal,
         ];
     }
 
