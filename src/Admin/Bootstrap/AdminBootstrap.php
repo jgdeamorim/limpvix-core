@@ -5114,35 +5114,35 @@ class AdminBootstrap
         $operationalFlows = [
             [
                 'name' => 'Briefing → Contract',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Contract\\CreateContractFromBriefing',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Contract\\CreateContractFromBriefing',
             ],
             [
                 'name' => 'Check-in → IN_PROGRESS',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckIn',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckIn',
             ],
             [
                 'name' => 'Check-out → COMPLETED',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckOut',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckOut',
             ],
             [
                 'name' => 'Evidence Upload',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\UploadEvidence',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\AddEvidence',
             ],
             [
                 'name' => 'Evidence Validation',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\ValidateEvidence',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\ApproveEvidence',
             ],
             [
                 'name' => 'Feedback Window',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Feedback\\CheckFeedbackWindowStatus',
             ],
             [
                 'name' => 'Submit Feedback',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Feedback\\SubmitFeedback',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Feedback\\SubmitFeedback',
             ],
             [
                 'name' => 'Payout Creation',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Financial\\ExecutePayout',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Financial\\ExecutePayout',
             ],
             [
                 'name' => 'Issue Reporting',
@@ -5150,7 +5150,7 @@ class AdminBootstrap
             ],
             [
                 'name' => 'Validation Workflow',
-                'method' => 'LimpVix\\Domain\\Execution\\Execution::canBeValidated',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\ValidateExecution',
             ],
         ];
 
@@ -5179,15 +5179,15 @@ class AdminBootstrap
         $gaps = [
             [
                 'name' => 'GAP #1 - EPI Selfie Validation',
-                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\EvidenceCategory',
+                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
             ],
             [
                 'name' => 'GAP #2 - Evidence Categorization',
-                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\EvidenceCategory',
+                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
             ],
             [
                 'name' => 'GAP #3 - Client Check-in Notifications',
-                'use_case' => 'LimpVix\\Application\\UseCase\\Execution\\CheckIn',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckIn',
             ],
             [
                 'name' => 'GAP #4 - Issue Reporting',
