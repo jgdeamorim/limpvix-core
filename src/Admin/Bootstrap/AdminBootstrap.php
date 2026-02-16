@@ -1736,17 +1736,112 @@ class AdminBootstrap
 
     private function renderConexoesTab(): void
     {
+        // Detectar status das conexões
+        $firebaseConfigured = !empty(get_option('limpvix_firebase_api_key'));
+        $googleBusinessConfigured = !empty(get_option('limpvix_google_business_api_key'));
+        $nvoipConfigured = !empty(get_option('limpvix_nvoip_api_key'));
+        $ppidConfigured = !empty(get_option('limpvix_ppid_api_key'));
+        $twilioConfigured = !empty(get_option('limpvix_twilio_account_sid')) && !empty(get_option('limpvix_twilio_auth_token'));
+
+        // Contar conexões ativas
+        $totalConnections = 5;
+        $activeConnections = 0;
+        if ($firebaseConfigured) $activeConnections++;
+        if ($googleBusinessConfigured) $activeConnections++;
+        if ($nvoipConfigured) $activeConnections++;
+        if ($ppidConfigured) $activeConnections++;
+        if ($twilioConfigured) $activeConnections++;
+
+        // Determinar provider OTP ativo
+        $activeOtpProvider = 'Nenhum';
+        if ($twilioConfigured && !$nvoipConfigured) {
+            $activeOtpProvider = 'Twilio';
+        } elseif ($nvoipConfigured && !$twilioConfigured) {
+            $activeOtpProvider = 'NVoip';
+        } elseif ($twilioConfigured && $nvoipConfigured) {
+            $activeOtpProvider = get_option('limpvix_active_sms_provider') === 'twilio' ? 'Twilio' : 'NVoip';
+        }
+
         ?>
+        <!-- Hero Card -->
+        <div class="limpvix-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px; border: none; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);">
+            <div style="padding: 30px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <div>
+                        <h1 style="color: white; margin: 0 0 10px 0; font-size: 28px; font-weight: 600;">
+                            🔌 Conexões & Integrações
+                        </h1>
+                        <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 16px;">
+                            Gerencie todas as integrações externas do sistema LimpVix
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.3);">
+                            <div style="font-size: 32px; font-weight: 700; color: white; line-height: 1;">
+                                <?php echo $activeConnections; ?>/<?php echo $totalConnections; ?>
+                            </div>
+                            <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8); margin-top: 5px; font-weight: 500;">
+                                Serviços Ativos
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats Grid -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px;">
+                    <!-- Firebase -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🔥</div>
+                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">Firebase Auth</div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                            <?php echo $firebaseConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
+                        </div>
+                    </div>
+
+                    <!-- Google Business -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
+                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">Google Business</div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                            <?php echo $googleBusinessConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
+                        </div>
+                    </div>
+
+                    <!-- PPID KYC -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 8px;">🔐</div>
+                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">PPID KYC</div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                            <?php echo $ppidConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
+                        </div>
+                    </div>
+
+                    <!-- OTP Provider Ativo -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 8px;">📱</div>
+                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">OTP Provider</div>
+                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                            <strong><?php echo $activeOtpProvider; ?></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Grid 1: Firebase + Google Meu Negócio -->
         <div class="limpvix-grid limpvix-grid-2">
             <!-- Firebase Authentication -->
             <div class="limpvix-card">
-                <div class="limpvix-card-header">
-                    <h3>
-                        <span class="dashicons dashicons-admin-network"></span>
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #dc2626 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
                         🔥 Firebase Authentication
                     </h3>
-                    <p>SMS OTP para verificação de telefone</p>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        SMS OTP para verificação de telefone
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $firebaseConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
                 </div>
                 <div class="limpvix-card-body">
                     <?php FirebaseSettings::render(); ?>
@@ -1755,12 +1850,16 @@ class AdminBootstrap
 
             <!-- Google Meu Negócio -->
             <div class="limpvix-card">
-                <div class="limpvix-card-header">
-                    <h3>
-                        <span class="dashicons dashicons-google"></span>
-                        Google Meu Negócio
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #4285f4 0%, #ea4335 50%, #fbbc04 75%, #34a853 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        🔍 Google Meu Negócio
                     </h3>
-                    <p>Integração para convites de avaliação</p>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        Integração para convites de avaliação
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $googleBusinessConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
                 </div>
                 <div class="limpvix-card-body">
                     <?php GoogleBusinessSettings::render(); ?>
@@ -1772,6 +1871,17 @@ class AdminBootstrap
         <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
             <!-- NVoip OTP Settings -->
             <div class="limpvix-card">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        📞 NVoip OTP Provider
+                    </h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        SMS, WhatsApp e Voz para OTP
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $nvoipConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
+                </div>
                 <div class="limpvix-card-body">
                     <?php NVoipSettings::render(); ?>
                 </div>
@@ -1779,12 +1889,16 @@ class AdminBootstrap
 
             <!-- PPID KYC Settings -->
             <div class="limpvix-card">
-                <div class="limpvix-card-header">
-                    <h3>
-                        <span class="dashicons dashicons-id"></span>
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
                         🔐 PPID KYC Biométrico
                     </h3>
-                    <p>Verificação de identidade com OCR + Liveness + Face Match</p>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        Verificação de identidade com OCR + Liveness + Face Match
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $ppidConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
                 </div>
                 <div class="limpvix-card-body">
                     <?php \LimpVix\Admin\Settings\PPIDSettings::render(); ?>
@@ -1792,10 +1906,21 @@ class AdminBootstrap
             </div>
         </div>
 
-        <!-- Grid 3: Twilio OTP + Guia Rápido -->
+        <!-- Grid 3: Twilio OTP + Teste Manual -->
         <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
             <!-- Twilio OTP Provider -->
             <div class="limpvix-card">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        📲 Twilio OTP Provider
+                    </h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        SMS, WhatsApp e Chamada de Voz
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $twilioConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
+                </div>
                 <div class="limpvix-card-body">
                     <?php \LimpVix\Admin\Settings\TwilioSettings::render(); ?>
                 </div>
@@ -1803,11 +1928,13 @@ class AdminBootstrap
 
             <!-- Teste Manual de SMS OTP -->
             <div class="limpvix-card">
-                <div class="limpvix-card-header">
-                    <h3>
-                        <span class="dashicons dashicons-email-alt"></span>
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
                         🧪 Teste Manual de SMS OTP
                     </h3>
+                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                        Envie OTP de teste para qualquer telefone
+                    </p>
                 </div>
                 <div class="limpvix-card-body">
                     <p><strong>Envie um código OTP de teste para qualquer telefone:</strong></p>
