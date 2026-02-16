@@ -1759,7 +1759,7 @@ class AdminBootstrap
         ?>
 
         <!-- HERO CARD -->
-        <div class="limpvix-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; margin-bottom: 20px; border: none;">
+        <div class="limpvix-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px; border: none;">
             <div class="limpvix-card-body" style="padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
