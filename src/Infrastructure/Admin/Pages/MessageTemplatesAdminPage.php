@@ -39,6 +39,9 @@ class MessageTemplatesAdminPage
             wp_die('Sem permissão');
         }
 
+        // Enqueue jQuery (necessário para AJAX)
+        wp_enqueue_script('jquery');
+
         // Detectar provider ativo
         $twilioConfigured = !empty(get_option('limpvix_twilio_account_sid')) &&
                            !empty(get_option('limpvix_twilio_auth_token'));
@@ -484,6 +487,9 @@ class MessageTemplatesAdminPage
         </div>
 
         <script>
+        // Garantir que ajaxurl está definido
+        var ajaxurl = ajaxurl || '<?php echo admin_url('admin-ajax.php'); ?>';
+
         function editTemplate(templateId, type) {
             const modal = document.getElementById('edit-modal');
             const form = document.getElementById('edit-template-form');
@@ -916,14 +922,9 @@ class MessageTemplatesAdminPage
                     $content = $overrides[$templateId]['content'];
                     $details = '<strong>📝 Template customizado</strong> (usando sua versão editada)';
                 } else {
-                    // Buscar template padrão do domínio
-                    if (class_exists('LimpVix\\Domain\\Communication\\MessageTemplates')) {
-                        $content = MessageTemplates::getTemplate($templateId);
-                        $details = '<strong>📋 Template padrão do sistema</strong>';
-                    } else {
-                        $content = '[Template padrão - classe MessageTemplates não encontrada]';
-                        $details = '<strong>⚠️ Aviso:</strong> Classe MessageTemplates não foi encontrada';
-                    }
+                    // Buscar template padrão
+                    $content = self::getCanonicalTemplateContent($templateId);
+                    $details = '<strong>📋 Template padrão do sistema</strong>';
                 }
             } else {
                 // Template customizado
@@ -969,12 +970,8 @@ class MessageTemplatesAdminPage
                 if (isset($overrides[$templateId])) {
                     $content = $overrides[$templateId]['content'];
                 } else {
-                    // Buscar do domínio
-                    if (class_exists('LimpVix\\Domain\\Communication\\MessageTemplates')) {
-                        $content = MessageTemplates::getTemplate($templateId);
-                    } else {
-                        $content = '';
-                    }
+                    // Buscar template canônico
+                    $content = self::getCanonicalTemplateContent($templateId);
                 }
 
                 wp_send_json_success(['content' => $content]);
@@ -991,6 +988,58 @@ class MessageTemplatesAdminPage
             }
         } catch (\Exception $e) {
             wp_send_json_error(['message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Buscar conteúdo do template canônico
+     */
+    private static function getCanonicalTemplateContent(string $templateId): string
+    {
+        // Mapear IDs para métodos da classe MessageTemplates
+        $mockVars = [
+            'customer_name' => '{{customer_name}}',
+            'staff_name' => '{{staff_name}}',
+            'service_name' => '{{service_name}}',
+            'feedback_url' => '{{rating_url}}',
+            'google_review_url' => '{{google_review_url}}',
+            'amount' => 250.00,
+        ];
+
+        if (!class_exists('LimpVix\\Domain\\Communication\\MessageTemplates')) {
+            return '[Classe MessageTemplates não encontrada]';
+        }
+
+        try {
+            switch ($templateId) {
+                case 'C1.1':
+                    return MessageTemplates::clientFeedbackD1($mockVars);
+                case 'C1.2':
+                    return MessageTemplates::clientFeedbackD3($mockVars);
+                case 'C1.3':
+                    return MessageTemplates::clientFeedbackD6($mockVars);
+                case 'C2':
+                    return '[Template bloqueado - não envia mensagem automática para feedback negativo]';
+                case 'C3':
+                    return MessageTemplates::clientGoogleReviewInvite($mockVars);
+                case 'P1':
+                    return MessageTemplates::staffServiceCompleted($mockVars);
+                case 'P2':
+                    return MessageTemplates::staffPaymentAuthorized($mockVars);
+                case 'P3':
+                    return MessageTemplates::staffPaymentUnderReview($mockVars);
+                case 'CHECK_IN_NOTIFICATION':
+                    return "Olá {{customer_name}}! 👋\n\n" .
+                           "O profissional {{staff_name}} acabou de fazer check-in no local.\n\n" .
+                           "🕐 Horário: {{service_time}}\n" .
+                           "📍 Endereço: {{address}}\n\n" .
+                           "O serviço começará em breve!\n\n" .
+                           "Equipe Limpvix";
+                default:
+                    return '[Template não encontrado]';
+            }
+        } catch (\Exception $e) {
+            return '[Erro ao gerar template: ' . $e->getMessage() . ']';
         }
     }
 
