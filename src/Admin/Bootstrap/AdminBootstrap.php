@@ -3042,7 +3042,7 @@ class AdminBootstrap
                 <!-- Resumo Geral -->
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;">
                     <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #155724;">7</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #155724;">8</div>
                         <div style="font-size: 12px; color: #155724;">COMPLETOS</div>
                     </div>
                     <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
@@ -3050,11 +3050,11 @@ class AdminBootstrap
                         <div style="font-size: 12px; color: #856404;">PARCIAL</div>
                     </div>
                     <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #721c24;">2</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #721c24;">1</div>
                         <div style="font-size: 12px; color: #721c24;">PENDENTES</div>
                     </div>
                     <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; border-radius: 4px;">
-                        <div style="font-size: 28px; font-weight: bold; color: #0c5460;">70%</div>
+                        <div style="font-size: 28px; font-weight: bold; color: #0c5460;">80%</div>
                         <div style="font-size: 12px; color: #0c5460;">COMPLETUDE</div>
                     </div>
                 </div>
@@ -3179,19 +3179,19 @@ class AdminBootstrap
                         </tr>
 
                         <!-- FLUXO 8: Notificação ao Cliente (Check-in) -->
-                        <tr style="background: #f8d7da;">
+                        <tr style="background: #d4edda;">
                             <td style="text-align: center;">
-                                <span style="font-size: 20px; color: #dc3545;">❌</span>
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
                             </td>
                             <td><strong>Notificação ao Cliente (Check-in)</strong></td>
                             <td>
-                                <strong style="color: #721c24;">GAP #3 (P1)</strong><br>
-                                Sistema de notificação quando professional faz check-in
+                                <strong style="color: #155724;">✅ IMPLEMENTADO (GAP #3)</strong><br>
+                                Cliente recebe SMS/WhatsApp quando professional faz check-in: "✅ Seu profissional chegou!"
                             </td>
                             <td style="text-align: center;">
-                                <div style="background: #dc3545; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">0%</div>
+                                <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
                             </td>
-                            <td style="color: #721c24;">4-6h estimadas</td>
+                            <td style="color: #28a745;">✅ Completo (hoje)</td>
                         </tr>
 
                         <!-- FLUXO 9: Cliente Reporta Problemas -->
@@ -3241,15 +3241,6 @@ class AdminBootstrap
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td><strong>GAP #3</strong></td>
-                                <td>
-                                    <strong>Notificação Check-in:</strong> Cliente recebe notificação quando professional chega
-                                </td>
-                                <td><span style="background: #ffc107; color: #856404; padding: 3px 8px; border-radius: 3px; font-size: 11px;">P1 ALTO</span></td>
-                                <td>4-6h</td>
-                                <td>⏳ Pós-launch</td>
-                            </tr>
                             <tr>
                                 <td><strong>GAP #4</strong></td>
                                 <td>

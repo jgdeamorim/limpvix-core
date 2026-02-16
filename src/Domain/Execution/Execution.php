@@ -153,6 +153,9 @@ class Execution
         $this->status = ExecutionStatusEnum::CHECKED_IN;
         $this->checkInAt = new \DateTimeImmutable();
         $this->checkInGeo = $geo;
+
+        // GAP #3: Disparar evento de check-in para notificação ao cliente
+        do_action('limpvix_execution_checked_in', $this->executionUuid, $this->orderId, $this->professionalId);
     }
 
     /**

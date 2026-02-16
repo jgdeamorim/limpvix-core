@@ -20,6 +20,7 @@ use LimpVix\Infrastructure\Integration\OnConsecutivePoorFeedback;
 use LimpVix\Infrastructure\Integration\OnProfessionalSuspended;
 use LimpVix\Infrastructure\Integration\OnContractExpiring;
 use LimpVix\Infrastructure\Integration\OfferNotificationListener;
+use LimpVix\Infrastructure\Integration\ExecutionCheckedInListener; // GAP #3
 
 /**
  * Bootstrap: Scheduling Module
@@ -107,6 +108,7 @@ final class SchedulingBootstrap
         OnProfessionalSuspended::init();     // CRITICAL: Auto-reallocates all contracts when professional suspended
         OnContractExpiring::init();          // Daily cron: recommends renewal with different prof if score <3.5
         OfferNotificationListener::init();          // Sends notifications when offers are sent
+        ExecutionCheckedInListener::init();         // GAP #3: Sends check-in notification to customer
     }
 
     /**
