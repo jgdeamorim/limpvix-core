@@ -2995,6 +2995,44 @@ class AdminBootstrap
             'attempt3_hours' => 72,
         ]);
         ?>
+
+        <!-- RESUMO DE STATUS NO TOPO -->
+        <div class="limpvix-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px; border: none;">
+            <div class="limpvix-card-body" style="padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="color: white; margin: 0 0 5px 0; font-size: 22px;">🔄 Fluxos - Visão Geral</h2>
+                        <p style="color: #f0f0f0; margin: 0; font-size: 13px;">
+                            Configure fluxos de comunicação e monitore status operacional do sistema
+                        </p>
+                    </div>
+                    <div style="text-align: right;">
+                        <a href="#fluxos-operacionais"
+                           class="button"
+                           style="background: white; color: #667eea; border: none; font-weight: 600; margin-left: 10px;">
+                            📊 Ver Status Operacional (100%)
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px;">
+                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">10/10</div>
+                        <div style="font-size: 11px; opacity: 0.9;">Fluxos Operacionais Completos</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">6</div>
+                        <div style="font-size: 11px; opacity: 0.9;">Fluxos de Comunicação (C1-C3, P1-P3)</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; text-align: center; backdrop-filter: blur(10px);">
+                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 3px;">4</div>
+                        <div style="font-size: 11px; opacity: 0.9;">GAPs Implementados</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="limpvix-card">
             <div class="limpvix-card-header">
                 <h3>
@@ -3199,13 +3237,13 @@ class AdminBootstrap
         </style>
 
         <!-- SEÇÃO: FLUXOS OPERACIONAIS -->
-        <div class="limpvix-card" style="margin-top: 30px;">
+        <div id="fluxos-operacionais" class="limpvix-card" style="margin-top: 30px; scroll-margin-top: 20px;">
             <div class="limpvix-card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <h3 style="color: white; margin: 0;">
                     <span class="dashicons dashicons-admin-tools"></span>
                     ⚙️ Fluxos Operacionais - Status do Sistema
                 </h3>
-                <p style="color: #f0f0f0; margin: 5px 0 0 0;">Monitoramento de fluxos operacionais de execução de serviços</p>
+                <p style="color: #f0f0f0; margin: 5px 0 0 0;">Monitoramento detalhado dos 10 fluxos operacionais de execução de serviços</p>
             </div>
             <div class="limpvix-card-body">
                 <!-- Resumo Geral -->
@@ -3256,19 +3294,19 @@ class AdminBootstrap
                         </tr>
 
                         <!-- FLUXO 2: Check-in com EPI -->
-                        <tr style="background: #fff3cd;">
+                        <tr>
                             <td style="text-align: center;">
-                                <span style="font-size: 20px; color: #ffc107;">⚠️</span>
+                                <span style="font-size: 20px; color: #28a745;">✅</span>
                             </td>
                             <td><strong>Check-in com EPI</strong></td>
                             <td>
-                                <strong style="color: #856404;">⚠️ IMPLEMENTADO (GAP #1)</strong><br>
-                                Validação de EPI video selfie obrigatório implementada (Sprint 1 - Dia 6)
+                                <strong style="color: #155724;">✅ IMPLEMENTADO (GAP #1)</strong><br>
+                                Validação de EPI video selfie obrigatório - commit e9ae591
                             </td>
                             <td style="text-align: center;">
                                 <div style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-weight: bold;">100%</div>
                             </td>
-                            <td style="color: #28a745;">✅ Completo (commit e9ae591)</td>
+                            <td style="color: #28a745;">✅ Completo</td>
                         </tr>
 
                         <!-- FLUXO 3: Check-out Básico -->
