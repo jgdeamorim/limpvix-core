@@ -59,15 +59,25 @@ final class ListProfessionals
 
         // WHITELIST VALIDATION: Filter by status
         if (isset($filters['status']) && $filters['status'] !== 'all') {
-            $allowedStatuses = ['active', 'inactive', 'suspended'];
+            $allowedStatuses = ['active', 'inactive', 'suspended', 'banned'];
             if (in_array($filters['status'], $allowedStatuses, true)) {
                 if ($filters['status'] === 'active') {
-                    $where[] = 'is_active = 1 AND (suspended_until IS NULL OR suspended_until < NOW())';
+                    $where[] = 'is_active = 1 AND is_permanently_banned = 0 AND (suspended_until IS NULL OR suspended_until < NOW())';
                 } elseif ($filters['status'] === 'inactive') {
-                    $where[] = 'is_active = 0';
+                    $where[] = 'is_active = 0 AND is_permanently_banned = 0';
                 } elseif ($filters['status'] === 'suspended') {
-                    $where[] = 'is_active = 1 AND suspended_until IS NOT NULL AND suspended_until > NOW()';
+                    $where[] = 'is_permanently_banned = 0 AND suspended_until IS NOT NULL AND suspended_until > NOW()';
+                } elseif ($filters['status'] === 'banned') {
+                    $where[] = 'is_permanently_banned = 1';
                 }
+            }
+        }
+
+        // WHITELIST VALIDATION: Filter by KYC status
+        if (!empty($filters['filter_kyc']) && $filters['filter_kyc'] !== 'all') {
+            $allowedKyc = ['not_started', 'pending', 'processing', 'approved', 'rejected', 'expired'];
+            if (in_array($filters['filter_kyc'], $allowedKyc, true)) {
+                $where[] = $wpdb->prepare('kyc_status = %s', $filters['filter_kyc']);
             }
         }
 
