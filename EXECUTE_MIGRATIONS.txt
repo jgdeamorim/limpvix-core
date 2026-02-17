@@ -1,0 +1,81 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    🚀 EXECUTAR MIGRATIONS DOS GAPs                        ║
+║                         (GAPs A, C, D)                                    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+Data: 2026-02-16
+Status: Pronto para execução
+
+═══════════════════════════════════════════════════════════════════════════
+
+✅ OPÇÃO 1: EXECUTOR CONSOLIDADO (RECOMENDADO)
+───────────────────────────────────────────────────────────────────────────
+
+Execute TODAS as 3 migrations de uma vez:
+
+🔗 URL:
+http://localhost/wp-content/plugins/limpvix-core/database-migrations/execute-all-gaps-migrations.php
+
+OU (se usar porta diferente):
+http://localhost:8080/wp-content/plugins/limpvix-core/database-migrations/execute-all-gaps-migrations.php
+
+Executa:
+✓ Migration 023: Professional Documents Table (GAP A)
+✓ Migration 024: Manual Payout Fields (GAP C)
+✓ Migration 025: Service Catalog Required Skills (GAP D)
+
+═══════════════════════════════════════════════════════════════════════════
+
+⚙️ OPÇÃO 2: EXECUTORES INDIVIDUAIS
+───────────────────────────────────────────────────────────────────────────
+
+Migration 023 (GAP A - Document Upload/KYC):
+http://localhost/wp-content/plugins/limpvix-core/database-migrations/execute-migration-023.php
+
+Migration 024 (GAP C - ManualPayout):
+http://localhost/wp-content/plugins/limpvix-core/database-migrations/execute-migration-024.php
+
+Migration 025 (GAP D - Service Catalog):
+http://localhost/wp-content/plugins/limpvix-core/database-migrations/execute-migration-025.php
+
+═══════════════════════════════════════════════════════════════════════════
+
+📋 REQUISITOS
+───────────────────────────────────────────────────────────────────────────
+
+✓ Servidor web rodando (Apache/Nginx)
+✓ WordPress instalado e funcionando
+✓ Usuário logado como administrador
+✓ Permissão manage_options
+
+═══════════════════════════════════════════════════════════════════════════
+
+🔍 APÓS EXECUTAR
+───────────────────────────────────────────────────────────────────────────
+
+Verificar no resultado da execução:
+
+1. Migration 023:
+   - Tabela wp_limpvix_professional_documents criada? ✅
+   - 14 colunas presentes? ✅
+
+2. Migration 024:
+   - 6 colunas adicionadas em wp_limpvix_payouts? ✅
+   - Tabela wp_limpvix_payout_audit_trail criada? ✅
+
+3. Migration 025:
+   - Coluna required_skills adicionada? ✅
+   - 6 serviços com skills populados? ✅
+
+═══════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTAÇÃO COMPLETA
+───────────────────────────────────────────────────────────────────────────
+
+Ver: database-migrations/README_EXECUTE_MIGRATIONS.md
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎯 RESULTADO ESPERADO: 100% SUCCESS (todas migrations executadas)
+
+═══════════════════════════════════════════════════════════════════════════
