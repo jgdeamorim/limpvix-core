@@ -33,11 +33,11 @@ final class Issue
     private string $description;
     private ?string $reportedBy; // 'customer' | 'professional' | 'admin'
     private int $reportedByUserId;
-    private DateTimeImmutable $reportedAt;
+    private \DateTimeImmutable $reportedAt;
     private ?string $status; // 'open' | 'investigating' | 'resolved' | 'closed'
     private ?string $resolution;
     private ?int $resolvedByUserId;
-    private ?DateTimeImmutable $resolvedAt;
+    private ?\DateTimeImmutable $resolvedAt;
     private array $evidenceUrls; // Fotos/vídeos do problema
 
     private function __construct(

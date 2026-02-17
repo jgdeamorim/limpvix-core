@@ -26,12 +26,12 @@ final class ProfessionalDocument
     private ?string $originalFilename;
     private DocumentStatus $status;
     private ?int $reviewedBy;
-    private ?DateTimeImmutable $reviewedAt;
+    private ?\DateTimeImmutable $reviewedAt;
     private ?string $rejectionReason;
-    private ?DateTimeImmutable $expiresAt;
+    private ?\DateTimeImmutable $expiresAt;
     private ?array $metadata;
-    private DateTimeImmutable $createdAt;
-    private DateTimeImmutable $updatedAt;
+    private \DateTimeImmutable $createdAt;
+    private \DateTimeImmutable $updatedAt;
 
     private function __construct(
         int $professionalId,
