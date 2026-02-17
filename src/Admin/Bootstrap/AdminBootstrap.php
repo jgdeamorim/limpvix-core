@@ -196,15 +196,8 @@ class AdminBootstrap
             [$this, "renderSyncValidatorPage"]
         );
 
-        // Submenu: Payouts
-        add_submenu_page(
-            self::MENU_SLUG,
-            "Histórico de Payouts",
-            "Payouts",
-            "limpvix_finance_view",
-            "limpvix-payouts",
-            [$this, "renderPayoutsPage"]
-        );
+        // Payouts movido para aba em limpvix-professionals&tab=payouts
+        // Menu antigo removido — redirect em renderPayoutsPage() para compatibilidade
 
         // Submenu: Relatório Financeiro
         add_submenu_page(
@@ -5135,7 +5128,7 @@ class AdminBootstrap
                             </div>
                         </div>
                     </div>
-                    <a href="<?php echo admin_url('admin.php?page=limpvix-payouts'); ?>"
+                    <a href="<?php echo admin_url('admin.php?page=limpvix-professionals&tab=payouts'); ?>"
                        class="button button-primary"
                        style="background: white; color: #667eea; border: none; box-shadow: none; padding: 8px 16px; font-weight: 600;">
                         Ver Todos os Payouts →
@@ -5263,7 +5256,7 @@ class AdminBootstrap
 
                         <!-- Action Button -->
                         <div style="margin-top: 10px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
-                            <a href="<?php echo admin_url('admin.php?page=limpvix-payouts'); ?>" class="button button-primary button-large" style="width: 100%; text-align: center; justify-content: center; display: flex; align-items: center; gap: 8px;">
+                            <a href="<?php echo admin_url('admin.php?page=limpvix-professionals&tab=payouts'); ?>" class="button button-primary button-large" style="width: 100%; text-align: center; justify-content: center; display: flex; align-items: center; gap: 8px;">
                                 <span>📊</span>
                                 <span>Gerenciar Payouts</span>
                             </a>
@@ -5462,13 +5455,10 @@ class AdminBootstrap
         $controller->render();
     }
 
+    /** @deprecated Payouts movido para limpvix-professionals&tab=payouts */
     public function renderPayoutsPage(): void {
-        if (!FinanceCapabilities::canView()) {
-            wp_die("Acesso negado");
-        }
-
-        $page = new PayoutsPage();
-        $page->render();
+        wp_redirect(admin_url('admin.php?page=limpvix-professionals&tab=payouts'));
+        exit;
     }
 
     /**
