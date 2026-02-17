@@ -1050,6 +1050,80 @@ class AdminBootstrap
                     </div>
                 </div>
             </div>
+
+            <!-- DATABASE: Document KYC Table (GAP A) -->
+            <?php
+            global $wpdb;
+            $documentsTable = $wpdb->prefix . 'limpvix_professional_documents';
+            $documentsTableExists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $documentsTable)) === $documentsTable;
+
+            if ($documentsTableExists) {
+                $documentCount = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$documentsTable}");
+                $pendingCount = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$documentsTable} WHERE status = 'pending'");
+                $approvedCount = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$documentsTable} WHERE status = 'approved'");
+            }
+            ?>
+            <div class="limpvix-card" style="margin-top: 20px;">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, <?php echo $documentsTableExists ? '#10b981' : '#f59e0b'; ?> 0%, <?php echo $documentsTableExists ? '#059669' : '#d97706'; ?> 100%); color: white;">
+                    <h3 style="color: white; margin: 0;">
+                        <span class="dashicons dashicons-media-document"></span>
+                        <?php echo $documentsTableExists ? '✅' : '⚠️'; ?> Database: Document KYC (GAP A)
+                    </h3>
+                    <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;">
+                        Tabela de documentos para verificação KYC de profissionais
+                    </p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php if ($documentsTableExists): ?>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px;">
+                            <div style="background: #f9fafb; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                <div style="font-size: 24px; font-weight: bold; color: #1f2937;"><?php echo $documentCount; ?></div>
+                                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Total de Documentos</div>
+                            </div>
+                            <div style="background: #fff3cd; padding: 16px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                                <div style="font-size: 24px; font-weight: bold; color: #856404;"><?php echo $pendingCount; ?></div>
+                                <div style="font-size: 12px; color: #856404; margin-top: 4px;">Aguardando Revisão</div>
+                            </div>
+                            <div style="background: #d4edda; padding: 16px; border-radius: 8px; border-left: 4px solid #28a745;">
+                                <div style="font-size: 24px; font-weight: bold; color: #155724;"><?php echo $approvedCount; ?></div>
+                                <div style="font-size: 12px; color: #155724; margin-top: 4px;">Aprovados</div>
+                            </div>
+                        </div>
+
+                        <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                            <h4 style="color: #1e40af; font-size: 14px; margin: 0 0 12px 0;">💾 Informações da Tabela</h4>
+                            <div style="font-size: 13px; color: #1e40af; line-height: 1.8;">
+                                <strong>Tabela:</strong> <code><?php echo esc_html($documentsTable); ?></code> ✓ Criada<br>
+                                <strong>Tipos Suportados:</strong> CPF, RG, Selfie, Comprovante Endereço, Certificados (NR-35, NR-10, NR-06)<br>
+                                <strong>Status Flow:</strong> <code>pending</code> → <code>approved</code> / <code>rejected</code> / <code>expired</code><br>
+                                <strong>Features:</strong> Upload via REST API, Revisão Admin, KYC %, Expiração de Certificados<br>
+                                <strong>Admin Page:</strong> <a href="<?php echo admin_url('admin.php?page=limpvix-document-review'); ?>" style="color: #1e40af; text-decoration: underline;">LimpVix > Documentos KYC</a>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 15px; padding: 12px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;">
+                            <p style="margin: 0; color: #155724; font-size: 13px;">
+                                <strong>✅ GAP A Implementado!</strong> Sistema completo de Document Upload/Review para KYC.
+                                Ver detalhes em: <code>GAP_A_DOCUMENT_UPLOAD_IMPLEMENTATION.md</code>
+                            </p>
+                        </div>
+                    <?php else: ?>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                            <h4 style="color: #856404; font-size: 14px; margin: 0 0 8px 0;">⚠️ Tabela Não Criada</h4>
+                            <p style="margin: 0; color: #856404; font-size: 13px;">
+                                A tabela <code><?php echo esc_html($documentsTable); ?></code> ainda não foi criada.<br>
+                                Execute a migration para criar a tabela:
+                            </p>
+                            <p style="margin: 10px 0 0 0;">
+                                <a href="<?php echo plugins_url('limpvix-core/database-migrations/execute-migration-023.php'); ?>"
+                                   class="button button-primary" target="_blank">
+                                    ▶️ Executar Migration 023
+                                </a>
+                            </p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
 
         <!-- AMBIENTE & PROVIDERS -->
@@ -6054,6 +6128,20 @@ class AdminBootstrap
     private function getGAPsImplementationStatus(): array
     {
         $gaps = [
+            'GAP #A' => [
+                'name' => 'Document Upload/Review KYC',
+                'description' => 'Sistema completo de upload e revisão de documentos para KYC de profissionais',
+                'checks' => [
+                    'ProfessionalDocument entity' => 'LimpVix\\Domain\\Professional\\ProfessionalDocument',
+                    'DocumentType VO' => 'LimpVix\\Domain\\Professional\\ValueObjects\\DocumentType',
+                    'DocumentStatus VO' => 'LimpVix\\Domain\\Professional\\ValueObjects\\DocumentStatus',
+                    'UploadDocument use case' => 'LimpVix\\Application\\UseCases\\Professional\\UploadDocument',
+                    'ReviewDocument use case' => 'LimpVix\\Application\\UseCases\\Professional\\ReviewDocument',
+                    'DocumentRepository' => 'LimpVix\\Domain\\Professional\\ProfessionalDocumentRepositoryInterface',
+                    'Document REST API' => 'LimpVix\\Infrastructure\\API\\ProfessionalDocumentController',
+                    'Document Admin Page' => 'LimpVix\\Infrastructure\\Admin\\Pages\\DocumentReviewPage',
+                ],
+            ],
             'GAP #1' => [
                 'name' => 'EPI Selfie Validation',
                 'description' => 'Validação obrigatória de EPI no check-in com video selfie',
