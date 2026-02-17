@@ -1163,35 +1163,46 @@ class ProfessionalManagementPage
     private function renderKycTab(): void
     {
         $statusFilter = sanitize_key($_GET['kyc_status'] ?? 'all');
+        $search       = sanitize_text_field($_GET['kyc_search'] ?? '');
 
         // ── Hero card ──────────────────────────────────────────────────────────
         $this->renderKycStatistics();
 
-        // ── Filtro de status ───────────────────────────────────────────────────
+        // ── Filtros ────────────────────────────────────────────────────────────
+        $hasFilter = $statusFilter !== 'all' || $search !== '';
         ?>
-        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span style="font-size:14px; font-weight:600; color:#374151;">🔍 Filtrar por status:</span>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px;">
             <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;">
                 <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
                 <input type="hidden" name="tab" value="kyc">
+
+                <!-- Filtro de status KYC -->
                 <select name="kyc_status" style="min-width:180px;">
-                    <option value="all"        <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
-                    <option value="not_started"<?php selected($statusFilter, 'not_started'); ?>>❌ Não Iniciado</option>
+                    <option value="all"        <?php selected($statusFilter, 'all'); ?>>Todos os Status KYC</option>
+                    <option value="not_started"<?php selected($statusFilter, 'not_started'); ?>>— Não Iniciado</option>
                     <option value="pending"    <?php selected($statusFilter, 'pending'); ?>>⏳ Pendente</option>
                     <option value="processing" <?php selected($statusFilter, 'processing'); ?>>🔄 Processando</option>
                     <option value="approved"   <?php selected($statusFilter, 'approved'); ?>>✅ Aprovado</option>
                     <option value="rejected"   <?php selected($statusFilter, 'rejected'); ?>>❌ Rejeitado</option>
                     <option value="expired"    <?php selected($statusFilter, 'expired'); ?>>⏰ Expirado</option>
                 </select>
+
+                <!-- Busca por nome / CPF / email -->
+                <input type="search" name="kyc_search"
+                       value="<?php echo esc_attr($search); ?>"
+                       placeholder="🔍 Buscar por nome, CPF ou email…"
+                       style="min-width:260px;">
+
                 <button type="submit" class="button button-primary">Filtrar</button>
-                <?php if ($statusFilter !== 'all'): ?>
+
+                <?php if ($hasFilter): ?>
                     <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=kyc" class="button">Limpar</a>
                 <?php endif; ?>
             </form>
         </div>
 
         <!-- Tabela de profissionais -->
-        <?php $this->renderKycProfessionalsTable($statusFilter); ?>
+        <?php $this->renderKycProfessionalsTable($statusFilter, $search); ?>
         <?php
     }
 
@@ -1233,50 +1244,57 @@ class ProfessionalManagementPage
                 </p>
             </div>
 
-            <!-- Grid 7 colunas -->
+            <!-- Grid 7 colunas — todos clicáveis exceto Total -->
+            <?php $kycSlug = self::PAGE_SLUG; ?>
             <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:10px; position:relative; z-index:1;">
 
-                <!-- Total -->
+                <!-- Total (estático) -->
                 <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
                     <div style="font-size:34px; font-weight:700; color:#fff; line-height:1;"><?php echo (int) $stats['total']; ?></div>
                     <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
                 </div>
 
                 <!-- Não Iniciado -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=not_started"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#d1d5db; line-height:1;"><?php echo (int) $stats['not_started']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Não Iniciado</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Não Iniciado ↗</div>
+                </a>
 
                 <!-- Pendente -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=pending"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo (int) $stats['pending']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendente</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendente ↗</div>
+                </a>
 
                 <!-- Processando -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=processing"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#67e8f9; line-height:1;"><?php echo (int) $stats['processing']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Processando</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Processando ↗</div>
+                </a>
 
                 <!-- Aprovado -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=approved"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#4ade80; line-height:1;"><?php echo (int) $stats['approved']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Aprovado</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Aprovado ↗</div>
+                </a>
 
                 <!-- Rejeitado -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=rejected"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['rejected']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Rejeitado</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Rejeitado ↗</div>
+                </a>
 
                 <!-- Expirado -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($kycSlug); ?>&tab=kyc&kyc_status=expired"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:34px; font-weight:700; color:#fde68a; line-height:1;"><?php echo (int) $stats['expired']; ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Expirado</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Expirado ↗</div>
+                </a>
 
             </div><!-- /grid -->
         </div><!-- /hero card -->
@@ -1286,57 +1304,101 @@ class ProfessionalManagementPage
     /**
      * Render KYC professionals table
      */
-    private function renderKycProfessionalsTable(string $statusFilter): void
+    private function renderKycProfessionalsTable(string $statusFilter, string $search = ''): void
     {
         global $wpdb;
         $table = $wpdb->prefix . 'limpvix_professionals';
 
-        // Build query
-        $where = 'WHERE 1=1';
+        // ── Build WHERE ────────────────────────────────────────────────────────
+        $whereParts = ['1=1'];
+        $params     = [];
+
         if ($statusFilter !== 'all') {
-            $where .= $wpdb->prepare(' AND kyc_status = %s', $statusFilter);
+            $whereParts[] = 'kyc_status = %s';
+            $params[]     = $statusFilter;
         }
 
-        $professionals = $wpdb->get_results("
-            SELECT
-                id,
-                full_name,
-                email,
-                phone,
-                kyc_status,
-                kyc_started_at,
-                kyc_submitted_at,
-                kyc_approved_at,
-                kyc_rejected_at,
-                kyc_retry_count,
-                kyc_rejection_reason
-            FROM {$table}
-            {$where}
-            ORDER BY
-                CASE kyc_status
-                    WHEN 'pending' THEN 1
-                    WHEN 'processing' THEN 2
-                    WHEN 'rejected' THEN 3
-                    WHEN 'not_started' THEN 4
-                    WHEN 'approved' THEN 5
-                    WHEN 'expired' THEN 6
-                END,
-                kyc_submitted_at DESC
-            LIMIT 50
-        ", ARRAY_A);
+        if ($search !== '') {
+            $like         = '%' . $wpdb->esc_like($search) . '%';
+            $whereParts[] = '(full_name LIKE %s OR cpf LIKE %s OR email LIKE %s OR phone LIKE %s)';
+            $params       = array_merge($params, [$like, $like, $like, $like]);
+        }
 
-        $count = count($professionals);
+        $whereStr = 'WHERE ' . implode(' AND ', $whereParts);
+
+        // ── Paginação ──────────────────────────────────────────────────────────
+        $perPage     = 20;
+        $currentPage = max(1, (int) ($_GET['kyc_paged'] ?? 1));
+        $offset      = ($currentPage - 1) * $perPage;
+
+        $orderSql = "ORDER BY
+                CASE kyc_status
+                    WHEN 'pending'     THEN 1
+                    WHEN 'processing'  THEN 2
+                    WHEN 'rejected'    THEN 3
+                    WHEN 'not_started' THEN 4
+                    WHEN 'approved'    THEN 5
+                    WHEN 'expired'     THEN 6
+                END,
+                kyc_submitted_at DESC";
+
+        // Total (para paginação)
+        $countSql = empty($params)
+            ? "SELECT COUNT(*) FROM {$table} {$whereStr}"
+            : $wpdb->prepare("SELECT COUNT(*) FROM {$table} {$whereStr}", ...$params);
+
+        $total     = (int) $wpdb->get_var($countSql);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+
+        // Dados da página
+        $dataSql = empty($params)
+            ? $wpdb->prepare(
+                "SELECT id, full_name, cpf, email, phone, kyc_status,
+                        kyc_started_at, kyc_submitted_at, kyc_approved_at,
+                        kyc_rejected_at, kyc_retry_count, kyc_rejection_reason
+                 FROM {$table} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                $perPage, $offset
+            )
+            : $wpdb->prepare(
+                "SELECT id, full_name, cpf, email, phone, kyc_status,
+                        kyc_started_at, kyc_submitted_at, kyc_approved_at,
+                        kyc_rejected_at, kyc_retry_count, kyc_rejection_reason
+                 FROM {$table} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                ...[...$params, $perPage, $offset]
+            );
+
+        $professionals = $wpdb->get_results($dataSql, ARRAY_A) ?? [];
+        $count         = count($professionals);
+
+        // URL base para paginação (preserva filtros)
+        $paginationBase = add_query_arg([
+            'page'       => self::PAGE_SLUG,
+            'tab'        => 'kyc',
+            'kyc_status' => $statusFilter !== 'all' ? $statusFilter : false,
+            'kyc_search' => $search !== '' ? $search : false,
+        ], admin_url('admin.php'));
         ?>
         <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
 
             <!-- Cabeçalho -->
-            <div style="padding:20px 24px 0; border-bottom:1px solid #f1f5f9; margin-bottom:16px;">
-                <h3 style="margin:0 0 16px 0; font-size:16px; color:#4c1d95; font-weight:700; display:flex; align-items:center; gap:8px;">
+            <div style="padding:20px 24px 16px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:16px; color:#4c1d95; font-weight:700; display:flex; align-items:center; gap:8px;">
                     📋 <span>Verificações KYC</span>
                     <span style="background:#ede9fe; color:#6d28d9; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
-                        <?php echo esc_html($count); ?> registro<?php echo $count !== 1 ? 's' : ''; ?>
+                        <?php echo esc_html($total); ?> registro<?php echo $total !== 1 ? 's' : ''; ?>
                     </span>
+                    <?php if ($search !== ''): ?>
+                        <span style="background:#fef3c7; color:#92400e; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;">
+                            🔍 "<?php echo esc_html($search); ?>"
+                        </span>
+                    <?php endif; ?>
                 </h3>
+                <?php if ($totalPages > 1): ?>
+                    <span style="font-size:13px; color:#6b7280;">
+                        Página <?php echo $currentPage; ?> de <?php echo $totalPages; ?>
+                        (<?php echo $perPage; ?> por página)
+                    </span>
+                <?php endif; ?>
             </div>
 
             <!-- Tabela -->
@@ -1346,6 +1408,7 @@ class ProfessionalManagementPage
                         <tr>
                             <th style="width:60px;">ID</th>
                             <th>Profissional</th>
+                            <th style="width:120px;">CPF</th>
                             <th>Contato</th>
                             <th style="width:160px;">Status KYC</th>
                             <th style="width:140px;">Data Submissão</th>
@@ -1356,10 +1419,16 @@ class ProfessionalManagementPage
                     <tbody>
                         <?php if (empty($professionals)): ?>
                             <tr>
-                                <td colspan="7" style="text-align:center; padding:48px; color:#6b7280;">
+                                <td colspan="8" style="text-align:center; padding:48px; color:#6b7280;">
                                     <div style="font-size:40px; margin-bottom:12px;">🔍</div>
                                     <div style="font-weight:600;">Nenhum profissional encontrado.</div>
-                                    <div style="font-size:13px; margin-top:6px;">Tente ajustar o filtro de status.</div>
+                                    <div style="font-size:13px; margin-top:6px;">
+                                        <?php if ($search !== ''): ?>
+                                            Nenhum resultado para "<strong><?php echo esc_html($search); ?></strong>". Tente outro termo ou limpe o filtro.
+                                        <?php else: ?>
+                                            Tente ajustar o filtro de status KYC.
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -1367,6 +1436,7 @@ class ProfessionalManagementPage
                                 <tr>
                                     <td><strong style="color:#6d28d9;">#<?php echo esc_html($prof['id']); ?></strong></td>
                                     <td><strong><?php echo esc_html($prof['full_name']); ?></strong></td>
+                                    <td style="font-size:12px; color:#4b5563; font-family:monospace;"><?php echo esc_html($prof['cpf'] ?? '—'); ?></td>
                                     <td>
                                         <span style="font-size:13px;"><?php echo esc_html($prof['email']); ?></span><br>
                                         <small style="color:#6b7280;"><?php echo esc_html($prof['phone']); ?></small>
@@ -1399,6 +1469,37 @@ class ProfessionalManagementPage
                         <?php endif; ?>
                     </tbody>
                 </table>
+
+                <!-- Paginação -->
+                <?php if ($totalPages > 1): ?>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:20px; flex-wrap:wrap;">
+                        <?php if ($currentPage > 1): ?>
+                            <a href="<?php echo esc_url(add_query_arg('kyc_paged', $currentPage - 1, $paginationBase)); ?>"
+                               class="button">&laquo; Anterior</a>
+                        <?php endif; ?>
+
+                        <?php
+                        $start = max(1, $currentPage - 2);
+                        $end   = min($totalPages, $currentPage + 2);
+                        if ($start > 1) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        for ($p = $start; $p <= $end; $p++):
+                            $isActive = $p === $currentPage;
+                        ?>
+                            <a href="<?php echo esc_url(add_query_arg('kyc_paged', $p, $paginationBase)); ?>"
+                               class="button"
+                               style="<?php echo $isActive ? 'background:#6d28d9; color:#fff; border-color:#6d28d9; font-weight:700;' : ''; ?>">
+                                <?php echo $p; ?>
+                            </a>
+                        <?php endfor;
+                        if ($end < $totalPages) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        ?>
+
+                        <?php if ($currentPage < $totalPages): ?>
+                            <a href="<?php echo esc_url(add_query_arg('kyc_paged', $currentPage + 1, $paginationBase)); ?>"
+                               class="button">Próxima &raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div><!-- /card -->
