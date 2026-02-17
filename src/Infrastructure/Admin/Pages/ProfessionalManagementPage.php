@@ -410,9 +410,13 @@ class ProfessionalManagementPage
                        class="nav-tab <?php echo $tab === 'professionals' ? 'nav-tab-active' : ''; ?>">
                         👥 Listagem
                     </a>
-                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=kyc" 
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=kyc"
                        class="nav-tab <?php echo $tab === 'kyc' ? 'nav-tab-active' : ''; ?>">
                         🔐 KYC Biométrico
+                    </a>
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=risk_score"
+                       class="nav-tab <?php echo $tab === 'risk_score' ? 'nav-tab-active' : ''; ?>">
+                        🛡️ Risk Score
                     </a>
                 </nav>
             <?php endif; ?>
@@ -429,6 +433,8 @@ class ProfessionalManagementPage
             if ($action === 'list') {
                 if ($tab === 'kyc') {
                     $this->renderKycTab();
+                } elseif ($tab === 'risk_score') {
+                    $this->renderRiskScoreTab();
                 } else {
                     // Default: professionals tab
                     echo '<a href="?page=' . self::PAGE_SLUG . '&action=create" class="page-title-action">Adicionar Novo</a>';
@@ -1733,6 +1739,312 @@ class ProfessionalManagementPage
             'processing', 'documents_submitted' => 'warning',
             'started' => 'info',
             default => 'default',
+        };
+    }
+
+    // ─── Risk Score Tab ───────────────────────────────────────────────────────
+
+    private function renderRiskScoreTab(): void
+    {
+        $statusFilter = $_GET['risk_status'] ?? 'all';
+
+        // Provider connection status
+        $providerStatus = \LimpVix\Infrastructure\Verification\Providers\VerificationProviderFactory::connectionStatus();
+        ?>
+
+        <!-- Provider Status Banner -->
+        <div style="margin: 0 0 20px; padding: 12px 16px; background: <?php echo $providerStatus['kyc']['connected'] && $providerStatus['background']['connected'] ? '#f0fdf4' : '#fff8f1'; ?>; border: 1px solid <?php echo $providerStatus['kyc']['connected'] && $providerStatus['background']['connected'] ? '#bbf7d0' : '#fed7aa'; ?>; border-radius: 6px; display: flex; gap: 32px; align-items: center;">
+            <div>
+                <strong>KYC:</strong>
+                <?php if ($providerStatus['kyc']['connected']): ?>
+                    <span style="color:#16a34a;">✅ PPID Conectado</span>
+                <?php else: ?>
+                    <span style="color:#ea580c;">🔴 PPID Desconectado</span>
+                    <small style="color:#9a3412;"> — usando mock provider (modo teste)</small>
+                <?php endif; ?>
+            </div>
+            <div>
+                <strong>Background Check:</strong>
+                <?php if ($providerStatus['background']['connected']): ?>
+                    <span style="color:#16a34a;">✅ Exato Digital Conectado</span>
+                <?php else: ?>
+                    <span style="color:#ea580c;">🔴 Exato Digital Desconectado</span>
+                    <small style="color:#9a3412;"> — usando mock provider (modo teste)</small>
+                <?php endif; ?>
+            </div>
+            <div style="margin-left: auto;">
+                <a href="?page=limpvix-settings&tab=verificacao" class="button button-small">⚙️ Configurar Credenciais</a>
+            </div>
+        </div>
+
+        <p class="description">
+            Pipeline de elegibilidade profissional: OTP → KYC → Background Check → Risk Engine → Status Final.
+        </p>
+
+        <!-- Status Filter -->
+        <div class="tablenav top">
+            <div class="alignleft actions">
+                <select name="risk_status" id="risk-status-filter">
+                    <option value="all" <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
+                    <option value="PENDING_VERIFICATION" <?php selected($statusFilter, 'PENDING_VERIFICATION'); ?>>⏳ Aguardando Verificação</option>
+                    <option value="ACTIVE" <?php selected($statusFilter, 'ACTIVE'); ?>>✅ Ativo</option>
+                    <option value="ACTIVE_MONITORED" <?php selected($statusFilter, 'ACTIVE_MONITORED'); ?>>👁️ Ativo (Monitorado)</option>
+                    <option value="UNDER_REVIEW" <?php selected($statusFilter, 'UNDER_REVIEW'); ?>>🔍 Em Revisão</option>
+                    <option value="NOT_ELIGIBLE" <?php selected($statusFilter, 'NOT_ELIGIBLE'); ?>>🚫 Não Elegível</option>
+                    <option value="SUSPENDED" <?php selected($statusFilter, 'SUSPENDED'); ?>>⛔ Suspenso</option>
+                </select>
+                <button type="button" class="button" id="risk-filter-submit">Filtrar</button>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <?php $this->renderRiskScoreStatistics(); ?>
+
+        <!-- Professionals Table -->
+        <?php $this->renderRiskScoreTable($statusFilter); ?>
+
+        <script>
+        jQuery(document).ready(function($) {
+            $('#risk-filter-submit').on('click', function() {
+                var status = $('#risk-status-filter').val();
+                window.location.href = '?page=<?php echo self::PAGE_SLUG; ?>&tab=risk_score&risk_status=' + status;
+            });
+        });
+        </script>
+        <?php
+    }
+
+    private function renderRiskScoreStatistics(): void
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_professional_verification';
+
+        // Verifica se a tabela existe
+        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '{$table}'");
+        if (!$tableExists) {
+            echo '<div class="notice notice-warning"><p>Tabela de verificação não encontrada. Execute a migration 026.</p></div>';
+            return;
+        }
+
+        $stats = $wpdb->get_row("
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN final_status = 'PENDING_VERIFICATION' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN final_status = 'ACTIVE' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN final_status = 'ACTIVE_MONITORED' THEN 1 ELSE 0 END) as monitored,
+                SUM(CASE WHEN final_status = 'UNDER_REVIEW' THEN 1 ELSE 0 END) as review,
+                SUM(CASE WHEN final_status = 'NOT_ELIGIBLE' THEN 1 ELSE 0 END) as not_eligible,
+                SUM(CASE WHEN final_status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended,
+                SUM(CASE WHEN background_expires_at IS NOT NULL AND background_expires_at < NOW() AND final_status IN ('ACTIVE','ACTIVE_MONITORED') THEN 1 ELSE 0 END) as bg_expired,
+                SUM(CASE WHEN risk_level = 'HIGH' THEN 1 ELSE 0 END) as high_risk,
+                SUM(CASE WHEN otp_verified = 1 THEN 1 ELSE 0 END) as otp_verified
+            FROM {$table}
+        ", ARRAY_A);
+
+        if (!$stats) {
+            $stats = array_fill_keys(['total','pending','active','monitored','review','not_eligible','suspended','bg_expired','high_risk','otp_verified'], 0);
+        }
+
+        ?>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 20px 0;">
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #2271b1; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">Total no Pipeline</div>
+                <div style="font-size:32px;font-weight:bold;color:#2271b1;"><?php echo (int)$stats['total']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #00a32a; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">✅ Ativos</div>
+                <div style="font-size:32px;font-weight:bold;color:#00a32a;"><?php echo (int)$stats['active']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #f0b849; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">👁️ Monitorados</div>
+                <div style="font-size:32px;font-weight:bold;color:#f0b849;"><?php echo (int)$stats['monitored']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #00a0d2; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">🔍 Em Revisão</div>
+                <div style="font-size:32px;font-weight:bold;color:#00a0d2;"><?php echo (int)$stats['review']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #d63638; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">🚫 Não Elegíveis</div>
+                <div style="font-size:32px;font-weight:bold;color:#d63638;"><?php echo (int)$stats['not_eligible']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #8c8f94; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">⛔ Suspensos</div>
+                <div style="font-size:32px;font-weight:bold;color:#8c8f94;"><?php echo (int)$stats['suspended']; ?></div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #dba617; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">⏰ BG Expirado</div>
+                <div style="font-size:32px;font-weight:bold;color:#dba617;"><?php echo (int)$stats['bg_expired']; ?></div>
+                <div style="font-size:11px;color:#999;">revalidação necessária</div>
+            </div>
+
+            <div style="background:#fff; padding:20px; border-left:4px solid #ef4444; box-shadow:0 1px 3px rgba(0,0,0,.1);">
+                <div style="font-size:13px;color:#666;margin-bottom:4px;">⚠️ Alto Risco</div>
+                <div style="font-size:32px;font-weight:bold;color:#ef4444;"><?php echo (int)$stats['high_risk']; ?></div>
+            </div>
+
+        </div>
+        <?php
+    }
+
+    private function renderRiskScoreTable(string $statusFilter): void
+    {
+        global $wpdb;
+        $vtable = $wpdb->prefix . 'limpvix_professional_verification';
+        $ptable = $wpdb->prefix . 'limpvix_professionals';
+
+        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '{$vtable}'");
+        if (!$tableExists) {
+            return;
+        }
+
+        $where = 'WHERE 1=1';
+        if ($statusFilter !== 'all') {
+            $where .= $wpdb->prepare(' AND v.final_status = %s', $statusFilter);
+        }
+
+        $rows = $wpdb->get_results("
+            SELECT
+                v.id            AS v_id,
+                v.user_id,
+                v.otp_verified,
+                v.kyc_status,
+                v.background_status,
+                v.risk_level,
+                v.final_status,
+                v.background_expires_at,
+                v.kyc_provider,
+                v.background_provider,
+                v.updated_at,
+                p.full_name,
+                p.email,
+                p.phone
+            FROM {$vtable} v
+            LEFT JOIN {$ptable} p ON p.user_id = v.user_id
+            {$where}
+            ORDER BY
+                CASE v.final_status
+                    WHEN 'UNDER_REVIEW'         THEN 1
+                    WHEN 'NOT_ELIGIBLE'         THEN 2
+                    WHEN 'SUSPENDED'            THEN 3
+                    WHEN 'ACTIVE_MONITORED'     THEN 4
+                    WHEN 'PENDING_VERIFICATION' THEN 5
+                    WHEN 'ACTIVE'               THEN 6
+                END,
+                v.updated_at DESC
+            LIMIT 100
+        ", ARRAY_A);
+
+        ?>
+        <table class="wp-list-table widefat fixed striped" style="margin-top:16px;">
+            <thead>
+                <tr>
+                    <th style="width:180px;">Profissional</th>
+                    <th style="width:60px;">OTP</th>
+                    <th style="width:110px;">KYC</th>
+                    <th style="width:130px;">Background</th>
+                    <th style="width:90px;">Risco</th>
+                    <th style="width:150px;">Status Final</th>
+                    <th style="width:110px;">BG Expira</th>
+                    <th style="width:80px;">Provedores</th>
+                    <th style="width:100px;">Atualizado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($rows)): ?>
+                    <tr>
+                        <td colspan="9" style="text-align:center;padding:40px;color:#666;">
+                            Nenhum profissional no pipeline de verificação ainda.<br>
+                            <small>Inicie o pipeline via <code>RunVerificationPipeline</code> ou pelo app mobile.</small>
+                        </td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($rows as $r): ?>
+                        <?php
+                        $bgExpired = !empty($r['background_expires_at']) && strtotime($r['background_expires_at']) < time();
+                        ?>
+                        <tr <?php echo $bgExpired ? 'style="background:#fff8f1;"' : ''; ?>>
+                            <td>
+                                <strong><?php echo esc_html($r['full_name'] ?? '(sem cadastro)'); ?></strong><br>
+                                <small style="color:#666;"><?php echo esc_html($r['email'] ?? 'user_id #'.$r['user_id']); ?></small>
+                            </td>
+                            <td>
+                                <?php echo $r['otp_verified'] ? '<span style="color:#16a34a;font-weight:bold;">✅</span>' : '<span style="color:#9ca3af;">—</span>'; ?>
+                            </td>
+                            <td><?php echo $this->renderRiskStatusBadge('kyc', $r['kyc_status']); ?></td>
+                            <td><?php echo $this->renderRiskStatusBadge('background', $r['background_status']); ?></td>
+                            <td><?php echo $this->renderRiskLevelBadge($r['risk_level']); ?></td>
+                            <td><?php echo $this->renderFinalStatusBadge($r['final_status']); ?></td>
+                            <td>
+                                <?php if (!empty($r['background_expires_at'])): ?>
+                                    <span style="color:<?php echo $bgExpired ? '#ef4444' : '#374151'; ?>;">
+                                        <?php echo date('d/m/Y', strtotime($r['background_expires_at'])); ?>
+                                        <?php if ($bgExpired): ?><br><small style="color:#ef4444;">⏰ Expirado</small><?php endif; ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span style="color:#9ca3af;">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="font-size:11px;color:#6b7280;">
+                                KYC: <?php echo esc_html($r['kyc_provider'] ?? '—'); ?><br>
+                                BG: <?php echo esc_html($r['background_provider'] ?? '—'); ?>
+                            </td>
+                            <td style="font-size:12px;color:#666;">
+                                <?php echo $r['updated_at'] ? date('d/m/Y H:i', strtotime($r['updated_at'])) : '—'; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+        <?php
+    }
+
+    private function renderRiskStatusBadge(string $layer, string $status): string
+    {
+        if ($layer === 'kyc') {
+            return match($status) {
+                'APPROVED' => '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">✅ Aprovado</span>',
+                'REJECTED' => '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">❌ Rejeitado</span>',
+                default    => '<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:4px;font-size:11px;">⏳ Pendente</span>',
+            };
+        }
+
+        // background layer
+        return match($status) {
+            'APPROVED'     => '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">✅ Aprovado</span>',
+            'RESTRICTED'   => '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">⚠️ Restrito</span>',
+            'NOT_ELIGIBLE' => '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">🚫 Não Elegível</span>',
+            default        => '<span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:4px;font-size:11px;">⏳ Pendente</span>',
+        };
+    }
+
+    private function renderRiskLevelBadge(?string $level): string
+    {
+        return match($level) {
+            'LOW'    => '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">🟢 Baixo</span>',
+            'MEDIUM' => '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">🟡 Médio</span>',
+            'HIGH'   => '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">🔴 Alto</span>',
+            default  => '<span style="color:#9ca3af;font-size:11px;">—</span>',
+        };
+    }
+
+    private function renderFinalStatusBadge(string $status): string
+    {
+        return match($status) {
+            'ACTIVE'               => '<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">✅ Ativo</span>',
+            'ACTIVE_MONITORED'     => '<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">👁️ Monitorado</span>',
+            'UNDER_REVIEW'         => '<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">🔍 Em Revisão</span>',
+            'NOT_ELIGIBLE'         => '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">🚫 Não Elegível</span>',
+            'SUSPENDED'            => '<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">⛔ Suspenso</span>',
+            'PENDING_VERIFICATION' => '<span style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">⏳ Aguardando</span>',
+            default                => '<span style="color:#9ca3af;font-size:12px;">' . esc_html($status) . '</span>',
         };
     }
 }
