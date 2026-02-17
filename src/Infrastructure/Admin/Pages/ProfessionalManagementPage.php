@@ -19,7 +19,6 @@ use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 use LimpVix\Application\UseCase\Professional\RegisterProfessional;
 use LimpVix\Application\UseCase\Professional\UpdateProfessionalScore;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
-use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 
 defined('ABSPATH') || exit;
 
@@ -2549,54 +2548,77 @@ class ProfessionalManagementPage
 
     private function renderPayoutsTab(): void
     {
-        $payoutRepo  = new WpPayoutRepository();
-        $mpProvider  = new MercadoPagoPayoutProvider();
-        $mpOk        = $mpProvider->isAvailable();
-        $mpSandbox   = $mpProvider->isSandbox();
+        global $wpdb;
 
+        $payoutRepo   = new WpPayoutRepository();
         $statusFilter = sanitize_key($_GET['payout_status'] ?? 'all');
         $search       = sanitize_text_field($_GET['payout_search'] ?? '');
 
-        // ── Notices ────────────────────────────────────────────────────────────
-        if (!$mpOk): ?>
-            <div class="notice notice-error" style="margin:0 0 16px;">
-                <p><strong>⚠️ Mercado Pago não configurado!</strong>
-                Configure em <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-settings')); ?>">Configurações</a>.</p>
-            </div>
-        <?php elseif ($mpSandbox): ?>
-            <div class="notice notice-warning" style="margin:0 0 16px;">
-                <p><strong>🧪 Modo Sandbox Ativo</strong> — Transferências são simuladas (não reais).</p>
-            </div>
-        <?php endif;
+        // ── Distribuição de métodos de payout entre profissionais ───────────────
+        // Arquitetura: profissionais conectam SEU PRÓPRIO MP via OAuth.
+        // Sem OAuth → payout é manual via PIX pelo admin.
+        // A plataforma NÃO precisa de credenciais MP próprias para os repasses.
+        $profTable = $wpdb->prefix . 'limpvix_professionals';
+        $mpStats = $wpdb->get_row(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(mp_oauth_status = 'connected') AS mp_connected,
+                SUM(mp_oauth_status != 'connected' OR mp_oauth_status IS NULL) AS pix_only
+             FROM {$profTable}
+             WHERE is_active = 1 AND is_permanently_banned = 0",
+            ARRAY_A
+        ) ?? ['total' => 0, 'mp_connected' => 0, 'pix_only' => 0];
 
-        // ── Stats ──────────────────────────────────────────────────────────────
+        // PIX com payout pendente (aprovados mas method = pix_manual)
+        $payoutTable = $wpdb->prefix . 'limpvix_payouts';
+        $pixPending = 0;
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$payoutTable}'") === $payoutTable) {
+            $pixPending = (int) $wpdb->get_var(
+                "SELECT COUNT(*) FROM {$payoutTable}
+                 WHERE status = 'approved'
+                   AND (payout_method = 'pix_manual' OR payout_method IS NULL)"
+            );
+        }
+
+        // ── Stats gerais de payouts ─────────────────────────────────────────────
         $stats = $payoutRepo->getStats();
-
         $pSlug = self::PAGE_SLUG;
-        ?>
+
+        // ── Notice: PIX manual pendente (ação necessária) ───────────────────────
+        if ($pixPending > 0): ?>
+            <div class="notice notice-warning" style="margin:0 0 16px;">
+                <p>
+                    <strong>⏳ <?php echo $pixPending; ?> payout(s) PIX manual aguardando processamento.</strong>
+                    Profissionais sem MercadoPago OAuth conectado recebem via PIX manual — processe abaixo.
+                    <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=approved">Ver pendentes →</a>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <!-- Hero Card – Payouts -->
         <div style="background:linear-gradient(135deg,#065f46 0%,#047857 55%,#059669 100%); border-radius:12px; padding:32px; margin-bottom:20px; box-shadow:0 8px 32px rgba(6,95,70,0.45); position:relative; overflow:hidden;">
             <div style="position:absolute; top:-60px; right:-60px; width:220px; height:220px; background:rgba(255,255,255,0.05); border-radius:50%; pointer-events:none;"></div>
             <div style="position:absolute; bottom:-50px; left:260px; width:170px; height:170px; background:rgba(255,255,255,0.04); border-radius:50%; pointer-events:none;"></div>
 
-            <!-- Título + botão sincronizar -->
+            <!-- Título + badge de métodos ativos -->
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; position:relative; z-index:1; flex-wrap:wrap; gap:12px;">
                 <div>
                     <h2 style="color:#fff; margin:0 0 8px; font-size:26px; font-weight:700; line-height:1.2;">💰 Payouts — Repasses Financeiros</h2>
                     <p style="color:rgba(255,255,255,0.80); margin:0; font-size:14px;">
-                        Gestão de repasses automáticos e manuais para profissionais
+                        Gestão de repasses para profissionais · Dual mode: MP OAuth (auto) + PIX Manual (admin)
                     </p>
                 </div>
-                <?php if ($mpOk): ?>
-                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
-                        <input type="hidden" name="action" value="limpvix_sync_payouts">
-                        <?php wp_nonce_field('limpvix_sync_payouts'); ?>
-                        <button type="submit" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.30); padding:10px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                            🔄 Sincronizar com MP
-                        </button>
-                    </form>
-                <?php endif; ?>
+                <!-- Distribuição de métodos -->
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:10px 14px; text-align:center; min-width:90px;">
+                        <div style="font-size:20px; font-weight:700; color:#6ee7b7;"><?php echo (int)($mpStats['mp_connected'] ?? 0); ?></div>
+                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">MP OAuth ⚡</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:10px 14px; text-align:center; min-width:90px;">
+                        <div style="font-size:20px; font-weight:700; color:#fbbf24;"><?php echo (int)($mpStats['pix_only'] ?? 0); ?></div>
+                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">PIX Manual 🏦</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Grid de cards clicáveis -->
@@ -2690,13 +2712,12 @@ class ProfessionalManagementPage
         </div>
 
         <!-- ── Tabela ────────────────────────────────────────────────────────────── -->
-        <?php $this->renderPayoutsTable($payoutRepo, $mpOk, $statusFilter, $search); ?>
+        <?php $this->renderPayoutsTable($payoutRepo, $statusFilter, $search); ?>
         <?php
     }
 
     private function renderPayoutsTable(
         WpPayoutRepository $repo,
-        bool $mpOk,
         string $statusFilter,
         string $search
     ): void {
@@ -2743,7 +2764,7 @@ class ProfessionalManagementPage
         $total      = (int) $wpdb->get_var($countSql);
         $totalPages = max(1, (int) ceil($total / $perPage));
 
-        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf';
+        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf, pr.mp_oauth_status AS prof_mp_status';
 
         $dataSql = empty($params)
             ? $wpdb->prepare(
@@ -2866,14 +2887,35 @@ class ProfessionalManagementPage
                                             : '—'; ?>
                                     </td>
                                     <td>
-                                        <?php if ($py['status'] === 'approved' && $mpOk): ?>
+                                        <?php
+                                        // Determinar método deste payout:
+                                        // mp_oauth → profissional tem MP conectado → botão "Processar" (auto)
+                                        // pix_manual / sem método → admin processa manualmente via PIX
+                                        $payoutMethod  = $py['payout_method'] ?? '';
+                                        $profMpStatus  = $py['prof_mp_status'] ?? '';
+                                        $isAutoMp      = ($payoutMethod === 'mp_oauth' && $profMpStatus === 'connected');
+                                        $isPixManual   = !$isAutoMp; // tudo que não é MP OAuth = PIX manual
+                                        ?>
+                                        <?php if ($py['status'] === 'approved' && $isAutoMp): ?>
+                                            <!-- Payout automático via MP OAuth do profissional -->
                                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                                                 <input type="hidden" name="action" value="limpvix_process_payout">
                                                 <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
                                                 <?php wp_nonce_field('limpvix_process_payout_' . $py['id']); ?>
                                                 <button type="submit" class="button button-primary button-small"
-                                                        onclick="return confirm('Processar payout #<?php echo (int) $py['id']; ?>?');">
-                                                    ▶️ Processar
+                                                        onclick="return confirm('Processar repasse MP OAuth #<?php echo (int) $py['id']; ?>?');">
+                                                    ⚡ Processar MP
+                                                </button>
+                                            </form>
+                                        <?php elseif ($py['status'] === 'approved' && $isPixManual): ?>
+                                            <!-- Payout manual PIX — admin marca como pago -->
+                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                                                <input type="hidden" name="action" value="limpvix_mark_pix_paid">
+                                                <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
+                                                <?php wp_nonce_field('limpvix_mark_pix_paid_' . $py['id']); ?>
+                                                <button type="submit" class="button button-secondary button-small"
+                                                        onclick="return confirm('Confirmar PIX pago para payout #<?php echo (int) $py['id']; ?>?');">
+                                                    🏦 Pago PIX
                                                 </button>
                                             </form>
                                         <?php elseif ($py['status'] === 'failed' && (int) ($py['retry_count'] ?? 0) < (int) ($py['max_retries'] ?? 3)): ?>
