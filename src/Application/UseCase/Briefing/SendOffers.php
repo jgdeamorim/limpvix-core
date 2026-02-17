@@ -165,22 +165,35 @@ final class SendOffers
     /**
      * Map service_code to required skills
      *
-     * @TODO: This mapping should come from a configuration table or service catalog
+     * GAP D: Now uses database-driven mapping from wp_limpvix_service_catalog.required_skills
+     * Migration 025 added required_skills JSON column
      */
     private function getRequiredSkillsFromServiceCode(string $serviceCode): array
     {
-        // Basic mapping - enhance this based on your service catalog
-        // Using Portuguese skill names to match database
-        $skillsMap = [
-            'residential_basic' => ['limpeza_residencial'],
-            'residential_standard' => ['limpeza_residencial', 'limpeza_vidros'],
-            'residential_premium' => ['limpeza_residencial', 'limpeza_vidros', 'limpeza_pesada'],
-            'commercial_basic' => ['limpeza_comercial'],
-            'commercial_standard' => ['limpeza_comercial', 'manutencao_piso'],
-            'commercial_premium' => ['limpeza_comercial', 'manutencao_piso', 'sanitizacao'],
-        ];
+        global $wpdb;
 
-        return $skillsMap[$serviceCode] ?? ['limpeza_residencial']; // Default fallback
+        // Query service catalog for required skills
+        $table = $wpdb->prefix . 'limpvix_service_catalog';
+
+        $requiredSkills = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT required_skills FROM {$table} WHERE service_code = %s AND is_active = 1",
+                $serviceCode
+            )
+        );
+
+        // If found and valid JSON, decode and return
+        if ($requiredSkills) {
+            $skills = json_decode($requiredSkills, true);
+
+            if (is_array($skills) && !empty($skills)) {
+                return $skills;
+            }
+        }
+
+        // Fallback: if service not found or no skills defined, use default
+        // This ensures backwards compatibility and prevents breaking if migration not run
+        return ['limpeza_residencial']; // Default fallback
     }
 
     /**

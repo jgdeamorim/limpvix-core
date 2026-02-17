@@ -2,7 +2,7 @@
 
 **Data:** 2026-02-16
 **Objetivo:** Fechar TODOS os gaps identificados e atingir 100% funcional para go-live
-**Status Atual:** 85% completo (GAPs A, B, C resolvidos)
+**Status Atual:** 95% completo (GAPs A, B, C, D resolvidos)
 **Meta:** 100% completo
 
 ---
@@ -10,10 +10,10 @@
 ## 📊 Resumo Executivo
 
 **Auditoria Técnica Completa Realizada:**
-- ✅ **85%+ implementação crítica funcional**
+- ✅ **95%+ implementação crítica funcional**
 - ✅ **Bugs críticos conhecidos JÁ corrigidos**
-- ✅ **3 GAPs resolvidos (A, B, C)**
-- ⚠️ **2 GAPs pendentes (D, E)**
+- ✅ **4 GAPs resolvidos (A, B, C, D)**
+- ⚠️ **1 GAP pendente (E - opcional)**
 - ⚠️ **5 Implementações parciais**
 
 **Estado do Sistema:**
@@ -221,60 +221,61 @@ Admin não conseguia criar payouts manuais para bonificações, correções, aju
 ---
 
 ### GAP D: Service Catalog Mapping no Banco
-**Status:** ⚠️ Hardcoded (funciona mas não escalável)
+**Status:** ✅ COMPLETO (100%) - 2026-02-16
 **Prioridade:** P2 - MANUTENIBILIDADE
-**Esforço:** 1-2 dias
+**Esforço:** 1 hora (estimativa original: 1-2 dias)
 **Task ID:** #175
 
 **Problema:**
-Mapping de `service_code → required_skills` está hardcoded em `SendOffers.php` (linhas 170-183):
-```php
-switch ($serviceCode) {
-    case 'limpeza-residencial':
-        $skills = ['limpeza-basica', 'organizacao'];
-        break;
-    case 'limpeza-pos-obra':
-        $skills = ['limpeza-pesada', 'produtos-quimicos'];
-        break;
-    // ...
-}
-```
+Mapping de `service_code → required_skills` estava hardcoded em `SendOffers.php` (linhas 170-183) com array PHP. Admin não podia modificar skills sem code deploy.
 
-Se adicionar novo serviço, precisa alterar código.
+**✅ IMPLEMENTAÇÃO COMPLETA**
+- 3 arquivos criados (~236 linhas)
+- 2 arquivos modificados (SendOffers + ServiceCatalogPage)
+- Migration 025: Campo required_skills JSON + população de 6 serviços
+- SendOffers refatorado (database-driven, não mais hardcoded)
+- Admin UI com multi-select de skills (10 skills disponíveis)
+- Backwards compatibility (fallback se migration não rodou)
 
-**Solução:**
+**Componentes Implementados:**
 
-1. **Migration: Adicionar campo em service_catalog**
-   ```sql
-   ALTER TABLE wp_limpvix_service_catalog
-   ADD COLUMN required_skills JSON COMMENT 'Array de skills necessárias para este serviço';
+1. **Database (Migration 025):**
+   - Coluna `required_skills` JSON em wp_limpvix_service_catalog
+   - Índice JSON para performance
+   - População automática de 6 serviços existentes:
+     * residential_standard: ['limpeza_residencial']
+     * residential_pre_move: ['limpeza_residencial', 'limpeza_pesada']
+     * residential_post_construction: ['limpeza_residencial', 'limpeza_pesada', 'limpeza_pos_obra']
+     * commercial_standard: ['limpeza_comercial']
+     * commercial_pre_move: ['limpeza_comercial', 'manutencao_piso']
+     * commercial_post_construction: ['limpeza_comercial', 'manutencao_piso', 'limpeza_pos_obra']
 
-   -- Popular dados existentes
-   UPDATE wp_limpvix_service_catalog
-   SET required_skills = '["limpeza-basica","organizacao"]'
-   WHERE service_code = 'limpeza-residencial';
-   ```
-
-2. **Refatorar SendOffers:**
-   ```php
-   // ANTES (hardcoded)
-   $skills = $this->mapServiceCodeToSkills($serviceCode);
-
-   // DEPOIS (do banco)
-   $service = $this->serviceCatalogRepo->findByCode($serviceCode);
-   $skills = $service->getRequiredSkills();
-   ```
+2. **Application Layer:**
+   - `SendOffers::getRequiredSkillsFromServiceCode()` refatorado:
+     * Query database ao invés de array hardcoded
+     * JSON decode com validação
+     * Fallback para 'limpeza_residencial' (backwards compat)
+     * Prepared statement (segurança)
 
 3. **Admin UI:**
-   - Nova seção em Service Catalog: "Required Skills"
-   - Multi-select com skills disponíveis
-   - Admin pode adicionar novo serviço com skills sem code deploy
+   - `ServiceCatalogPage` atualizado:
+     * Multi-select checkboxes de 10 skills disponíveis
+     * Extração e salvamento de JSON
+     * Edição carrega skills existentes (checkboxes marcados)
+     * Placeholders wpdb atualizados
+
+**Skills Disponíveis:**
+- limpeza_residencial, limpeza_comercial, limpeza_vidros
+- limpeza_pesada, limpeza_pos_obra, manutencao_piso
+- sanitizacao, organizacao, limpeza_teto, limpeza_cortinas
 
 **Critérios de Aceitação:**
-- [ ] Mapping removido de SendOffers.php
-- [ ] Dados migrados para wp_limpvix_service_catalog
-- [ ] Admin UI permite gerenciar skills por serviço
-- [ ] Novos serviços podem ser adicionados sem code
+- [x] Mapping removido de SendOffers.php (agora busca do banco)
+- [x] Dados migrados para wp_limpvix_service_catalog
+- [x] Admin UI permite gerenciar skills por serviço (multi-select)
+- [x] Novos serviços podem ser adicionados sem code deploy
+- [x] Backwards compatibility (fallback funciona)
+- [x] Documentação completa: GAP_D_SERVICE_CATALOG_MAPPING_IMPLEMENTATION.md
 
 ---
 

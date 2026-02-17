@@ -94,6 +94,10 @@ class ServiceCatalogPage
         $serviceType = sanitize_text_field($_POST['service_type'] ?? '');
         $displayName = sanitize_text_field($_POST['display_name'] ?? '');
         $description = sanitize_textarea_field($_POST['description'] ?? '');
+        $requiredSkills = isset($_POST['required_skills']) && is_array($_POST['required_skills'])
+            ? array_map('sanitize_text_field', $_POST['required_skills'])
+            : [];
+        $requiredSkillsJson = !empty($requiredSkills) ? json_encode($requiredSkills) : null;
         $basePrice = (float)($_POST['base_price'] ?? 0);
         $timeMultiplier = (float)($_POST['time_multiplier'] ?? 1.0);
         $requiresMultiple = isset($_POST['requires_multiple_professionals']) ? 1 : 0;
@@ -111,6 +115,7 @@ class ServiceCatalogPage
             'service_type' => $serviceType,
             'display_name' => $displayName,
             'description' => $description,
+            'required_skills' => $requiredSkillsJson,
             'base_price' => $basePrice,
             'time_multiplier' => $timeMultiplier,
             'requires_multiple_professionals' => $requiresMultiple,
@@ -123,7 +128,7 @@ class ServiceCatalogPage
                 $this->tableServices,
                 $data,
                 ['id' => $serviceId],
-                ['%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s'],
+                ['%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s'], // Added %s for required_skills
                 ['%d']
             );
             $message = $result !== false ? 'Serviço atualizado!' : 'Erro ao atualizar';
@@ -132,7 +137,7 @@ class ServiceCatalogPage
             $result = $this->wpdb->insert(
                 $this->tableServices,
                 $data,
-                ['%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s', '%s']
+                ['%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s', '%s'] // Added %s for required_skills
             );
             $message = $result ? 'Serviço criado!' : 'Erro ao criar';
         }
@@ -354,6 +359,8 @@ class ServiceCatalogPage
         $serviceType = $service['service_type'] ?? 'standard';
         $displayName = $service['display_name'] ?? '';
         $description = $service['description'] ?? '';
+        $requiredSkills = isset($service['required_skills']) ? json_decode($service['required_skills'], true) : [];
+        $requiredSkills = is_array($requiredSkills) ? $requiredSkills : [];
         $basePrice = $service['base_price'] ?? 0;
         $timeMultiplier = $service['time_multiplier'] ?? 1.0;
         $requiresMultiple = isset($service['requires_multiple_professionals']) ? (bool)$service['requires_multiple_professionals'] : false;
@@ -405,6 +412,41 @@ class ServiceCatalogPage
                     <th><label for="description">Descrição</label></th>
                     <td>
                         <textarea name="description" id="description" rows="3" class="large-text"><?php echo esc_textarea($description); ?></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="required_skills">Skills Necessárias (GAP D)</label></th>
+                    <td>
+                        <?php
+                        // Lista de skills disponíveis (em português para compatibilidade)
+                        $availableSkills = [
+                            'limpeza_residencial' => 'Limpeza Residencial',
+                            'limpeza_comercial' => 'Limpeza Comercial',
+                            'limpeza_vidros' => 'Limpeza de Vidros',
+                            'limpeza_pesada' => 'Limpeza Pesada',
+                            'limpeza_pos_obra' => 'Limpeza Pós-Obra',
+                            'manutencao_piso' => 'Manutenção de Piso',
+                            'sanitizacao' => 'Sanitização',
+                            'organizacao' => 'Organização',
+                            'limpeza_teto' => 'Limpeza de Teto',
+                            'limpeza_cortinas' => 'Limpeza de Cortinas',
+                        ];
+                        ?>
+                        <div style="max-width: 400px; border: 1px solid #ccc; padding: 10px; max-height: 200px; overflow-y: auto;">
+                            <?php foreach ($availableSkills as $skillCode => $skillName): ?>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="checkbox"
+                                           name="required_skills[]"
+                                           value="<?php echo esc_attr($skillCode); ?>"
+                                           <?php checked(in_array($skillCode, $requiredSkills, true)); ?>>
+                                    <?php echo esc_html($skillName); ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="description">
+                            Selecione as skills necessárias para executar este serviço.<br>
+                            Profissionais precisam ter pelo menos uma dessas skills para receber offers.
+                        </p>
                     </td>
                 </tr>
                 <tr>
