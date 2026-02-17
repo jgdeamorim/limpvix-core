@@ -1179,7 +1179,7 @@ class ProfessionalManagementPage
     }
     private function renderKycDetails(int $professionalId): void
     {
-        $professional = $this->professionalRepository->findById($professionalId);
+        $professional = $this->repository->findById($professionalId);
 
         if (!$professional) {
             echo '<div class="notice notice-error"><p>Profissional não encontrado.</p></div>';
