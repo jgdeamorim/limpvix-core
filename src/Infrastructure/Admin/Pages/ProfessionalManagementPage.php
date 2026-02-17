@@ -1825,71 +1825,36 @@ class ProfessionalManagementPage
 
     private function renderRiskScoreTab(): void
     {
-        $statusFilter = $_GET['risk_status'] ?? 'all';
+        $statusFilter = sanitize_key($_GET['risk_status'] ?? 'all');
 
-        // Provider connection status
-        $providerStatus = \LimpVix\Infrastructure\Verification\Providers\VerificationProviderFactory::connectionStatus();
+        // ── Hero card com stats + provider status ──────────────────────────────
+        $this->renderRiskScoreStatistics();
+
+        // ── Filtro de status ───────────────────────────────────────────────────
         ?>
-
-        <!-- Provider Status Banner -->
-        <div style="margin: 0 0 20px; padding: 12px 16px; background: <?php echo $providerStatus['kyc']['connected'] && $providerStatus['background']['connected'] ? '#f0fdf4' : '#fff8f1'; ?>; border: 1px solid <?php echo $providerStatus['kyc']['connected'] && $providerStatus['background']['connected'] ? '#bbf7d0' : '#fed7aa'; ?>; border-radius: 6px; display: flex; gap: 32px; align-items: center;">
-            <div>
-                <strong>KYC:</strong>
-                <?php if ($providerStatus['kyc']['connected']): ?>
-                    <span style="color:#16a34a;">✅ PPID Conectado</span>
-                <?php else: ?>
-                    <span style="color:#ea580c;">🔴 PPID Desconectado</span>
-                    <small style="color:#9a3412;"> — usando mock provider (modo teste)</small>
-                <?php endif; ?>
-            </div>
-            <div>
-                <strong>Background Check:</strong>
-                <?php if ($providerStatus['background']['connected']): ?>
-                    <span style="color:#16a34a;">✅ Exato Digital Conectado</span>
-                <?php else: ?>
-                    <span style="color:#ea580c;">🔴 Exato Digital Desconectado</span>
-                    <small style="color:#9a3412;"> — usando mock provider (modo teste)</small>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <p class="description">
-            Pipeline de elegibilidade profissional: OTP → KYC → Background Check → Risk Engine → Status Final.
-            <a href="<?php echo admin_url('admin.php?page=limpvix&tab=risk'); ?>" style="margin-left:8px;">
-                ⚙️ Configurar credenciais PPID / Exato Digital
-            </a>
-        </p>
-
-        <!-- Status Filter -->
-        <div class="tablenav top">
-            <div class="alignleft actions">
-                <select name="risk_status" id="risk-status-filter">
-                    <option value="all" <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
-                    <option value="PENDING_VERIFICATION" <?php selected($statusFilter, 'PENDING_VERIFICATION'); ?>>⏳ Aguardando Verificação</option>
-                    <option value="ACTIVE" <?php selected($statusFilter, 'ACTIVE'); ?>>✅ Ativo</option>
-                    <option value="ACTIVE_MONITORED" <?php selected($statusFilter, 'ACTIVE_MONITORED'); ?>>👁️ Ativo (Monitorado)</option>
-                    <option value="UNDER_REVIEW" <?php selected($statusFilter, 'UNDER_REVIEW'); ?>>🔍 Em Revisão</option>
-                    <option value="NOT_ELIGIBLE" <?php selected($statusFilter, 'NOT_ELIGIBLE'); ?>>🚫 Não Elegível</option>
-                    <option value="SUSPENDED" <?php selected($statusFilter, 'SUSPENDED'); ?>>⛔ Suspenso</option>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span style="font-size:14px; font-weight:600; color:#374151;">🔍 Filtrar por status final:</span>
+            <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;">
+                <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
+                <input type="hidden" name="tab" value="risk_score">
+                <select name="risk_status" style="min-width:210px;">
+                    <option value="all"                 <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
+                    <option value="PENDING_VERIFICATION"<?php selected($statusFilter, 'PENDING_VERIFICATION'); ?>>⏳ Aguardando Verificação</option>
+                    <option value="ACTIVE"              <?php selected($statusFilter, 'ACTIVE'); ?>>✅ Ativo</option>
+                    <option value="ACTIVE_MONITORED"    <?php selected($statusFilter, 'ACTIVE_MONITORED'); ?>>👁️ Ativo (Monitorado)</option>
+                    <option value="UNDER_REVIEW"        <?php selected($statusFilter, 'UNDER_REVIEW'); ?>>🔍 Em Revisão</option>
+                    <option value="NOT_ELIGIBLE"        <?php selected($statusFilter, 'NOT_ELIGIBLE'); ?>>🚫 Não Elegível</option>
+                    <option value="SUSPENDED"           <?php selected($statusFilter, 'SUSPENDED'); ?>>⛔ Suspenso</option>
                 </select>
-                <button type="button" class="button" id="risk-filter-submit">Filtrar</button>
-            </div>
+                <button type="submit" class="button button-primary">Filtrar</button>
+                <?php if ($statusFilter !== 'all'): ?>
+                    <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=risk_score" class="button">Limpar</a>
+                <?php endif; ?>
+            </form>
         </div>
 
-        <!-- Statistics Cards -->
-        <?php $this->renderRiskScoreStatistics(); ?>
-
-        <!-- Professionals Table -->
+        <!-- Tabela de verificações -->
         <?php $this->renderRiskScoreTable($statusFilter); ?>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#risk-filter-submit').on('click', function() {
-                var status = $('#risk-status-filter').val();
-                window.location.href = '?page=<?php echo self::PAGE_SLUG; ?>&tab=risk_score&risk_status=' + status;
-            });
-        });
-        </script>
         <?php
     }
 
@@ -1924,51 +1889,100 @@ class ProfessionalManagementPage
             $stats = array_fill_keys(['total','pending','active','monitored','review','not_eligible','suspended','bg_expired','high_risk','otp_verified'], 0);
         }
 
+        // Provider status para integrar no hero
+        $providerStatus = \LimpVix\Infrastructure\Verification\Providers\VerificationProviderFactory::connectionStatus();
+        $kycOk  = $providerStatus['kyc']['connected']  ?? false;
+        $bgOk   = $providerStatus['background']['connected'] ?? false;
         ?>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 20px 0;">
+        <!-- ── Hero Card – Risk Score Pipeline ─────────────────────────────────── -->
+        <div style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%); border-radius:12px; padding:32px; margin-bottom:20px; box-shadow:0 8px 32px rgba(15,23,42,0.50); position:relative; overflow:hidden;">
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #2271b1; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">Total no Pipeline</div>
-                <div style="font-size:32px;font-weight:bold;color:#2271b1;"><?php echo (int)$stats['total']; ?></div>
+            <!-- Círculos decorativos -->
+            <div style="position:absolute; top:-60px; right:-60px; width:220px; height:220px; background:rgba(255,255,255,0.04); border-radius:50%; pointer-events:none;"></div>
+            <div style="position:absolute; bottom:-50px; left:260px; width:170px; height:170px; background:rgba(255,255,255,0.04); border-radius:50%; pointer-events:none;"></div>
+
+            <!-- Cabeçalho: título + provider badges + link settings -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; position:relative; z-index:1; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h2 style="color:#fff; margin:0 0 8px 0; font-size:26px; font-weight:700; line-height:1.2;">
+                        🛡️ Risk Score Pipeline
+                    </h2>
+                    <p style="color:rgba(255,255,255,0.70); margin:0 0 12px; font-size:13px;">
+                        OTP → KYC → Background Check → Risk Engine → Status Final
+                    </p>
+                    <!-- Provider status pills -->
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <?php if ($kycOk): ?>
+                            <span style="background:rgba(74,222,128,0.20); border:1px solid rgba(74,222,128,0.40); color:#4ade80; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">✅ PPID Conectado</span>
+                        <?php else: ?>
+                            <span style="background:rgba(251,191,36,0.20); border:1px solid rgba(251,191,36,0.40); color:#fbbf24; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">⚠️ PPID — Mock</span>
+                        <?php endif; ?>
+                        <?php if ($bgOk): ?>
+                            <span style="background:rgba(74,222,128,0.20); border:1px solid rgba(74,222,128,0.40); color:#4ade80; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">✅ Exato Digital Conectado</span>
+                        <?php else: ?>
+                            <span style="background:rgba(251,191,36,0.20); border:1px solid rgba(251,191,36,0.40); color:#fbbf24; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600;">⚠️ Exato Digital — Mock</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-settings&tab=risk')); ?>"
+                   style="background:rgba(255,255,255,0.12); color:rgba(255,255,255,0.85); text-decoration:none; padding:10px 18px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid rgba(255,255,255,0.25); backdrop-filter:blur(4px); white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
+                    ⚙️ Configurar Credenciais
+                </a>
             </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #00a32a; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">✅ Ativos</div>
-                <div style="font-size:32px;font-weight:bold;color:#00a32a;"><?php echo (int)$stats['active']; ?></div>
-            </div>
+            <!-- Grid 8 colunas -->
+            <div style="display:grid; grid-template-columns:repeat(8,1fr); gap:10px; position:relative; z-index:1;">
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #f0b849; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">👁️ Monitorados</div>
-                <div style="font-size:32px;font-weight:bold;color:#f0b849;"><?php echo (int)$stats['monitored']; ?></div>
-            </div>
+                <!-- Total Pipeline -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#fff; line-height:1;"><?php echo (int) $stats['total']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
+                </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #00a0d2; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">🔍 Em Revisão</div>
-                <div style="font-size:32px;font-weight:bold;color:#00a0d2;"><?php echo (int)$stats['review']; ?></div>
-            </div>
+                <!-- Ativos -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#4ade80; line-height:1;"><?php echo (int) $stats['active']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos</div>
+                </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #d63638; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">🚫 Não Elegíveis</div>
-                <div style="font-size:32px;font-weight:bold;color:#d63638;"><?php echo (int)$stats['not_eligible']; ?></div>
-            </div>
+                <!-- Monitorados -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo (int) $stats['monitored']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Monitorados</div>
+                </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #8c8f94; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">⛔ Suspensos</div>
-                <div style="font-size:32px;font-weight:bold;color:#8c8f94;"><?php echo (int)$stats['suspended']; ?></div>
-            </div>
+                <!-- Em Revisão -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#67e8f9; line-height:1;"><?php echo (int) $stats['review']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Em Revisão</div>
+                </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #dba617; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">⏰ BG Expirado</div>
-                <div style="font-size:32px;font-weight:bold;color:#dba617;"><?php echo (int)$stats['bg_expired']; ?></div>
-                <div style="font-size:11px;color:#999;">revalidação necessária</div>
-            </div>
+                <!-- Não Elegíveis -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['not_eligible']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">N. Elegíveis</div>
+                </div>
 
-            <div style="background:#fff; padding:20px; border-left:4px solid #ef4444; box-shadow:0 1px 3px rgba(0,0,0,.1);">
-                <div style="font-size:13px;color:#666;margin-bottom:4px;">⚠️ Alto Risco</div>
-                <div style="font-size:32px;font-weight:bold;color:#ef4444;"><?php echo (int)$stats['high_risk']; ?></div>
-            </div>
+                <!-- Suspensos -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#d1d5db; line-height:1;"><?php echo (int) $stats['suspended']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos</div>
+                </div>
 
-        </div>
+                <!-- BG Expirado -->
+                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#fde68a; line-height:1;"><?php echo (int) $stats['bg_expired']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">BG Expirado</div>
+                </div>
+
+                <!-- Alto Risco -->
+                <div style="background:rgba(248,113,113,0.20); border:1px solid rgba(248,113,113,0.30); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['high_risk']; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Alto Risco</div>
+                </div>
+
+            </div><!-- /grid -->
+        </div><!-- /hero card -->
         <?php
     }
 
@@ -2020,68 +2034,93 @@ class ProfessionalManagementPage
             LIMIT 100
         ", ARRAY_A);
 
+        $count = count($rows);
         ?>
-        <table class="wp-list-table widefat fixed striped" style="margin-top:16px;">
-            <thead>
-                <tr>
-                    <th style="width:180px;">Profissional</th>
-                    <th style="width:60px;">OTP</th>
-                    <th style="width:110px;">KYC</th>
-                    <th style="width:130px;">Background</th>
-                    <th style="width:90px;">Risco</th>
-                    <th style="width:150px;">Status Final</th>
-                    <th style="width:110px;">BG Expira</th>
-                    <th style="width:80px;">Provedores</th>
-                    <th style="width:100px;">Atualizado</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($rows)): ?>
-                    <tr>
-                        <td colspan="9" style="text-align:center;padding:40px;color:#666;">
-                            Nenhum profissional no pipeline de verificação ainda.<br>
-                            <small>Inicie o pipeline via <code>RunVerificationPipeline</code> ou pelo app mobile.</small>
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($rows as $r): ?>
-                        <?php
-                        $bgExpired = !empty($r['background_expires_at']) && strtotime($r['background_expires_at']) < time();
-                        ?>
-                        <tr <?php echo $bgExpired ? 'style="background:#fff8f1;"' : ''; ?>>
-                            <td>
-                                <strong><?php echo esc_html($r['full_name'] ?? '(sem cadastro)'); ?></strong><br>
-                                <small style="color:#666;"><?php echo esc_html($r['email'] ?? 'user_id #'.$r['user_id']); ?></small>
-                            </td>
-                            <td>
-                                <?php echo $r['otp_verified'] ? '<span style="color:#16a34a;font-weight:bold;">✅</span>' : '<span style="color:#9ca3af;">—</span>'; ?>
-                            </td>
-                            <td><?php echo $this->renderRiskStatusBadge('kyc', $r['kyc_status']); ?></td>
-                            <td><?php echo $this->renderRiskStatusBadge('background', $r['background_status']); ?></td>
-                            <td><?php echo $this->renderRiskLevelBadge($r['risk_level']); ?></td>
-                            <td><?php echo $this->renderFinalStatusBadge($r['final_status']); ?></td>
-                            <td>
-                                <?php if (!empty($r['background_expires_at'])): ?>
-                                    <span style="color:<?php echo $bgExpired ? '#ef4444' : '#374151'; ?>;">
-                                        <?php echo date('d/m/Y', strtotime($r['background_expires_at'])); ?>
-                                        <?php if ($bgExpired): ?><br><small style="color:#ef4444;">⏰ Expirado</small><?php endif; ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span style="color:#9ca3af;">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="font-size:11px;color:#6b7280;">
-                                KYC: <?php echo esc_html($r['kyc_provider'] ?? '—'); ?><br>
-                                BG: <?php echo esc_html($r['background_provider'] ?? '—'); ?>
-                            </td>
-                            <td style="font-size:12px;color:#666;">
-                                <?php echo $r['updated_at'] ? date('d/m/Y H:i', strtotime($r['updated_at'])) : '—'; ?>
-                            </td>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
+
+            <!-- Cabeçalho -->
+            <div style="padding:20px 24px 0; border-bottom:1px solid #f1f5f9; margin-bottom:16px;">
+                <h3 style="margin:0 0 16px 0; font-size:16px; color:#0f172a; font-weight:700; display:flex; align-items:center; gap:8px;">
+                    📋 <span>Pipeline de Verificação</span>
+                    <span style="background:#f1f5f9; color:#334155; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
+                        <?php echo esc_html($count); ?> registro<?php echo $count !== 1 ? 's' : ''; ?>
+                    </span>
+                </h3>
+            </div>
+
+            <!-- Tabela -->
+            <div style="padding:0 24px 24px;">
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th style="width:180px;">Profissional</th>
+                            <th style="width:55px; text-align:center;">OTP</th>
+                            <th style="width:110px;">KYC</th>
+                            <th style="width:125px;">Background</th>
+                            <th style="width:85px;">Risco</th>
+                            <th style="width:145px;">Status Final</th>
+                            <th style="width:105px;">BG Expira</th>
+                            <th style="width:85px;">Provedores</th>
+                            <th style="width:95px;">Atualizado</th>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($rows)): ?>
+                            <tr>
+                                <td colspan="9" style="text-align:center; padding:48px; color:#6b7280;">
+                                    <div style="font-size:40px; margin-bottom:12px;">🛡️</div>
+                                    <div style="font-weight:600;">Nenhum profissional no pipeline ainda.</div>
+                                    <div style="font-size:13px; margin-top:6px; color:#9ca3af;">
+                                        Inicie via <code>RunVerificationPipeline</code> ou pelo app mobile.
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($rows as $r): ?>
+                                <?php $bgExpired = !empty($r['background_expires_at']) && strtotime($r['background_expires_at']) < time(); ?>
+                                <tr <?php echo $bgExpired ? 'style="background:#fff8f1;"' : ''; ?>>
+                                    <td>
+                                        <strong><?php echo esc_html($r['full_name'] ?? '(sem cadastro)'); ?></strong><br>
+                                        <small style="color:#6b7280; font-size:12px;"><?php echo esc_html($r['email'] ?? 'user_id #' . $r['user_id']); ?></small>
+                                    </td>
+                                    <td style="text-align:center;">
+                                        <?php echo $r['otp_verified']
+                                            ? '<span style="color:#16a34a; font-weight:bold; font-size:16px;">✅</span>'
+                                            : '<span style="color:#9ca3af;">—</span>'; ?>
+                                    </td>
+                                    <td><?php echo $this->renderRiskStatusBadge('kyc', $r['kyc_status']); ?></td>
+                                    <td><?php echo $this->renderRiskStatusBadge('background', $r['background_status']); ?></td>
+                                    <td><?php echo $this->renderRiskLevelBadge($r['risk_level']); ?></td>
+                                    <td><?php echo $this->renderFinalStatusBadge($r['final_status']); ?></td>
+                                    <td style="font-size:13px;">
+                                        <?php if (!empty($r['background_expires_at'])): ?>
+                                            <span style="color:<?php echo $bgExpired ? '#ef4444' : '#374151'; ?>;">
+                                                <?php echo esc_html(date('d/m/Y', strtotime($r['background_expires_at']))); ?>
+                                                <?php if ($bgExpired): ?>
+                                                    <br><small style="color:#ef4444; font-size:11px;">⏰ Expirado</small>
+                                                <?php endif; ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span style="color:#9ca3af;">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="font-size:11px; color:#6b7280; line-height:1.6;">
+                                        KYC: <?php echo esc_html($r['kyc_provider'] ?? '—'); ?><br>
+                                        BG: <?php echo esc_html($r['background_provider'] ?? '—'); ?>
+                                    </td>
+                                    <td style="font-size:12px; color:#6b7280;">
+                                        <?php echo $r['updated_at']
+                                            ? esc_html(date('d/m/Y H:i', strtotime($r['updated_at'])))
+                                            : '—'; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+        </div><!-- /card -->
         <?php
     }
 
