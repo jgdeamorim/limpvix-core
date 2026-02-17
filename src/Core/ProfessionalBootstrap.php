@@ -49,6 +49,7 @@ final class ProfessionalBootstrap
         // 2. Registrar Admin Pages (apenas no admin)
         if (is_admin()) {
             add_action('admin_menu', [self::class, 'registerAdminPages']);
+            self::registerAjaxHandlers();
         }
 
         // 3. Registrar REST API
@@ -123,6 +124,57 @@ final class ProfessionalBootstrap
             } else {
                 self::logError('ProfessionalRepository not found - cannot register ProfessionalController');
             }
+        }
+
+        // Register ProfessionalOAuthController (MercadoPago OAuth endpoints)
+        if (class_exists('LimpVix\\Infrastructure\\API\\ProfessionalOAuthController')) {
+            $oauthController = new \LimpVix\Infrastructure\API\ProfessionalOAuthController();
+            $oauthController->register_routes();
+
+            self::logInfo('ProfessionalOAuthController REST API registered');
+        }
+
+        // Register ProfessionalDocumentController (Document KYC endpoints - GAP A)
+        if (class_exists('LimpVix\\Infrastructure\\API\\ProfessionalDocumentController')) {
+            // Create use cases
+            $documentRepository = new \LimpVix\Infrastructure\Persistence\WpProfessionalDocumentRepository();
+            $professionalRepository = $container->has('professional_repository')
+                ? $container->get('professional_repository')
+                : ($GLOBALS['limpvix_professional_repository'] ?? null);
+
+            if ($professionalRepository) {
+                $uploadDocument = new \LimpVix\Application\UseCases\Professional\UploadDocument(
+                    $documentRepository,
+                    $professionalRepository
+                );
+                $reviewDocument = new \LimpVix\Application\UseCases\Professional\ReviewDocument($documentRepository);
+                $listDocuments = new \LimpVix\Application\UseCases\Professional\ListDocuments($documentRepository);
+
+                $documentController = new \LimpVix\Infrastructure\API\ProfessionalDocumentController(
+                    $uploadDocument,
+                    $reviewDocument,
+                    $listDocuments
+                );
+                $documentController->register_routes();
+
+                self::logInfo('ProfessionalDocumentController REST API registered');
+            }
+        }
+    }
+
+    /**
+     * Registra AJAX handlers
+     *
+     * @return void
+     */
+    public static function registerAjaxHandlers(): void
+    {
+        // Register Document Review AJAX Handler (GAP A)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Ajax\\DocumentReviewAjaxHandler')) {
+            $ajaxHandler = new \LimpVix\Infrastructure\Admin\Ajax\DocumentReviewAjaxHandler();
+            $ajaxHandler->register();
+
+            self::logInfo('DocumentReviewAjaxHandler registered');
         }
     }
 

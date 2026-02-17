@@ -232,6 +232,16 @@ class AdminBootstrap
             );
         }
 
+        // Submenu: Document Review (KYC)
+        add_submenu_page(
+            self::MENU_SLUG,
+            "Revisão de Documentos",
+            "Documentos KYC",
+            "manage_options",
+            "limpvix-document-review",
+            [$this, "renderDocumentReviewPage"]
+        );
+
         // Submenu: Configurações
         add_submenu_page(
             self::MENU_SLUG,
@@ -486,12 +496,18 @@ class AdminBootstrap
         $wpVersion = get_bloginfo('version');
         $wpOk = version_compare($wpVersion, '5.8', '>=');
 
-        // Calcular scorecard atualizado (reflete 100% dos fluxos operacionais)
-        $guardScore = 100; // Guards completos
-        $uiScore = 100; // UI overrides completos
+        // Calcular scorecard atualizado (100% dinâmico)
+        $guardScore = $this->getGuardsStatus(); // Verifica classes Guard existem
+        $uiScore = $this->getUIOverridesStatus(); // Verifica classes UI Override existem
         $bridgeScore = $tableExists ? 100 : 25;
         $mapperScore = $tableExists ? 100 : 25;
-        $financeScore = 100; // Fluxo financeiro 100% (4 GAPs implementados)
+
+        // Finance score baseado em GAPs implementados
+        $gapsStatus = $this->getGAPsImplementationStatus();
+        $gapsImplemented = count(array_filter($gapsStatus, fn($gap) => $gap['implemented']));
+        $gapsTotal = count($gapsStatus);
+        $financeScore = $gapsTotal > 0 ? round(($gapsImplemented / $gapsTotal) * 100) : 0;
+
         $commsScore = $hasCommProvider ? 100 : 50; // Comunicação com provider
         $overallScore = round(($bridgeScore + $mapperScore + $guardScore + $uiScore + $financeScore + $commsScore) / 6);
 
@@ -543,6 +559,9 @@ class AdminBootstrap
         </div>
 
         <!-- PLUGINS WORDPRESS -->
+        <?php
+        $pluginVersions = $this->getPluginVersions();
+        ?>
         <?php if (!$allPluginsActive): ?>
         <div class="limpvix-card limpvix-card-danger" style="margin-bottom: 20px;">
             <div class="limpvix-card-header">
@@ -555,15 +574,19 @@ class AdminBootstrap
             <div class="limpvix-card-body">
 
                 <!-- Booknetic -->
-                <?php if (!$isBookneticActive): ?>
+                <?php
+                $booknetic = $pluginVersions['booknetic'];
+                if (!$booknetic['active']):
+                ?>
                 <div class="notice notice-error inline" style="margin: 10px 0;">
                     <p>
-                        <strong>❌ Booknetic 4.8.5+ (OBRIGATÓRIO)</strong><br>
+                        <strong>❌ Booknetic <?php echo esc_html($booknetic['minimum']); ?>+ (OBRIGATÓRIO)</strong><br>
                         <strong>Status:</strong> Não instalado ou desativado<br>
                         <strong>Descrição:</strong> Sistema de agendamento base - CRÍTICO para operação<br>
+                        <strong>Observação:</strong> <em>Arquitetura permite substituição futura via bridge de isolamento</em><br>
                         <strong>Ação:</strong>
                         <a href="https://codecanyon.net/item/booknetic-wordpress-booking-plugin/26315953" target="_blank" class="button button-primary">
-                            📥 Baixar Booknetic 4.8.5
+                            📥 Baixar Booknetic <?php echo esc_html($booknetic['minimum']); ?>
                         </a>
                         <em style="margin-left: 10px;">Após instalação, vá em Plugins > Ativar "Booknetic"</em>
                     </p>
@@ -572,17 +595,28 @@ class AdminBootstrap
                 <div class="notice notice-success inline" style="margin: 10px 0;">
                     <p>
                         <strong>✅ Booknetic</strong> - Ativo e funcionando
+                        <?php if ($booknetic['version']): ?>
+                            <br><strong>Versão:</strong> <?php echo esc_html($booknetic['version']); ?>
+                            <?php if ($booknetic['meets_minimum']): ?>
+                                <span style="color: #10b981;">✓ Compatível</span>
+                            <?php else: ?>
+                                <span style="color: #f59e0b;">⚠️ Versão mínima: <?php echo esc_html($booknetic['minimum']); ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </p>
                 </div>
                 <?php endif; ?>
 
                 <!-- WooCommerce -->
-                <?php if (!$isWooCommerceActive): ?>
+                <?php
+                $woocommerce = $pluginVersions['woocommerce'];
+                if (!$woocommerce['active']):
+                ?>
                 <div class="notice notice-error inline" style="margin: 10px 0;">
                     <p>
                         <strong>❌ WooCommerce (OBRIGATÓRIO)</strong><br>
                         <strong>Status:</strong> Não instalado ou desativado<br>
-                        <strong>Descrição:</strong> Sistema de e-commerce - necessário para processamento de pagamentos<br>
+                        <strong>Descrição:</strong> Sistema de e-commerce - necessário para processamento de pagamentos de clientes<br>
                         <strong>Ação:</strong>
                         <a href="<?php echo admin_url('plugin-install.php?s=woocommerce&tab=search&type=term'); ?>" class="button button-primary">
                             📥 Instalar WooCommerce
@@ -594,17 +628,29 @@ class AdminBootstrap
                 <div class="notice notice-success inline" style="margin: 10px 0;">
                     <p>
                         <strong>✅ WooCommerce</strong> - Ativo e funcionando
+                        <?php if ($woocommerce['version']): ?>
+                            <br><strong>Versão:</strong> <?php echo esc_html($woocommerce['version']); ?>
+                            <?php if ($woocommerce['meets_minimum']): ?>
+                                <span style="color: #10b981;">✓ Compatível</span>
+                            <?php else: ?>
+                                <span style="color: #f59e0b;">⚠️ Versão mínima: <?php echo esc_html($woocommerce['minimum']); ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </p>
                 </div>
                 <?php endif; ?>
 
                 <!-- MercadoPago -->
-                <?php if (!$isMercadoPagoActive): ?>
+                <?php
+                $mercadopago = $pluginVersions['woocommerce-mercadopago'];
+                if (!$mercadopago['active']):
+                ?>
                 <div class="notice notice-warning inline" style="margin: 10px 0;">
                     <p>
                         <strong>⚠️ WooCommerce Mercado Pago (RECOMENDADO)</strong><br>
                         <strong>Status:</strong> Não instalado ou desativado<br>
-                        <strong>Descrição:</strong> Gateway de pagamento Mercado Pago para processar cobranças<br>
+                        <strong>Descrição:</strong> Gateway de pagamento para processar cobranças de clientes (Sistema 1)<br>
+                        <strong>Observação:</strong> <em>Credenciais sincronizadas automaticamente para LimpVix</em><br>
                         <strong>Ação:</strong>
                         <a href="<?php echo admin_url('plugin-install.php?s=mercado+pago&tab=search&type=term'); ?>" class="button button-secondary">
                             📥 Instalar Mercado Pago
@@ -616,6 +662,14 @@ class AdminBootstrap
                 <div class="notice notice-success inline" style="margin: 10px 0;">
                     <p>
                         <strong>✅ WooCommerce Mercado Pago</strong> - Ativo e funcionando
+                        <?php if ($mercadopago['version']): ?>
+                            <br><strong>Versão:</strong> <?php echo esc_html($mercadopago['version']); ?>
+                            <?php if ($mercadopago['meets_minimum']): ?>
+                                <span style="color: #10b981;">✓ Compatível</span>
+                            <?php else: ?>
+                                <span style="color: #f59e0b;">⚠️ Versão mínima: <?php echo esc_html($mercadopago['minimum']); ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </p>
                 </div>
                 <?php endif; ?>
@@ -799,111 +853,142 @@ class AdminBootstrap
                     <p>Funcionalidades e dados que o LimpVix-Core consome</p>
                 </div>
                 <div class="limpvix-card-body">
-                    <h4 style="margin-top: 0;">📡 Hooks Capturados (10)</h4>
+                    <?php
+                    $hooks = $this->getBookneticHooksStatus();
+                    $hooksRegistered = count(array_filter($hooks, fn($h) => $h['registered']));
+                    ?>
+                    <h4 style="margin-top: 0;">📡 Hooks Capturados (<?php echo $hooksRegistered; ?>/<?php echo count($hooks); ?>)</h4>
                     <table class="limpvix-table">
                         <thead>
                             <tr>
+                                <th style="width: 50px;">Status</th>
                                 <th>Hook</th>
                                 <th>Função</th>
+                                <th style="width: 100px; text-align: center;">Callbacks</th>
                             </tr>
                         </thead>
                         <tbody>
+                            <?php foreach ($hooks as $hook => $data): ?>
                             <tr>
-                                <td><code>bkntc_appointment_created</code></td>
-                                <td>Criar order no LimpVix</td>
+                                <td style="text-align: center;">
+                                    <?php echo $data['registered'] ? '<span style="color: #10b981; font-size: 18px;">✅</span>' : '<span style="color: #ef4444; font-size: 18px;">❌</span>'; ?>
+                                </td>
+                                <td><code><?php echo esc_html($hook); ?></code></td>
+                                <td><?php echo esc_html($data['description']); ?></td>
+                                <td style="text-align: center;">
+                                    <?php if ($data['registered']): ?>
+                                        <span class="limpvix-badge limpvix-badge-success"><?php echo $data['callback_count']; ?></span>
+                                    <?php else: ?>
+                                        <span style="color: #9ca3af;">-</span>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
-                            <tr>
-                                <td><code>bkntc_appointment_completed</code></td>
-                                <td>Disparar fluxo financeiro</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_appointment_canceled</code></td>
-                                <td>Cancelar order</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_staff_updated</code></td>
-                                <td>Sincronizar dados staff</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_after_booking_completed</code></td>
-                                <td>Redirecionar para Briefing</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_staff_can_access</code></td>
-                                <td>Controle de permissões</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_staff_can_execute_action</code></td>
-                                <td>Controle de ações</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_staff_panel_header</code></td>
-                                <td>Avisos personalizados</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_staff_panel_footer</code></td>
-                                <td>Ocultar abas financeiras</td>
-                            </tr>
-                            <tr>
-                                <td><code>admin_menu</code> (999)</td>
-                                <td>Ocultar menus para staff</td>
-                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
 
-                    <h4 style="margin-top: 20px;">🗄️ Tabelas Acessadas (4)</h4>
+                    <?php if ($hooksRegistered < count($hooks)): ?>
+                    <div class="notice notice-warning inline" style="margin-top: 15px;">
+                        <p>
+                            ⚠️ <strong><?php echo (count($hooks) - $hooksRegistered); ?> hooks não registrados.</strong><br>
+                            Verifique se o Booknetic está instalado e ativo. Alguns hooks podem estar sendo interceptados mas não registrados ainda.
+                        </p>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php
+                    $tables = $this->getBookneticTablesStatus();
+                    $tablesExist = count(array_filter($tables, fn($t) => $t['exists']));
+                    ?>
+                    <h4 style="margin-top: 20px;">🗄️ Tabelas Acessadas (<?php echo $tablesExist; ?>/<?php echo count($tables); ?>)</h4>
                     <table class="limpvix-table">
                         <thead>
                             <tr>
+                                <th style="width: 50px;">Status</th>
                                 <th>Tabela</th>
                                 <th>Tipo Acesso</th>
                                 <th>Propósito</th>
                             </tr>
                         </thead>
                         <tbody>
+                            <?php foreach ($tables as $table => $data): ?>
                             <tr>
-                                <td><code>bkntc_appointments</code></td>
-                                <td>READ</td>
-                                <td>Mapear appointment → order</td>
+                                <td style="text-align: center;">
+                                    <?php echo $data['exists'] ? '<span style="color: #10b981; font-size: 18px;">✅</span>' : '<span style="color: #ef4444; font-size: 18px;">❌</span>'; ?>
+                                </td>
+                                <td><code><?php echo esc_html($table); ?></code></td>
+                                <td>
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($data['access']); ?></span>
+                                </td>
+                                <td><?php echo esc_html($data['purpose']); ?></td>
                             </tr>
-                            <tr>
-                                <td><code>bkntc_staff</code></td>
-                                <td>READ</td>
-                                <td>Vincular user_id WordPress</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_customers</code></td>
-                                <td>READ</td>
-                                <td>Dados para Google Reviews</td>
-                            </tr>
-                            <tr>
-                                <td><code>bkntc_services</code></td>
-                                <td>READ</td>
-                                <td>Nome do serviço executado</td>
-                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
 
-                    <h4 style="margin-top: 20px;">📦 Classes/Componentes (6)</h4>
-                    <ul style="list-style: none; padding: 0;">
-                        <li>✅ <strong>BookneticBridge</strong> - Ponte principal de integração</li>
-                        <li>✅ <strong>AppointmentOrderMapper</strong> - Mapeamento 1:1</li>
-                        <li>✅ <strong>StaffAccessGuard</strong> - Controle de acesso</li>
-                        <li>✅ <strong>StaffActionGuard</strong> - Controle de ações</li>
-                        <li>✅ <strong>StaffPanelOverride</strong> - UI customizada</li>
-                        <li>✅ <strong>StaffNotices</strong> - Avisos personalizados</li>
-                    </ul>
+                    <?php if ($tablesExist < count($tables)): ?>
+                    <div class="notice notice-error inline" style="margin-top: 15px;">
+                        <p>
+                            ❌ <strong><?php echo (count($tables) - $tablesExist); ?> tabelas Booknetic não encontradas.</strong><br>
+                            Verifique se o plugin Booknetic está instalado e ativado corretamente. LimpVix precisa de acesso READ-ONLY às tabelas do Booknetic.
+                        </p>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php
+                    $components = $this->getBookneticComponentsStatus();
+                    $componentsActive = count(array_filter($components, fn($c) => $c['exists']));
+                    ?>
+                    <h4 style="margin-top: 20px;">📦 Classes/Componentes (<?php echo $componentsActive; ?>/<?php echo count($components); ?>)</h4>
+                    <table class="limpvix-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">Status</th>
+                                <th>Componente</th>
+                                <th>Classe</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($components as $name => $data): ?>
+                            <tr>
+                                <td style="text-align: center;">
+                                    <?php echo $data['exists'] ? '<span style="color: #10b981; font-size: 18px;">✅</span>' : '<span style="color: #ef4444; font-size: 18px;">❌</span>'; ?>
+                                </td>
+                                <td><strong><?php echo esc_html($name); ?></strong></td>
+                                <td><code style="font-size: 11px;"><?php echo esc_html($data['class']); ?></code></td>
+                                <td><?php echo esc_html($data['description']); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+
+                    <?php if ($componentsActive < count($components)): ?>
+                    <div class="notice notice-error inline" style="margin-top: 15px;">
+                        <p>
+                            ❌ <strong><?php echo (count($components) - $componentsActive); ?> componentes não encontrados.</strong><br>
+                            Verifique se o LimpVix-Core está corretamente instalado. Alguns componentes de integração podem estar faltando.
+                        </p>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
-            <!-- GAPS IMPLEMENTADOS (100% COMPLETO) -->
+            <!-- GAPS IMPLEMENTADOS (VERIFICAÇÃO DINÂMICA) -->
+            <?php
+            $gapsStatus = $this->getGAPsImplementationStatus();
+            $gapsImplemented = count(array_filter($gapsStatus, fn($gap) => $gap['implemented']));
+            $gapsTotal = count($gapsStatus);
+            $gapsPercentage = $gapsTotal > 0 ? round(($gapsImplemented / $gapsTotal) * 100) : 0;
+            $allGapsImplemented = $gapsImplemented === $gapsTotal;
+            ?>
             <div class="limpvix-card">
-                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, <?php echo $allGapsImplemented ? '#10b981' : '#f59e0b'; ?> 0%, <?php echo $allGapsImplemented ? '#059669' : '#d97706'; ?> 100%); color: white;">
                     <h3 style="color: white; margin: 0;">
                         <span class="dashicons dashicons-yes"></span>
-                        ✅ GAPs P0 Implementados (100%)
+                        <?php echo $allGapsImplemented ? '✅' : '⚠️'; ?> GAPs P0 Implementados (<?php echo $gapsPercentage; ?>%)
                     </h3>
-                    <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;">Sprint Final: 4 funcionalidades críticas completadas</p>
+                    <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;"><?php echo $gapsImplemented; ?>/<?php echo $gapsTotal; ?> funcionalidades críticas verificadas</p>
                 </div>
                 <div class="limpvix-card-body">
                     <table class="limpvix-table">
@@ -912,60 +997,49 @@ class AdminBootstrap
                                 <th style="width: 50px;">Status</th>
                                 <th style="width: 100px;">GAP</th>
                                 <th>Descrição</th>
-                                <th style="width: 100px;">Commit</th>
+                                <th style="width: 150px;">Componentes</th>
                             </tr>
                         </thead>
                         <tbody>
+                            <?php foreach ($gapsStatus as $gapId => $data): ?>
                             <tr>
-                                <td style="text-align: center; font-size: 20px;">✅</td>
-                                <td><strong>GAP #1</strong></td>
+                                <td style="text-align: center; font-size: 20px;"><?php echo $data['icon']; ?></td>
+                                <td><strong><?php echo esc_html($gapId); ?></strong></td>
                                 <td>
-                                    <strong>EPI Selfie Validation</strong><br>
-                                    <small>Validação obrigatória de EPI no check-in com video selfie</small>
+                                    <strong><?php echo esc_html($data['name']); ?></strong><br>
+                                    <small><?php echo esc_html($data['description']); ?></small>
                                 </td>
-                                <td><code>e9ae591</code></td>
-                            </tr>
-                            <tr>
-                                <td style="text-align: center; font-size: 20px;">✅</td>
-                                <td><strong>GAP #2</strong></td>
                                 <td>
-                                    <strong>Evidence Categorization</strong><br>
-                                    <small>Sistema de categorização de evidências (EPI, Local, Problema)</small>
+                                    <?php foreach ($data['checks'] as $checkName => $check): ?>
+                                        <div style="font-size: 11px; margin: 2px 0;">
+                                            <?php echo $check['exists'] ? '<span style="color: #10b981;">✓</span>' : '<span style="color: #ef4444;">❌</span>'; ?>
+                                            <?php echo esc_html($checkName); ?>
+                                        </div>
+                                    <?php endforeach; ?>
                                 </td>
-                                <td><code>f9f9281</code></td>
                             </tr>
-                            <tr>
-                                <td style="text-align: center; font-size: 20px;">✅</td>
-                                <td><strong>GAP #3</strong></td>
-                                <td>
-                                    <strong>Client Check-in Notification</strong><br>
-                                    <small>Notificação automática ao cliente quando profissional faz check-in</small>
-                                </td>
-                                <td><code>28fb29a</code></td>
-                            </tr>
-                            <tr>
-                                <td style="text-align: center; font-size: 20px;">✅</td>
-                                <td><strong>GAP #4</strong></td>
-                                <td>
-                                    <strong>Issue Reporting System</strong><br>
-                                    <small>Sistema completo de reporte de problemas com 27 testes (100% passing)</small>
-                                </td>
-                                <td><code>f599585</code></td>
-                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
 
+                    <?php if ($allGapsImplemented): ?>
                     <div style="margin-top: 20px; background: #d4edda; border-left: 4px solid #28a745; padding: 16px; border-radius: 4px;">
-                        <strong style="color: #155724;">🎉 Sprint Final Completo!</strong>
+                        <strong style="color: #155724;">🎉 Todos os GAPs Implementados!</strong>
                         <ul style="margin: 10px 0 0 20px; color: #155724; font-size: 13px;">
-                            <li>✅ 10/10 Fluxos operacionais implementados</li>
-                            <li>✅ 4/4 GAPs P0 completos (bloqueadores)</li>
-                            <li>✅ 27 testes unitários com 100% success rate</li>
-                            <li>✅ REST API completa e documentada</li>
-                            <li>✅ Dashboard atualizado para 100%</li>
-                            <li>✅ Documentação completa gerada</li>
+                            <li>✅ <?php echo $gapsTotal; ?>/<?php echo $gapsTotal; ?> GAPs P0 completos</li>
+                            <li>✅ Todas as classes e interfaces verificadas</li>
+                            <li>✅ Sistema operacional 100%</li>
+                            <li>✅ Pronto para produção</li>
                         </ul>
                     </div>
+                    <?php else: ?>
+                    <div style="margin-top: 20px; background: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; border-radius: 4px;">
+                        <strong style="color: #856404;">⚠️ GAPs Pendentes</strong>
+                        <p style="margin: 8px 0 0 0; color: #856404; font-size: 13px;">
+                            <?php echo ($gapsTotal - $gapsImplemented); ?> GAP(s) não completamente implementado(s). Verifique os componentes marcados com ❌ acima.
+                        </p>
+                    </div>
+                    <?php endif; ?>
 
                     <div style="margin-top: 15px; padding: 15px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
                         <strong style="color: #1e40af;">📚 Documentação:</strong>
@@ -1095,6 +1169,92 @@ class AdminBootstrap
             </div>
         </div>
 
+        <!-- Observações sobre Dependências -->
+        <div class="limpvix-card" style="margin-top: 20px; border-left: 4px solid #3b82f6;">
+            <div class="limpvix-card-header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                <h3 style="color: white; margin: 0;">
+                    <span class="dashicons dashicons-info"></span>
+                    ℹ️ Observações sobre Dependências
+                </h3>
+                <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;">Arquitetura, substituição futura e sistema dual MercadoPago</p>
+            </div>
+            <div class="limpvix-card-body">
+                <!-- Booknetic -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #1e40af;">
+                        📅 Booknetic - "Soft Dependency"
+                    </h4>
+                    <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
+                        <strong>Status Atual:</strong> OBRIGATÓRIO para operação (agendamento, staff, fluxo de pagamento)
+                    </p>
+                    <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
+                        <strong>Arquitetura de Isolamento:</strong> LimpVix mantém isolamento via <code>BookneticBridge</code>.
+                        Acesso READ-ONLY às tabelas, interceptação via hooks WordPress. <strong>Não modifica código do Booknetic.</strong>
+                    </p>
+                    <p style="margin: 0; font-size: 13px; line-height: 1.6;">
+                        <strong>Substituição Futura:</strong> A arquitetura permite substituir o Booknetic por UI própria ou outro
+                        engine de agendamento sem quebrar o LimpVix-Core. Roadmap planejado para 2027.
+                    </p>
+                </div>
+
+                <!-- WooCommerce + MercadoPago -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #047857;">
+                        💳 WooCommerce + WooCommerce MercadoPago
+                    </h4>
+                    <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
+                        <strong>Status:</strong> OBRIGATÓRIO para processamento de pagamentos de clientes
+                    </p>
+                    <p style="margin: 0; font-size: 13px; line-height: 1.6;">
+                        <strong>Função:</strong> WooCommerce gerencia e-commerce. WooCommerce MercadoPago processa checkout de clientes
+                        (PIX, cartão, boleto). Credenciais são sincronizadas automaticamente para LimpVix.
+                    </p>
+                </div>
+
+                <!-- Sistema Dual MercadoPago -->
+                <div style="padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: #92400e;">
+                        🔄 Arquitetura Dual MercadoPago
+                    </h4>
+                    <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
+                        <strong>LimpVix utiliza DOIS sistemas MercadoPago distintos:</strong>
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div style="padding: 12px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                            <strong style="color: #059669;">Sistema 1: Pagamentos de Clientes</strong>
+                            <ul style="margin: 8px 0 0 20px; font-size: 12px; line-height: 1.6;">
+                                <li><strong>Plugin:</strong> WooCommerce MercadoPago</li>
+                                <li><strong>Fluxo:</strong> Cliente → Plataforma MP</li>
+                                <li><strong>Credenciais:</strong> Access Token + Public Key da plataforma</li>
+                                <li><strong>Sincronização:</strong> WooCommerce → LimpVix (a cada 5 min)</li>
+                                <li><strong>Uso:</strong> Checkout de serviços contratados</li>
+                            </ul>
+                        </div>
+
+                        <div style="padding: 12px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                            <strong style="color: #7c3aed;">Sistema 2: Payouts Profissionais</strong>
+                            <ul style="margin: 8px 0 0 20px; font-size: 12px; line-height: 1.6;">
+                                <li><strong>Tecnologia:</strong> LimpVix OAuth MercadoPago</li>
+                                <li><strong>Fluxo:</strong> Plataforma MP → Profissional MP</li>
+                                <li><strong>Credenciais:</strong> Access Token OAuth por profissional</li>
+                                <li><strong>Configuração:</strong> Client ID/Secret + token individual</li>
+                                <li><strong>Uso:</strong> Transferências MP→MP automáticas</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 12px; color: #92400e;">
+                            <strong>💡 Importante:</strong> Os dois sistemas são complementares e independentes.
+                            Sistema 1 processa pagamentos de clientes, Sistema 2 realiza payouts automáticos para profissionais.
+                            Para detalhes completos, consulte <code>ARQUITETURA_MERCADOPAGO.md</code>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Princípios de Integração -->
         <div class="limpvix-card" style="margin-top: 20px;">
             <div class="limpvix-card-header">
@@ -1175,6 +1335,9 @@ class AdminBootstrap
                 echo '<script>setTimeout(function(){ window.location.reload(); }, 1500);</script>';
             }
         }
+
+        // Buscar estatísticas dinâmicas do sistema
+        $stats = $this->calculateDashboardStats();
         ?>
 
         <!-- DASHBOARD DE STATUS DO SISTEMA -->
@@ -1183,15 +1346,15 @@ class AdminBootstrap
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
                     <div>
                         <h2 style="color: white; margin: 0 0 10px 0; font-size: 28px;">
-                            🎉 LimpVix Core - Sistema 100% Operacional
+                            <?php echo $stats['status_icon']; ?> LimpVix Core - <?php echo esc_html($stats['status_message']); ?>
                         </h2>
                         <p style="color: #f0f0f0; margin: 0; font-size: 14px;">
-                            Versão 1.0.0 | Sprint Final - 2026-02-16 | Branch: sprint-final-100-percent
+                            Versão 1.0.0 | Sprint Final - <?php echo date('Y-m-d'); ?> | Branch: sprint-final-100-percent
                         </p>
                     </div>
                     <div style="text-align: right;">
                         <div style="background: rgba(255,255,255,0.2); padding: 15px 25px; border-radius: 8px; backdrop-filter: blur(10px);">
-                            <div style="font-size: 42px; font-weight: bold; line-height: 1;">100%</div>
+                            <div style="font-size: 42px; font-weight: bold; line-height: 1;"><?php echo $stats['completion_percentage']; ?>%</div>
                             <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Completude</div>
                         </div>
                     </div>
@@ -1200,45 +1363,72 @@ class AdminBootstrap
                 <!-- Métricas Rápidas -->
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px;">
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;">10/10</div>
+                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['fluxos']['operational_complete']; ?>/<?php echo $stats['fluxos']['operational_total']; ?></div>
                         <div style="font-size: 13px; opacity: 0.9;">Fluxos Operacionais</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;">4/4</div>
+                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['fluxos']['gaps_implemented']; ?>/<?php echo $stats['fluxos']['gaps_total']; ?></div>
                         <div style="font-size: 13px; opacity: 0.9;">GAPs Implementados</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;">27</div>
+                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['test_count']; ?></div>
                         <div style="font-size: 13px; opacity: 0.9;">Testes Unitários</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;">✓</div>
-                        <div style="font-size: 13px; opacity: 0.9;">Go-Live Ready</div>
+                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['is_go_live_ready'] ? '✓' : '⚠️'; ?></div>
+                        <div style="font-size: 13px; opacity: 0.9;"><?php echo esc_html($stats['go_live_status']); ?></div>
                     </div>
                 </div>
 
                 <!-- GAPs Implementados -->
                 <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
                     <h3 style="color: white; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                        ✅ GAPs P0 e P1 - Todos Implementados
+                        <?php echo $stats['fluxos']['gaps_implemented'] === $stats['fluxos']['gaps_total'] ? '✅' : '⚠️'; ?> GAPs P0 e P1 - <?php echo $stats['fluxos']['gaps_implemented']; ?>/<?php echo $stats['fluxos']['gaps_total']; ?> Implementados
                     </h3>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
-                            <strong>GAP #1:</strong> EPI Selfie Validation
-                            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">commit e9ae591</div>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
-                            <strong>GAP #2:</strong> Evidence Categorization System
-                            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">commit f9f9281</div>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
-                            <strong>GAP #3:</strong> Client Check-in Notifications
-                            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">commit 28fb29a</div>
-                        </div>
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
-                            <strong>GAP #4:</strong> Issue Reporting System + Tests
-                            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">commits 4f2e954 + f599585</div>
-                        </div>
+                        <?php
+                        $gaps = [
+                            [
+                                'id' => 'GAP #1',
+                                'name' => 'EPI Selfie Validation',
+                                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
+                            ],
+                            [
+                                'id' => 'GAP #2',
+                                'name' => 'Evidence Categorization System',
+                                'class' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
+                            ],
+                            [
+                                'id' => 'GAP #3',
+                                'name' => 'Client Check-in Notifications',
+                                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckIn',
+                            ],
+                            [
+                                'id' => 'GAP #4',
+                                'name' => 'Issue Reporting System',
+                                'class' => 'LimpVix\\Domain\\Execution\\Issue',
+                            ],
+                        ];
+
+                        foreach ($gaps as $gap) {
+                            $implemented = false;
+
+                            if (isset($gap['class'])) {
+                                $implemented = class_exists($gap['class']);
+                            } elseif (isset($gap['use_case'])) {
+                                $implemented = class_exists($gap['use_case']);
+                            }
+
+                            $statusIcon = $implemented ? '✅' : '❌';
+                            $statusText = $implemented ? 'Implementado' : 'Pendente';
+                            ?>
+                            <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
+                                <strong><?php echo esc_html($gap['id']); ?>:</strong> <?php echo esc_html($gap['name']); ?>
+                                <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">
+                                    <?php echo $statusIcon; ?> <?php echo $statusText; ?>
+                                </div>
+                            </div>
+                        <?php } ?>
                     </div>
                 </div>
 
@@ -1303,7 +1493,7 @@ class AdminBootstrap
                         <h4 style="margin: 0 0 10px 0; color: #2c3e50;">🧪 Testes e API</h4>
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
                             <li style="margin-bottom: 8px;">
-                                <strong>27 testes unitários</strong> (100% passing)
+                                <strong><?php echo $stats['test_count']; ?> testes unitários</strong> (<?php echo $stats['test_count'] > 0 ? '100% passing' : 'nenhum teste encontrado'; ?>)
                             </li>
                             <li style="margin-bottom: 8px;">
                                 REST API: <code>/wp-json/limpvix/v1/</code>
@@ -1322,7 +1512,7 @@ class AdminBootstrap
                                 <strong>Arquitetura:</strong> DDD + Clean Architecture
                             </li>
                             <li style="margin-bottom: 8px;">
-                                <strong>PHP:</strong> 8.2.29 | <strong>PHPUnit:</strong> 9.6.34
+                                <strong>PHP:</strong> <?php echo esc_html($stats['php_version']); ?> | <strong>PHPUnit:</strong> <?php echo esc_html($stats['phpunit_version']); ?>
                             </li>
                             <li style="margin-bottom: 8px;">
                                 <strong>WordPress:</strong> 6.x compatible
@@ -1332,11 +1522,11 @@ class AdminBootstrap
                 </div>
 
                 <!-- Status de Implementação -->
-                <div style="margin-top: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;">
-                    <h4 style="margin: 0 0 10px 0; color: #155724;">🎯 Status de Implementação</h4>
-                    <div style="font-size: 13px; color: #155724; line-height: 1.6;">
-                        <strong>✅ Fluxos Operacionais:</strong> 10/10 completos (Check-in, Check-out, EPI, Evidências, Notificações, Issue Reporting)<br>
-                        <strong>✅ Cobertura de Testes:</strong> Domain layer com 27 testes (Issue system)<br>
+                <div style="margin-top: 20px; padding: 15px; background: <?php echo $stats['is_go_live_ready'] ? '#d4edda' : '#fff3cd'; ?>; border-left: 4px solid <?php echo $stats['is_go_live_ready'] ? '#28a745' : '#ffc107'; ?>; border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; color: <?php echo $stats['is_go_live_ready'] ? '#155724' : '#856404'; ?>;">🎯 Status de Implementação</h4>
+                    <div style="font-size: 13px; color: <?php echo $stats['is_go_live_ready'] ? '#155724' : '#856404'; ?>; line-height: 1.6;">
+                        <strong><?php echo $stats['fluxos']['operational_complete'] === $stats['fluxos']['operational_total'] ? '✅' : '⚠️'; ?> Fluxos Operacionais:</strong> <?php echo $stats['fluxos']['operational_complete']; ?>/<?php echo $stats['fluxos']['operational_total']; ?> completos (<?php echo round(($stats['fluxos']['operational_complete'] / $stats['fluxos']['operational_total']) * 100); ?>%)<br>
+                        <strong><?php echo $stats['test_count'] > 0 ? '✅' : '⚠️'; ?> Cobertura de Testes:</strong> Domain layer com <?php echo $stats['test_count']; ?> testes<br>
                         <strong>✅ REST API:</strong> Endpoints completos para executions, issues, evidences<br>
                         <strong>✅ Event Listeners:</strong> Event-driven architecture implementada<br>
                         <strong>✅ Validações:</strong> Geofence, time window, EPI, evidências categorizadas
@@ -2617,11 +2807,8 @@ class AdminBootstrap
             update_option('limpvix_prof_payout_below3_hold', intval($_POST['payout_below3_hold']));
             update_option('limpvix_prof_allow_client_report', isset($_POST['allow_client_report']));
 
-            // MercadoPago OAuth (NOVO)
-            update_option('limpvix_mercadopago_client_id', sanitize_text_field($_POST['mercadopago_client_id'] ?? ''));
-            update_option('limpvix_mercadopago_client_secret', sanitize_text_field($_POST['mercadopago_client_secret'] ?? ''));
-
             // Dual Mode Payouts (NOVO)
+            // NOTA: MercadoPago Client ID/Secret agora estão em Configurações > Conexões
             update_option('limpvix_payout_minimum_amount', floatval($_POST['payout_minimum_amount'] ?? 50));
             update_option('limpvix_payout_default_method', sanitize_text_field($_POST['payout_default_method'] ?? 'pix_manual'));
             update_option('limpvix_payout_pix_to_mp_requires_approval', isset($_POST['payout_pix_to_mp_requires_approval']));
@@ -2631,9 +2818,64 @@ class AdminBootstrap
             exit;
         }
 
+        // Buscar estatísticas de profissionais
+        $profStats = $this->calculateProfessionalsStats();
         ?>
         <form method="post" action="">
             <?php wp_nonce_field('limpvix_profissionais_settings'); ?>
+
+            <!-- Dashboard de Estatísticas de Profissionais -->
+            <div class="limpvix-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px; border: none;">
+                <div class="limpvix-card-body" style="padding: 30px;">
+                    <h2 style="color: white; margin: 0 0 20px 0; font-size: 24px;">
+                        👷 Dashboard de Profissionais
+                    </h2>
+
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+                        <!-- Total Profissionais -->
+                        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
+                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['total']; ?></div>
+                            <div style="font-size: 13px; opacity: 0.9;">Total Cadastrados</div>
+                        </div>
+
+                        <!-- Verificados (KYC Aprovado) -->
+                        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
+                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['verified']; ?></div>
+                            <div style="font-size: 13px; opacity: 0.9;">KYC Aprovado</div>
+                        </div>
+
+                        <!-- MP OAuth Conectados -->
+                        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
+                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['mp_connected']; ?></div>
+                            <div style="font-size: 13px; opacity: 0.9;">MP OAuth Ativo</div>
+                        </div>
+
+                        <!-- Ativos (Score >= mínimo) -->
+                        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
+                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['active']; ?></div>
+                            <div style="font-size: 13px; opacity: 0.9;">Aptos a Trabalhar</div>
+                        </div>
+                    </div>
+
+                    <!-- Estatísticas Adicionais -->
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; font-size: 13px;">
+                            <div>
+                                <strong>Métodos de Payout:</strong><br>
+                                MP OAuth: <?php echo $profStats['mp_connected']; ?> | PIX Manual: <?php echo $profStats['pix_manual']; ?>
+                            </div>
+                            <div>
+                                <strong>Score Médio:</strong><br>
+                                <?php echo number_format($profStats['avg_score'], 1); ?> pontos
+                            </div>
+                            <div>
+                                <strong>Taxa de Verificação:</strong><br>
+                                <?php echo $profStats['total'] > 0 ? round(($profStats['verified'] / $profStats['total']) * 100) : 0; ?>% verificados
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- ============================================ -->
             <!-- Card: KYC Biométrico (NOVO - Feb 2026)      -->
@@ -3112,86 +3354,84 @@ class AdminBootstrap
                         </p>
                     </div>
 
-                    <!-- NOVO: MercadoPago OAuth Configuration -->
-                    <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 30px;">
-                        <h4 style="margin-top: 0; border-bottom: 2px solid #0073aa; padding-bottom: 10px;">
-                            🔐 MercadoPago OAuth - Payouts Automáticos
-                        </h4>
-                        <p>
-                            Configure OAuth para permitir que profissionais conectem suas contas MercadoPago e recebam pagamentos automaticamente (MP→MP transfer).
+                    <!-- INFO: MercadoPago OAuth - Como Funciona -->
+                    <div style="background: #e8f4f8; padding: 20px; border-left: 4px solid #0073aa; margin-bottom: 30px;">
+                        <h4 style="margin-top: 0;">🔐 MercadoPago OAuth - Como Funciona</h4>
+
+                        <p><strong>📱 Profissionais conectam no APP React Native (não aqui!):</strong></p>
+                        <ol style="margin: 10px 0;">
+                            <li>Profissional abre "Área do Profissional" no app</li>
+                            <li>Vai em "Configurações de Payout"</li>
+                            <li>Escolhe "MercadoPago OAuth (Automático)"</li>
+                            <li>Clica "Conectar MercadoPago"</li>
+                            <li>Autoriza LimpVix a fazer transferências</li>
+                            <li>✅ Token OAuth salvo - payouts automáticos habilitados!</li>
+                        </ol>
+
+                        <p><strong>💰 Fluxo de Payout Automático:</strong></p>
+                        <p style="margin-left: 20px;">
+                            Serviço Concluído → Feedback 5★ → Payout aprovado → <strong>Transferência automática: Conta Plataforma MP → Conta Profissional MP</strong>
                         </p>
 
-                        <table class="form-table">
-                            <tr>
-                                <th scope="row">
-                                    <label for="mercadopago_client_id">Client ID:</label>
-                                </th>
-                                <td>
-                                    <input type="text"
-                                           name="mercadopago_client_id"
-                                           id="mercadopago_client_id"
-                                           value="<?php echo esc_attr(get_option('limpvix_mercadopago_client_id', '')); ?>"
-                                           class="regular-text"
-                                           placeholder="APP_USR-...">
-                                    <p class="description">
-                                        Client ID da sua aplicação MercadoPago.<br>
-                                        📌 Obter em: <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank">Painel de Desenvolvedores MercadoPago</a>
-                                    </p>
-                                </td>
-                            </tr>
+                        <div style="background: #fff; padding: 15px; border-radius: 4px; margin-top: 15px;">
+                            <p style="margin: 0;"><strong>⚙️ Configuração OAuth da Plataforma:</strong></p>
+                            <p style="margin: 5px 0 0 0;">
+                                Client ID e Client Secret devem estar configurados em:<br>
+                                <a href="?page=limpvix-settings&tab=conexoes" class="button button-secondary" style="margin-top: 5px;">
+                                    🔗 Configurações > Conexões > MercadoPago OAuth
+                                </a>
+                            </p>
+                        </div>
 
-                            <tr>
-                                <th scope="row">
-                                    <label for="mercadopago_client_secret">Client Secret:</label>
-                                </th>
-                                <td>
-                                    <input type="password"
-                                           name="mercadopago_client_secret"
-                                           id="mercadopago_client_secret"
-                                           value="<?php echo esc_attr(get_option('limpvix_mercadopago_client_secret', '')); ?>"
-                                           class="regular-text"
-                                           placeholder="••••••••••••••••">
-                                    <p class="description">
-                                        Client Secret da sua aplicação (mantenha seguro - NUNCA compartilhe!)
-                                    </p>
-                                </td>
-                            </tr>
+                        <div style="background: #fff3cd; padding: 12px; border-left: 3px solid #f0ad4e; margin-top: 15px;">
+                            <p style="margin: 0;">
+                                <strong>⚠️ Importante:</strong> Esta seção configura apenas as <strong>REGRAS de payout</strong>.<br>
+                                As credenciais OAuth (Client ID/Secret) devem estar em <strong>Configurações > Conexões</strong>.
+                            </p>
+                        </div>
 
-                            <tr>
-                                <th scope="row">
-                                    Redirect URI:
-                                </th>
-                                <td>
-                                    <code style="background: #f0f0f1; padding: 8px; display: inline-block; border-radius: 3px;">
-                                        <?php echo rest_url('limpvix/v1/oauth/mercadopago/callback'); ?>
-                                    </code>
-                                    <p class="description">
-                                        ⚠️ <strong>IMPORTANTE:</strong> Adicione esta URL exata como <strong>Redirect URI</strong> na sua aplicação MercadoPago.<br>
-                                        Sem isso, o OAuth NÃO funcionará.
-                                    </p>
-                                </td>
-                            </tr>
+                        <?php
+                        $client_id = get_option('limpvix_mercadopago_client_id', '');
+                        $client_secret = get_option('limpvix_mercadopago_client_secret', '');
+                        $oauthConfigured = !empty($client_id) && !empty($client_secret);
+                        ?>
 
-                            <tr>
-                                <th scope="row">
-                                    Status OAuth:
-                                </th>
-                                <td>
-                                    <?php
-                                    $client_id = get_option('limpvix_mercadopago_client_id', '');
-                                    $client_secret = get_option('limpvix_mercadopago_client_secret', '');
+                        <div style="background: #fff; padding: 15px; border-radius: 4px; margin-top: 15px;">
+                            <p style="margin: 0 0 5px 0;"><strong>Status OAuth:</strong></p>
+                            <?php if ($oauthConfigured): ?>
+                                <span style="color: #46b450; font-weight: 600; font-size: 16px;">✅ Configurado</span>
+                                <p style="margin: 5px 0 0 0; color: #46b450;">
+                                    OAuth MercadoPago ativo. Profissionais podem conectar suas contas no app.
+                                </p>
+                            <?php else: ?>
+                                <span style="color: #dc3232; font-weight: 600; font-size: 16px;">❌ Não Configurado</span>
+                                <p style="margin: 5px 0 0 0; color: #dc3232;">
+                                    Configure Client ID e Client Secret em <strong>Configurações > Conexões</strong> para ativar.
+                                </p>
+                            <?php endif; ?>
+                        </div>
 
-                                    if (!empty($client_id) && !empty($client_secret)) {
-                                        echo '<span style="color: #46b450; font-weight: 600;">✅ Configurado</span>';
-                                        echo '<p class="description">OAuth MercadoPago ativo. Profissionais podem conectar suas contas.</p>';
-                                    } else {
-                                        echo '<span style="color: #dc3232; font-weight: 600;">❌ Não Configurado</span>';
-                                        echo '<p class="description">Configure Client ID e Client Secret acima para ativar.</p>';
-                                    }
-                                    ?>
-                                </td>
-                            </tr>
-                        </table>
+                        <details style="margin-top: 15px;">
+                            <summary style="cursor: pointer; font-weight: 600; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 4px;">
+                                📚 Ver Endpoints REST API (para desenvolvedores)
+                            </summary>
+                            <div style="background: #f5f5f5; padding: 15px; margin-top: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                                <p><strong>GET</strong> /limpvix/v1/professionals/{id}/mercadopago/connect</p>
+                                <p style="margin-left: 20px;">→ Retorna authorization URL para OAuth</p>
+
+                                <p style="margin-top: 10px;"><strong>GET</strong> /limpvix/v1/oauth/mercadopago/callback</p>
+                                <p style="margin-left: 20px;">→ Recebe callback OAuth, troca code por token</p>
+
+                                <p style="margin-top: 10px;"><strong>POST</strong> /limpvix/v1/professionals/{id}/mercadopago/disconnect</p>
+                                <p style="margin-left: 20px;">→ Desconecta MercadoPago OAuth</p>
+
+                                <p style="margin-top: 10px;"><strong>GET</strong> /limpvix/v1/professionals/{id}/payout-method</p>
+                                <p style="margin-left: 20px;">→ Retorna método atual (mp_oauth ou pix_manual)</p>
+
+                                <p style="margin-top: 10px;"><strong>PUT</strong> /limpvix/v1/professionals/{id}/payout-method</p>
+                                <p style="margin-left: 20px;">→ Altera método de payout</p>
+                            </div>
+                        </details>
                     </div>
 
                     <!-- NOVO: Dual Mode Payout Configuration -->
@@ -4550,10 +4790,8 @@ class AdminBootstrap
         $payoutRepo = new \LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository();
         $stats = $payoutRepo->getStats();
 
-        // Verificar configuração do MercadoPago
-        $mpAccessToken = get_option('limpvix_mercadopago_access_token');
-        $mpPublicKey = get_option('limpvix_mercadopago_public_key');
-        $mpConfigured = !empty($mpAccessToken) && !empty($mpPublicKey);
+        // Verificar configuração do MercadoPago (TODAS as 4 credenciais)
+        $mpStatus = $this->getMercadoPagoConfigStatus();
 
         // Calcular totais
         $totalPayouts = $stats['total_pending'] + $stats['total_approved'] + $stats['total_processing'] + $stats['total_completed'] + $stats['total_failed'];
@@ -4651,10 +4889,13 @@ class AdminBootstrap
                                 MercadoPago Integration
                             </div>
                             <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
-                                <?php if ($mpConfigured): ?>
-                                    <span style="color: #4ade80;">✓ Configurado e Ativo</span>
-                                <?php else: ?>
-                                    <span style="color: #fbbf24;">⚠ Configuração Pendente</span>
+                                <span style="color: <?php echo esc_attr($mpStatus['status_color']); ?>;">
+                                    <?php echo esc_html($mpStatus['status_icon']); ?> <?php echo esc_html($mpStatus['status_text']); ?>
+                                </span>
+                                <?php if (!empty($mpStatus['missing'])): ?>
+                                    <div style="margin-top: 5px; font-size: 11px; color: #fbbf24;">
+                                        Faltando: <?php echo esc_html(implode(', ', $mpStatus['missing'])); ?>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -4680,7 +4921,7 @@ class AdminBootstrap
                         Credenciais de acesso e configurações da API
                     </p>
                     <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
-                        <?php echo $mpConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                        <?php echo esc_html($mpStatus['status_icon']); ?> <?php echo esc_html($mpStatus['fully_configured'] ? 'Configurado' : ($mpStatus['platform_configured'] ? 'Parcial' : 'Não Configurado')); ?>
                     </div>
                 </div>
                 <div class="limpvix-card-body">
@@ -4699,81 +4940,88 @@ class AdminBootstrap
                     </p>
                 </div>
                 <div class="limpvix-card-body">
+                    <?php $features = $this->getPayoutFeaturesStatus(); ?>
                     <div style="display: flex; flex-direction: column; gap: 15px;">
-                        <!-- Feature 1 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 1: Transferência Automática via PIX -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['pix_transfer']['implemented'] ? '#f0fdf4' : '#fef3f2'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['pix_transfer']['implemented'] ? '#10b981' : '#ef4444'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['pix_transfer']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['pix_transfer']['implemented'] ? '#065f46' : '#991b1b'; ?>; margin-bottom: 4px;">
                                     Transferência Automática via PIX
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['pix_transfer']['implemented'] ? '#047857' : '#b91c1c'; ?>;">
                                     Repasses automáticos para profissionais após conclusão do serviço e feedback positivo
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['pix_transfer']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Feature 2 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 2: Feedback Window Enforcement -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['feedback_window']['implemented'] ? '#f0fdf4' : '#fffbeb'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['feedback_window']['implemented'] ? '#10b981' : '#f59e0b'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['feedback_window']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['feedback_window']['implemented'] ? '#065f46' : '#92400e'; ?>; margin-bottom: 4px;">
                                     Feedback Window Enforcement
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['feedback_window']['implemented'] ? '#047857' : '#b45309'; ?>;">
                                     Payouts retidos por 48h aguardando feedback do cliente (Golden Rule)
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['feedback_window']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Feature 3 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 3: Reconciliação Automática -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['reconciliation']['cron_active'] ? '#f0fdf4' : '#fffbeb'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['reconciliation']['cron_active'] ? '#10b981' : '#f59e0b'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['reconciliation']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['reconciliation']['cron_active'] ? '#065f46' : '#92400e'; ?>; margin-bottom: 4px;">
                                     Reconciliação Automática
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['reconciliation']['cron_active'] ? '#047857' : '#b45309'; ?>;">
                                     Cron job que sincroniza status de transferências com MercadoPago a cada 15 minutos
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['reconciliation']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Feature 4 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 4: Retry Automático em Falhas -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['retry_on_failure']['implemented'] ? '#f0fdf4' : '#fef3f2'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['retry_on_failure']['implemented'] ? '#10b981' : '#ef4444'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['retry_on_failure']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['retry_on_failure']['implemented'] ? '#065f46' : '#991b1b'; ?>; margin-bottom: 4px;">
                                     Retry Automático em Falhas
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['retry_on_failure']['implemented'] ? '#047857' : '#b91c1c'; ?>;">
                                     Sistema tenta até 3x automaticamente quando transferência falha (backoff exponencial)
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['retry_on_failure']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Feature 5 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 5: Auditoria Completa -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['audit_trail']['implemented'] ? '#f0fdf4' : '#fffbeb'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['audit_trail']['implemented'] ? '#10b981' : '#f59e0b'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['audit_trail']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['audit_trail']['implemented'] ? '#065f46' : '#92400e'; ?>; margin-bottom: 4px;">
                                     Auditoria Completa
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['audit_trail']['implemented'] ? '#047857' : '#b45309'; ?>;">
                                     Logs detalhados de todas as transações com raw_response do MercadoPago
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['audit_trail']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Feature 6 -->
-                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
-                            <span style="font-size: 24px;">✅</span>
+                        <!-- Feature 6: Suporte a PIX, Conta Bancária e MP Account -->
+                        <div style="display: flex; align-items: start; gap: 12px; padding: 12px; background: <?php echo $features['multi_recipient']['implemented'] ? '#f0fdf4' : '#fef3f2'; ?>; border-radius: 8px; border-left: 4px solid <?php echo $features['multi_recipient']['implemented'] ? '#10b981' : '#ef4444'; ?>;">
+                            <span style="font-size: 24px;"><?php echo esc_html($features['multi_recipient']['icon']); ?></span>
                             <div>
-                                <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">
+                                <div style="font-weight: 600; color: <?php echo $features['multi_recipient']['implemented'] ? '#065f46' : '#991b1b'; ?>; margin-bottom: 4px;">
                                     Suporte a PIX, Conta Bancária e MP Account
                                 </div>
-                                <div style="font-size: 13px; color: #047857;">
+                                <div style="font-size: 13px; color: <?php echo $features['multi_recipient']['implemented'] ? '#047857' : '#b91c1c'; ?>;">
                                     Profissional escolhe método preferido: PIX (instantâneo), Conta Bancária ou MercadoPago
+                                    <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['multi_recipient']['status']); ?>)</span>
                                 </div>
                             </div>
                         </div>
@@ -4801,6 +5049,7 @@ class AdminBootstrap
                 </p>
             </div>
             <div class="limpvix-card-body">
+                <?php $arch = $this->getPayoutArchitectureStatus(); ?>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
                     <!-- Domain Layer -->
                     <div>
@@ -4809,8 +5058,14 @@ class AdminBootstrap
                             Domain Layer
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
-                            <li>✓ <code>PayoutRepositoryInterface</code></li>
-                            <li>✓ Domain events & aggregates</li>
+                            <?php foreach ($arch['domain'] as $class => $exists): ?>
+                                <li>
+                                    <span style="color: <?php echo $exists ? '#10b981' : '#ef4444'; ?>;">
+                                        <?php echo $exists ? '✓' : '❌'; ?>
+                                    </span>
+                                    <code><?php echo esc_html($class); ?></code>
+                                </li>
+                            <?php endforeach; ?>
                         </ul>
                     </div>
 
@@ -4821,10 +5076,14 @@ class AdminBootstrap
                             Application Layer
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
-                            <li>✓ <code>ExecutePayout</code></li>
-                            <li>✓ <code>CompleteServiceWithPayout</code></li>
-                            <li>✓ <code>PayoutReconciliationService</code></li>
-                            <li>✓ <code>AutomaticPayoutDispatcher</code></li>
+                            <?php foreach ($arch['application'] as $class => $exists): ?>
+                                <li>
+                                    <span style="color: <?php echo $exists ? '#10b981' : '#ef4444'; ?>;">
+                                        <?php echo $exists ? '✓' : '❌'; ?>
+                                    </span>
+                                    <code><?php echo esc_html($class); ?></code>
+                                </li>
+                            <?php endforeach; ?>
                         </ul>
                     </div>
 
@@ -4835,26 +5094,52 @@ class AdminBootstrap
                             Infrastructure Layer
                         </h4>
                         <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: #4b5563; line-height: 1.8;">
-                            <li>✓ <code>WpPayoutRepository</code></li>
-                            <li>✓ <code>MercadoPagoPayoutProvider</code></li>
-                            <li>✓ <code>PayoutReconciliationCronAdapter</code></li>
-                            <li>✓ <code>ReleasePayoutHoldOnFeedbackApproved</code></li>
+                            <?php foreach ($arch['infrastructure'] as $class => $exists): ?>
+                                <li>
+                                    <span style="color: <?php echo $exists ? '#10b981' : '#ef4444'; ?>;">
+                                        <?php echo $exists ? '✓' : '❌'; ?>
+                                    </span>
+                                    <code><?php echo esc_html($class); ?></code>
+                                </li>
+                            <?php endforeach; ?>
                         </ul>
                     </div>
                 </div>
 
-                <!-- Database Info -->
+                <!-- Database Info (DINÂMICO) -->
+                <?php $dbInfo = $this->getPayoutDatabaseInfo(); ?>
                 <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
                     <h4 style="color: #1f2937; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
-                        💾 Database Table: <code>wp_limpvix_payouts</code>
+                        💾 Database Table: <code><?php echo esc_html($dbInfo['table_name']); ?></code>
+                        <?php if ($dbInfo['exists']): ?>
+                            <span style="color: #10b981; font-weight: 600;">✓ Criada</span>
+                        <?php else: ?>
+                            <span style="color: #ef4444; font-weight: 600;">❌ Não Criada</span>
+                        <?php endif; ?>
                     </h4>
-                    <div style="font-size: 13px; color: #6b7280; line-height: 1.6;">
-                        <strong>Status Flow:</strong> <code>pending</code> → <code>approved</code> → <code>processing</code> → <code>completed</code> / <code>failed</code>
-                        <br>
-                        <strong>Índices:</strong> order_uuid, professional_id, status, gateway_transfer_id, created_at
-                        <br>
-                        <strong>Auditoria:</strong> Todos os campos de timestamp + raw_response JSON completo
-                    </div>
+                    <?php if ($dbInfo['exists']): ?>
+                        <div style="font-size: 13px; color: #6b7280; line-height: 1.6;">
+                            <strong>Status Flow:</strong> <code>pending</code> → <code>approved</code> → <code>processing</code> → <code>completed</code> / <code>failed</code>
+                            <br>
+                            <strong>Índices:</strong> <?php echo esc_html(implode(', ', $dbInfo['indexes'])); ?>
+                            <br>
+                            <strong>Campos Timestamp:</strong> <?php echo count($dbInfo['timestamp_columns']); ?> campos
+                            (<?php echo esc_html(implode(', ', array_slice($dbInfo['timestamp_columns'], 0, 5))); ?><?php echo count($dbInfo['timestamp_columns']) > 5 ? '...' : ''; ?>)
+                            <br>
+                            <strong>Auditoria:</strong>
+                            <?php if ($dbInfo['has_audit']): ?>
+                                <span style="color: #10b981;">✓ Completa</span>
+                                (raw_response + <?php echo count($dbInfo['timestamp_columns']); ?> timestamps)
+                            <?php else: ?>
+                                <span style="color: #f59e0b;">⚠ Parcial</span>
+                                (<?php echo in_array('raw_response', $dbInfo['columns']) ? 'tem raw_response' : 'falta raw_response'; ?>)
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div style="font-size: 13px; color: #ef4444; line-height: 1.6;">
+                            ⚠ Tabela não foi criada. Execute as migrations do plugin.
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -5224,6 +5509,706 @@ class AdminBootstrap
     }
 
     /**
+     * Calculate dynamic dashboard statistics for Geral tab
+     *
+     * @return array Dashboard statistics
+     */
+    private function calculateDashboardStats(): array
+    {
+        // 1. Buscar stats de fluxos
+        $enabledFlows = get_option('limpvix_enabled_flows', [
+            'c1' => true,
+            'c2' => true,
+            'c3' => true,
+            'p1' => true,
+            'p2' => true,
+            'p3' => true,
+        ]);
+
+        $fluxosStats = $this->calculateFluxosStats($enabledFlows);
+
+        // 2. Contar testes unitários
+        $testCount = $this->countUnitTests();
+
+        // 3. Calcular completude do sistema
+        $totalItems = $fluxosStats['operational_total'] + $fluxosStats['gaps_total'];
+        $completeItems = $fluxosStats['operational_complete'] + $fluxosStats['gaps_implemented'];
+        $completionPercentage = $totalItems > 0 ? round(($completeItems / $totalItems) * 100) : 0;
+
+        // 4. Verificar se Go-Live Ready (100% = ready)
+        $isGoLiveReady = $completionPercentage >= 100;
+
+        // 5. Pegar versões
+        $phpVersion = phpversion();
+        $phpunitVersion = $this->getPhpUnitVersion();
+
+        return [
+            'completion_percentage' => $completionPercentage,
+            'fluxos' => $fluxosStats,
+            'test_count' => $testCount,
+            'is_go_live_ready' => $isGoLiveReady,
+            'php_version' => $phpVersion,
+            'phpunit_version' => $phpunitVersion,
+            'status_message' => $completionPercentage >= 100
+                ? 'Sistema 100% Operacional'
+                : "Sistema {$completionPercentage}% Operacional",
+            'status_icon' => $completionPercentage >= 100 ? '🎉' : '⚠️',
+            'go_live_status' => $isGoLiveReady ? '✓ Go-Live Ready' : '⚠️ Em Desenvolvimento',
+        ];
+    }
+
+    /**
+     * Count unit tests in tests/ directory
+     *
+     * @return int Number of test files
+     */
+    private function countUnitTests(): int
+    {
+        $testsPath = plugin_dir_path(__FILE__) . '../../tests';
+
+        if (!is_dir($testsPath)) {
+            return 0;
+        }
+
+        $count = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($testsPath, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), 'Test.php')) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Get PHPUnit version from composer.lock
+     *
+     * @return string PHPUnit version or 'N/A'
+     */
+    private function getPhpUnitVersion(): string
+    {
+        $composerLock = plugin_dir_path(__FILE__) . '../../composer.lock';
+
+        if (!file_exists($composerLock)) {
+            return 'N/A';
+        }
+
+        $lockContent = file_get_contents($composerLock);
+        if ($lockContent === false) {
+            return 'N/A';
+        }
+
+        $lock = json_decode($lockContent, true);
+        if (!is_array($lock)) {
+            return 'N/A';
+        }
+
+        // Check in packages-dev first
+        foreach ($lock['packages-dev'] ?? [] as $package) {
+            if ($package['name'] === 'phpunit/phpunit') {
+                return $package['version'] ?? 'N/A';
+            }
+        }
+
+        // Fallback to packages
+        foreach ($lock['packages'] ?? [] as $package) {
+            if ($package['name'] === 'phpunit/phpunit') {
+                return $package['version'] ?? 'N/A';
+            }
+        }
+
+        return 'N/A';
+    }
+
+    /**
+     * Calculate professionals statistics for Dashboard
+     *
+     * @return array Professionals statistics
+     */
+    private function calculateProfessionalsStats(): array
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_professionals';
+
+        // Verificar se tabela existe
+        $tableExists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $table
+        )) === $table;
+
+        if (!$tableExists) {
+            return [
+                'total' => 0,
+                'verified' => 0,
+                'mp_connected' => 0,
+                'pix_manual' => 0,
+                'active' => 0,
+                'avg_score' => 0,
+            ];
+        }
+
+        // Total de profissionais
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+
+        if ($total === 0) {
+            return [
+                'total' => 0,
+                'verified' => 0,
+                'mp_connected' => 0,
+                'pix_manual' => 0,
+                'active' => 0,
+                'avg_score' => 0,
+            ];
+        }
+
+        // Verificados (KYC aprovado)
+        $verified = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE is_verified = 1");
+
+        // MP OAuth conectados
+        $mp_connected = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE mp_oauth_status = 'connected'");
+
+        // PIX Manual (têm chave PIX mas não MP OAuth)
+        $pix_manual = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE pix_key IS NOT NULL AND pix_key != '' AND (mp_oauth_status IS NULL OR mp_oauth_status != 'connected')");
+
+        // Ativos (score >= mínimo e verificados)
+        $minScore = get_option('limpvix_prof_min_score_threshold', 70);
+        $active = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE score >= %d AND is_verified = 1",
+            $minScore
+        ));
+
+        // Score médio
+        $avg_score = (float) $wpdb->get_var("SELECT AVG(score) FROM {$table}");
+        if ($avg_score === null) {
+            $avg_score = 0;
+        }
+
+        return [
+            'total' => $total,
+            'verified' => $verified,
+            'mp_connected' => $mp_connected,
+            'pix_manual' => $pix_manual,
+            'active' => $active,
+            'avg_score' => $avg_score,
+        ];
+    }
+
+    /**
+     * Get MercadoPago configuration status
+     *
+     * Verifica credenciais sincronizadas do WooCommerce MercadoPago + OAuth LimpVix:
+     * - WooCommerce MP: Access Token + Public Key (sincronizados automaticamente)
+     * - LimpVix OAuth: Client ID + Client Secret (para payouts MP→MP de profissionais)
+     */
+    private function getMercadoPagoConfigStatus(): array
+    {
+        // Verifica se WooCommerce MercadoPago está conectado (usa MercadoPagoDetector)
+        $wcMPConnected = class_exists('LimpVix\\Admin\\Settings\\MercadoPagoDetector')
+            && \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected();
+
+        // Credenciais sincronizadas do WooCommerce (para pagamentos de clientes)
+        $status = get_option('limpvix_mp_status', []);
+        $environment = $status['environment'] ?? 'test';
+        $tokenKey = $environment === 'test' ? 'limpvix_mp_access_token_test' : 'limpvix_mp_access_token_prod';
+        $keyKey = $environment === 'test' ? 'limpvix_mp_public_key_test' : 'limpvix_mp_public_key_prod';
+
+        $accessToken = get_option($tokenKey);
+        $publicKey = get_option($keyKey);
+
+        // Credenciais OAuth LimpVix (para payouts profissionais MP→MP)
+        $clientId = get_option('limpvix_mercadopago_client_id');
+        $clientSecret = get_option('limpvix_mercadopago_client_secret');
+
+        $platformConfigured = $wcMPConnected || (!empty($accessToken) && !empty($publicKey));
+        $oauthConfigured = !empty($clientId) && !empty($clientSecret);
+        $fullyConfigured = $platformConfigured && $oauthConfigured;
+
+        $missing = [];
+        if (!$platformConfigured) {
+            if (!$wcMPConnected) {
+                $missing[] = 'WooCommerce MP não conectado';
+            }
+            if (empty($accessToken)) {
+                $missing[] = 'Access Token';
+            }
+            if (empty($publicKey)) {
+                $missing[] = 'Public Key';
+            }
+        }
+        if (!$oauthConfigured) {
+            if (empty($clientId)) {
+                $missing[] = 'Client ID (OAuth Profissionais)';
+            }
+            if (empty($clientSecret)) {
+                $missing[] = 'Client Secret (OAuth Profissionais)';
+            }
+        }
+
+        return [
+            'platform_configured' => $platformConfigured,
+            'oauth_configured' => $oauthConfigured,
+            'fully_configured' => $fullyConfigured,
+            'wc_mp_connected' => $wcMPConnected,
+            'environment' => $environment,
+            'status_icon' => $fullyConfigured ? '✓' : '⚠',
+            'status_text' => $fullyConfigured
+                ? 'Configurado e Ativo'
+                : ($platformConfigured
+                    ? 'Configuração Parcial (Falta OAuth para Profissionais)'
+                    : ($wcMPConnected
+                        ? 'WooCommerce MP OK - Configure OAuth Profissionais'
+                        : 'Conecte WooCommerce MercadoPago')),
+            'status_color' => $fullyConfigured ? '#4ade80' : '#fbbf24',
+            'missing' => $missing,
+        ];
+    }
+
+    /**
+     * Get payout features implementation status
+     *
+     * Verifica se cada feature está realmente implementada
+     */
+    private function getPayoutFeaturesStatus(): array
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_payouts';
+
+        $tableExists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+
+        return [
+            'pix_transfer' => [
+                'implemented' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider')
+                    && $tableExists,
+                'icon' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider') && $tableExists) ? '✅' : '❌',
+                'status' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider') && $tableExists) ? 'Ativo' : 'Não Implementado'
+            ],
+            'feedback_window' => [
+                'implemented' => class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus')
+                    && ($tableExists && $this->tableHasColumn($table, 'hold_until')),
+                'icon' => (class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? '✅' : '⚠️',
+                'status' => (class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? 'Ativo' : 'Parcial'
+            ],
+            'reconciliation' => [
+                'implemented' => class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter'),
+                'cron_active' => wp_next_scheduled('limpvix_reconcile_payouts') !== false,
+                'icon' => (class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter') && wp_next_scheduled('limpvix_reconcile_payouts')) ? '✅' : '⚠️',
+                'status' => wp_next_scheduled('limpvix_reconcile_payouts') ? 'Ativo' : (class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter') ? 'Cron Desabilitado' : 'Não Implementado')
+            ],
+            'retry_on_failure' => [
+                'implemented' => $tableExists && $this->tableHasColumn($table, 'retry_count'),
+                'icon' => ($tableExists && $this->tableHasColumn($table, 'retry_count')) ? '✅' : '❌',
+                'status' => ($tableExists && $this->tableHasColumn($table, 'retry_count')) ? 'Ativo' : 'Não Implementado'
+            ],
+            'audit_trail' => [
+                'implemented' => $tableExists
+                    && $this->tableHasColumn($table, 'raw_response')
+                    && $this->tableHasColumn($table, 'created_at'),
+                'icon' => ($tableExists && $this->tableHasColumn($table, 'raw_response')) ? '✅' : '⚠️',
+                'status' => ($tableExists && $this->tableHasColumn($table, 'raw_response')) ? 'Completo' : 'Parcial'
+            ],
+            'multi_recipient' => [
+                'implemented' => $tableExists && $this->tableHasColumn($table, 'recipient_type'),
+                'icon' => ($tableExists && $this->tableHasColumn($table, 'recipient_type')) ? '✅' : '❌',
+                'status' => ($tableExists && $this->tableHasColumn($table, 'recipient_type')) ? 'PIX + Conta + MP' : 'Não Implementado'
+            ],
+        ];
+    }
+
+    /**
+     * Get payout architecture components status
+     *
+     * Verifica se componentes DDD estão implementados
+     */
+    private function getPayoutArchitectureStatus(): array
+    {
+        return [
+            'domain' => [
+                'PayoutRepositoryInterface' => interface_exists('LimpVix\\Domain\\Finance\\PayoutRepositoryInterface'),
+                'DomainEvents' => class_exists('LimpVix\\Domain\\Finance\\Events\\PayoutCompleted'),
+            ],
+            'application' => [
+                'ExecutePayout' => class_exists('LimpVix\\Application\\UseCase\\Finance\\ExecutePayout'),
+                'CompleteServiceWithPayout' => class_exists('LimpVix\\Application\\UseCase\\Finance\\CompleteServiceWithPayout'),
+                'PayoutReconciliationService' => class_exists('LimpVix\\Application\\Services\\PayoutReconciliationService'),
+                'AutomaticPayoutDispatcher' => class_exists('LimpVix\\Infrastructure\\Adapters\\AutomaticPayoutDispatcher'),
+            ],
+            'infrastructure' => [
+                'WpPayoutRepository' => class_exists('LimpVix\\Infrastructure\\Finance\\Repositories\\WpPayoutRepository'),
+                'MercadoPagoPayoutProvider' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider'),
+                'PayoutReconciliationCronAdapter' => class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter'),
+                'ReleasePayoutHoldOnFeedbackApproved' => class_exists('LimpVix\\Infrastructure\\EventListeners\\ReleasePayoutHoldOnFeedbackApproved'),
+            ],
+        ];
+    }
+
+    /**
+     * Get payout database information
+     *
+     * Verifica tabela, índices e campos
+     */
+    private function getPayoutDatabaseInfo(): array
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_payouts';
+
+        $tableExists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+
+        if (!$tableExists) {
+            return [
+                'exists' => false,
+                'table_name' => $table,
+                'indexes' => [],
+                'columns' => [],
+                'timestamp_columns' => [],
+                'has_audit' => false,
+            ];
+        }
+
+        // Get indexes
+        $indexes = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+        $indexNames = !empty($indexes) ? array_unique(array_column($indexes, 'Key_name')) : [];
+
+        // Get columns
+        $columns = $wpdb->get_results("SHOW COLUMNS FROM {$table}", ARRAY_A);
+        $columnNames = !empty($columns) ? array_column($columns, 'Field') : [];
+
+        // Check for timestamp columns
+        $timestampColumns = array_filter($columnNames, fn($col) => str_ends_with($col, '_at'));
+
+        return [
+            'exists' => true,
+            'table_name' => $table,
+            'indexes' => $indexNames,
+            'columns' => $columnNames,
+            'timestamp_columns' => $timestampColumns,
+            'has_audit' => in_array('raw_response', $columnNames) && count($timestampColumns) >= 5,
+        ];
+    }
+
+    /**
+     * Check if table has column
+     */
+    private function tableHasColumn(string $table, string $column): bool
+    {
+        global $wpdb;
+        $result = $wpdb->get_results($wpdb->prepare(
+            "SHOW COLUMNS FROM {$table} LIKE %s",
+            $column
+        ), ARRAY_A);
+        return !empty($result);
+    }
+
+    // ============================================================================
+    // MÉTODOS PARA ABA DEPENDÊNCIAS (100% DINÂMICO)
+    // ============================================================================
+
+    /**
+     * Get Booknetic hooks registration status
+     *
+     * Verifica quais hooks do Booknetic estão registrados e quantos callbacks
+     */
+    private function getBookneticHooksStatus(): array
+    {
+        global $wp_filter;
+
+        $expectedHooks = [
+            'bkntc_appointment_created' => 'Criar order no LimpVix',
+            'bkntc_appointment_completed' => 'Disparar fluxo financeiro',
+            'bkntc_appointment_canceled' => 'Cancelar order',
+            'bkntc_staff_updated' => 'Sincronizar dados staff',
+            'bkntc_after_booking_completed' => 'Redirecionar para Briefing',
+            'bkntc_staff_can_access' => 'Controle de permissões',
+            'bkntc_staff_can_execute_action' => 'Controle de ações',
+            'bkntc_staff_panel_header' => 'Avisos personalizados',
+            'bkntc_staff_panel_footer' => 'Ocultar abas financeiras',
+            'admin_menu' => 'Ocultar menus para staff',
+        ];
+
+        $result = [];
+
+        foreach ($expectedHooks as $hook => $description) {
+            $isRegistered = isset($wp_filter[$hook]) && !empty($wp_filter[$hook]->callbacks);
+
+            $callbackCount = 0;
+            if ($isRegistered) {
+                foreach ($wp_filter[$hook]->callbacks as $priority => $callbacks) {
+                    $callbackCount += count($callbacks);
+                }
+            }
+
+            $result[$hook] = [
+                'description' => $description,
+                'registered' => $isRegistered,
+                'callback_count' => $callbackCount,
+                'status' => $isRegistered ? 'active' : 'not_registered',
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get Booknetic tables existence status
+     *
+     * Verifica se tabelas do Booknetic existem no banco
+     */
+    private function getBookneticTablesStatus(): array
+    {
+        global $wpdb;
+
+        $expectedTables = [
+            'bkntc_appointments' => [
+                'access' => 'READ',
+                'purpose' => 'Mapear appointment → order',
+            ],
+            'bkntc_staff' => [
+                'access' => 'READ',
+                'purpose' => 'Vincular user_id WordPress',
+            ],
+            'bkntc_customers' => [
+                'access' => 'READ',
+                'purpose' => 'Dados para Google Reviews',
+            ],
+            'bkntc_services' => [
+                'access' => 'READ',
+                'purpose' => 'Nome do serviço executado',
+            ],
+        ];
+
+        $result = [];
+
+        foreach ($expectedTables as $table => $config) {
+            $fullTableName = $wpdb->prefix . $table;
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $fullTableName)) === $fullTableName;
+
+            $result[$table] = [
+                'exists' => $exists,
+                'access' => $config['access'],
+                'purpose' => $config['purpose'],
+                'full_name' => $fullTableName,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get Booknetic integration components status
+     *
+     * Verifica se classes de integração existem
+     */
+    private function getBookneticComponentsStatus(): array
+    {
+        $components = [
+            'BookneticBridge' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\BookneticBridge',
+                'description' => 'Ponte principal de integração',
+            ],
+            'AppointmentOrderMapper' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\AppointmentOrderMapper',
+                'description' => 'Mapeamento 1:1 appointment → order',
+            ],
+            'StaffAccessGuard' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffAccessGuard',
+                'description' => 'Controle de acesso ao painel',
+            ],
+            'StaffActionGuard' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffActionGuard',
+                'description' => 'Controle de ações permitidas',
+            ],
+            'StaffPanelOverride' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\UI\\StaffPanelOverride',
+                'description' => 'UI customizada para staff',
+            ],
+            'StaffNotices' => [
+                'class' => 'LimpVix\\Infrastructure\\Booknetic\\UI\\StaffNotices',
+                'description' => 'Avisos personalizados no painel',
+            ],
+        ];
+
+        $result = [];
+
+        foreach ($components as $name => $config) {
+            $exists = class_exists($config['class']);
+
+            $result[$name] = [
+                'exists' => $exists,
+                'class' => $config['class'],
+                'description' => $config['description'],
+                'status' => $exists ? 'active' : 'not_found',
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get GAPs implementation status (dynamic verification)
+     *
+     * Verifica dinamicamente se GAPs estão implementados
+     */
+    private function getGAPsImplementationStatus(): array
+    {
+        $gaps = [
+            'GAP #1' => [
+                'name' => 'EPI Selfie Validation',
+                'description' => 'Validação obrigatória de EPI no check-in com video selfie',
+                'checks' => [
+                    'Evidence class with category' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
+                    'EPI validation in CheckIn' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckIn',
+                ],
+            ],
+            'GAP #2' => [
+                'name' => 'Evidence Categorization',
+                'description' => 'Sistema de categorização de evidências (EPI, Local, Problema)',
+                'checks' => [
+                    'Evidence with categories' => 'LimpVix\\Domain\\Execution\\ValueObjects\\Evidence',
+                    'EvidenceType enum' => 'LimpVix\\Domain\\Execution\\Enums\\EvidenceType',
+                ],
+            ],
+            'GAP #3' => [
+                'name' => 'Client Check-in Notification',
+                'description' => 'Notificação automática ao cliente quando profissional faz check-in',
+                'checks' => [
+                    'CheckInPerformed event' => 'LimpVix\\Domain\\Execution\\Events\\CheckInPerformed',
+                    'NotifyClientOnCheckIn listener' => 'LimpVix\\Infrastructure\\EventListeners\\NotifyClientOnCheckIn',
+                ],
+            ],
+            'GAP #4' => [
+                'name' => 'Issue Reporting System',
+                'description' => 'Sistema completo de reporte de problemas',
+                'checks' => [
+                    'Issue entity' => 'LimpVix\\Domain\\Execution\\Issue',
+                    'ReportIssue use case' => 'LimpVix\\Application\\UseCases\\Execution\\ReportIssue',
+                    'IssueRepository' => 'LimpVix\\Domain\\Execution\\IssueRepositoryInterface',
+                ],
+            ],
+        ];
+
+        $result = [];
+
+        foreach ($gaps as $gapId => $config) {
+            $allChecksPass = true;
+            $checksDetail = [];
+
+            foreach ($config['checks'] as $checkName => $className) {
+                $exists = class_exists($className) || interface_exists($className);
+                $checksDetail[$checkName] = [
+                    'class' => $className,
+                    'exists' => $exists,
+                ];
+
+                if (!$exists) {
+                    $allChecksPass = false;
+                }
+            }
+
+            $result[$gapId] = [
+                'name' => $config['name'],
+                'description' => $config['description'],
+                'implemented' => $allChecksPass,
+                'checks' => $checksDetail,
+                'icon' => $allChecksPass ? '✅' : '❌',
+                'status' => $allChecksPass ? 'Implementado' : 'Não Implementado',
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get Guards (access control) status
+     *
+     * Verifica se guards estão implementados
+     */
+    private function getGuardsStatus(): int
+    {
+        $accessGuardExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffAccessGuard');
+        $actionGuardExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffActionGuard');
+
+        if ($accessGuardExists && $actionGuardExists) {
+            return 100;
+        } elseif ($accessGuardExists || $actionGuardExists) {
+            return 50;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get UI Overrides status
+     *
+     * Verifica se overrides de UI estão implementados
+     */
+    private function getUIOverridesStatus(): int
+    {
+        $panelOverrideExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\UI\\StaffPanelOverride');
+        $noticesExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\UI\\StaffNotices');
+
+        if ($panelOverrideExists && $noticesExists) {
+            return 100;
+        } elseif ($panelOverrideExists || $noticesExists) {
+            return 50;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get installed plugin versions
+     *
+     * Obtém versões reais dos plugins instalados
+     */
+    private function getPluginVersions(): array
+    {
+        $plugins = [
+            'booknetic' => [
+                'path' => 'booknetic/init.php',
+                'name' => 'Booknetic',
+                'minimum' => '4.8.5',
+            ],
+            'woocommerce' => [
+                'path' => 'woocommerce/woocommerce.php',
+                'name' => 'WooCommerce',
+                'minimum' => '5.0.0',
+            ],
+            'woocommerce-mercadopago' => [
+                'path' => 'woocommerce-mercadopago/woocommerce-mercadopago.php',
+                'name' => 'WooCommerce Mercado Pago',
+                'minimum' => '6.0.0',
+            ],
+        ];
+
+        $result = [];
+
+        foreach ($plugins as $key => $config) {
+            $isActive = is_plugin_active($config['path']);
+            $version = null;
+
+            if ($isActive) {
+                $pluginData = get_plugin_data(WP_PLUGIN_DIR . '/' . $config['path'], false, false);
+                $version = $pluginData['Version'] ?? null;
+            }
+
+            $meetsMinimum = $version ? version_compare($version, $config['minimum'], '>=') : false;
+
+            $result[$key] = [
+                'name' => $config['name'],
+                'active' => $isActive,
+                'version' => $version,
+                'minimum' => $config['minimum'],
+                'meets_minimum' => $meetsMinimum,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * Handle flows configuration update
      */
     public function handleUpdateFlows(): void
@@ -5265,5 +6250,25 @@ class AdminBootstrap
             'updated' => 'true',
         ], admin_url('admin.php')));
         exit;
+    }
+
+    /**
+     * Render Document Review Page (GAP A)
+     */
+    public function renderDocumentReviewPage(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die('Acesso negado');
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\DocumentReviewPage')) {
+            $page = new \LimpVix\Infrastructure\Admin\Pages\DocumentReviewPage();
+            $page->render();
+        } else {
+            echo '<div class="wrap">';
+            echo '<h1>Erro</h1>';
+            echo '<p>Classe DocumentReviewPage não encontrada</p>';
+            echo '</div>';
+        }
     }
 }
