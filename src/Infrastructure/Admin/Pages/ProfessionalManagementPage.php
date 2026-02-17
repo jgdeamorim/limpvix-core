@@ -398,9 +398,6 @@ class ProfessionalManagementPage
 
         ?>
         <div class="wrap">
-            <h1 class="wp-heading-inline">Profissionais</h1>
-
-            <hr class="wp-header-end">
 
             <?php settings_errors('limpvix_professionals'); ?>
 
@@ -438,7 +435,6 @@ class ProfessionalManagementPage
                     $this->renderRiskScoreTab();
                 } else {
                     // Default: professionals tab
-                    echo '<a href="?page=' . self::PAGE_SLUG . '&action=create" class="page-title-action">Adicionar Novo</a>';
                     $this->renderStatistics($this->repository->getStatistics());
                     $this->renderProfessionalsTable();
                 }
@@ -718,32 +714,70 @@ class ProfessionalManagementPage
         $pending = count($this->repository->findPendingVerification());
 
         ?>
-        <div class="limpvix-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #2271b1; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total</div>
-                <div style="font-size: 32px; font-weight: bold; color: #2271b1;"><?php echo $total; ?></div>
+        <!-- ── Hero Card – Profissionais ────────────────────────────────────────── -->
+        <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%); border-radius: 12px; padding: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(30,58,138,0.40); position: relative; overflow: hidden;">
+
+            <!-- Círculos decorativos de fundo -->
+            <div style="position:absolute; top:-60px; right:-60px; width:220px; height:220px; background:rgba(255,255,255,0.06); border-radius:50%; pointer-events:none;"></div>
+            <div style="position:absolute; bottom:-50px; left:240px; width:170px; height:170px; background:rgba(255,255,255,0.05); border-radius:50%; pointer-events:none;"></div>
+
+            <!-- Cabeçalho: título + CTA -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; position:relative; z-index:1; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h2 style="color:#fff; margin:0 0 8px 0; font-size:26px; font-weight:700; line-height:1.2;">
+                        👥 Gestão de Profissionais
+                    </h2>
+                    <p style="color:rgba(255,255,255,0.80); margin:0; font-size:14px;">
+                        Cadastro, verificação e monitoramento da força de trabalho LimpVix
+                    </p>
+                </div>
+                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&action=create"
+                   style="background:rgba(255,255,255,0.18); color:#fff; text-decoration:none; padding:10px 22px; border-radius:8px; font-size:14px; font-weight:600; border:1px solid rgba(255,255,255,0.35); backdrop-filter:blur(4px); white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
+                    ➕ Novo Profissional
+                </a>
             </div>
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #00a32a; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Ativos</div>
-                <div style="font-size: 32px; font-weight: bold; color: #00a32a;"><?php echo $active; ?></div>
-            </div>
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #4ab866; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Verificados</div>
-                <div style="font-size: 32px; font-weight: bold; color: #4ab866;"><?php echo $verified; ?></div>
-            </div>
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #f0b849; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Pendentes</div>
-                <div style="font-size: 32px; font-weight: bold; color: #f0b849;"><?php echo $pending; ?></div>
-            </div>
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #d63638; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Suspensos</div>
-                <div style="font-size: 32px; font-weight: bold; color: #d63638;"><?php echo $suspended; ?></div>
-            </div>
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #f0b849; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Score Médio</div>
-                <div style="font-size: 32px; font-weight: bold; color: #f0b849;"><?php echo number_format($avgScore, 2, ',', '.'); ?></div>
-            </div>
-        </div>
+
+            <!-- Grid de métricas (6 colunas) -->
+            <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px; position:relative; z-index:1;">
+
+                <!-- Total -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:36px; font-weight:700; color:#fff; line-height:1;"><?php echo esc_html($total); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
+                </div>
+
+                <!-- Ativos -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:36px; font-weight:700; color:#4ade80; line-height:1;"><?php echo esc_html($active); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos</div>
+                </div>
+
+                <!-- Verificados -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:36px; font-weight:700; color:#86efac; line-height:1;"><?php echo esc_html($verified); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Verificados</div>
+                </div>
+
+                <!-- Pendentes -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:36px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo esc_html($pending); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendentes</div>
+                </div>
+
+                <!-- Suspensos -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:36px; font-weight:700; color:#f87171; line-height:1;"><?php echo esc_html($suspended); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos</div>
+                </div>
+
+                <!-- Score Médio -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#fde68a; line-height:1;"><?php echo number_format($avgScore, 1, ',', '.'); ?>★</div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Score Médio</div>
+                </div>
+
+            </div><!-- /grid -->
+        </div><!-- /hero card -->
         <?php
     }
 
@@ -818,22 +852,34 @@ class ProfessionalManagementPage
     private function renderProfessionalsTable(): void
     {
         // REFATORADO (FASE 3): Usar WP_List_Table com paginação nativa
-        ?>
-        <h2 style="margin-top: 30px;">Lista de Profissionais</h2>
-
-        <?php
-        // Instantiate and prepare the list table
         $listTable = new \LimpVix\Infrastructure\Admin\Tables\Professional_List_Table($this->useCases);
         $listTable->prepare_items();
         ?>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
 
-        <form method="get">
-            <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>" />
-            <?php
-            $listTable->search_box('Buscar', 'professional-search');
-            $listTable->display();
-            ?>
-        </form>
+            <!-- Cabeçalho da tabela -->
+            <div style="padding:20px 24px 0; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; margin-bottom:16px;">
+                <h3 style="margin:0 0 16px 0; font-size:16px; color:#1e3a8a; font-weight:700; display:flex; align-items:center; gap:8px;">
+                    📋 <span>Lista de Profissionais</span>
+                    <span style="background:#e0e7ff; color:#3730a3; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
+                        <?php
+                        $count = is_array($listTable->items) ? count($listTable->items) : 0;
+                        echo esc_html($count);
+                        ?> registros
+                    </span>
+                </h3>
+            </div>
+
+            <!-- Busca + Tabela -->
+            <form method="get" style="padding:0 24px 24px;">
+                <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>" />
+                <?php
+                $listTable->search_box('🔍 Buscar profissional', 'professional-search');
+                $listTable->display();
+                ?>
+            </form>
+
+        </div>
         <?php
     }
 
