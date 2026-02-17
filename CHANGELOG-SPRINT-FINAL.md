@@ -152,6 +152,114 @@ http://localhost:8080/wp-admin/admin.php?page=limpvix-settings&tab=fluxos
 
 ---
 
+---
+
+## [1.0.1] - 2026-02-17
+
+### 🐛 Bugfixes Críticos — Página limpvix-professionals
+
+Série de 3 bugs que causavam **Fatal Error** ao acessar a página de gerenciamento de profissionais.
+
+---
+
+#### Bug #1 — Propriedade `$professionalRepository` inexistente
+**Commits:** `c4d89c8`, `209ec2e`
+
+**Erro:**
+```
+Call to a member function findById() on null
+```
+
+**Causa:** O método `renderKycDetails()` (e outros) usava `$this->professionalRepository`,
+mas a propriedade foi definida como `$this->repository` no construtor.
+
+**Correção:** Substituídas todas as 6 referências em `ProfessionalManagementPage.php`:
+```php
+// Antes (errado)
+$this->professionalRepository->findById($professionalId);
+
+// Depois (correto)
+$this->repository->findById($professionalId);
+```
+
+**Arquivo:** `src/Infrastructure/Admin/Pages/ProfessionalManagementPage.php`
+
+---
+
+#### Bug #2 — TypeError: `DateTimeImmutable` sem namespace global em `Professional.php`
+**Commit:** `12a164a`
+
+**Erro:**
+```
+PHP Fatal error: Uncaught TypeError: Cannot assign DateTimeImmutable to property
+Professional::$kycExpiresAt of type ?LimpVix\Domain\Professional\DateTimeImmutable
+```
+
+**Causa:** As propriedades KYC foram declaradas com `?DateTimeImmutable` (sem `\`).
+No namespace `LimpVix\Domain\Professional`, PHP resolve isso como
+`LimpVix\Domain\Professional\DateTimeImmutable` — uma classe que não existe.
+
+**Correção:** Adicionado `\` (backslash) em 6 propriedades:
+```php
+// Antes (errado — resolvia para namespace inexistente)
+private ?DateTimeImmutable $kycStartedAt;
+private ?DateTimeImmutable $kycExpiresAt;
+// ...
+
+// Depois (correto — classe nativa PHP)
+private ?\DateTimeImmutable $kycStartedAt;
+private ?\DateTimeImmutable $kycExpiresAt;
+// ...
+```
+
+**Propriedades corrigidas:** `kycStartedAt`, `kycSubmittedAt`, `kycApprovedAt`,
+`kycRejectedAt`, `kycExpiresAt`, `kycLastRetryAt`
+
+**Arquivo:** `src/Domain/Professional/Professional.php`
+
+---
+
+#### Bug #3 — Mesmo TypeError em `Issue.php` e `ProfessionalDocument.php`
+**Commit:** `87a366d`
+
+**Causa:** Mesmo problema de namespace afetando outros arquivos do domínio.
+
+**Correção:** Adicionado `\` nas propriedades DateTime dos arquivos afetados:
+
+| Arquivo | Propriedades corrigidas |
+|---------|------------------------|
+| `src/Domain/Execution/Issue.php` | `reportedAt`, `resolvedAt` |
+| `src/Domain/Professional/ProfessionalDocument.php` | `reviewedAt`, `expiresAt`, `createdAt`, `updatedAt` |
+
+---
+
+#### Resumo dos Bugfixes
+
+| # | Arquivo | Tipo | Commit |
+|---|---------|------|--------|
+| 1 | `ProfessionalManagementPage.php` | Propriedade incorreta | `209ec2e` |
+| 2 | `Professional.php` | TypeError namespace | `12a164a` |
+| 3 | `Issue.php` + `ProfessionalDocument.php` | TypeError namespace | `87a366d` |
+
+**Resultado:** Página `limpvix-professionals` funcional ✅
+
+---
+
+#### Migrations Executadas (GAPs A, C, D)
+
+| Migration | Descrição | Script |
+|-----------|-----------|--------|
+| 023 | Professional Documents Table (GAP A) | `execute-all-gaps-migrations.php` |
+| 024 | Manual Payout Fields (GAP C) | `execute-migration-024-safe.php` |
+| 025 | Service Catalog Required Skills (GAP D) | `execute-migration-025-safe.php` |
+
+**Tabelas criadas:** `wp_limpvix_professional_documents`, `wp_limpvix_payout_audit_trail`
+**Colunas adicionadas:** `is_manual`, `manual_reason`, `created_by`, `approved_by`,
+`approved_manually_at`, `requires_approval` (tabela `wp_limpvix_payouts`)
+**Coluna adicionada:** `required_skills JSON` (tabela `wp_limpvix_service_catalog`)
+
+---
+
 ## 🔄 Commits
 
 ### cf24794 - Dashboard Inicial (70%)

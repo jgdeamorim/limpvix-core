@@ -459,5 +459,79 @@ Cliente não é notificado quando profissional faz check-in (chegou no local).
 
 ---
 
-**Última Atualização:** 2026-02-16
-**Próxima Revisão:** Após re-execução de migration 025
+## ✅ RESOLVIDO (2026-02-17) — Fatal Error na Página limpvix-professionals
+
+### Série de bugs que impediam acesso à página de profissionais
+
+---
+
+#### Bug #1: Propriedade `$professionalRepository` inexistente
+**Arquivos:** `ProfessionalManagementPage.php` (6 ocorrências)
+**Commits:** `c4d89c8`, `209ec2e`
+
+**Erro:**
+```
+Call to a member function findById() on null
+```
+
+**Causa:** Código usava `$this->professionalRepository` mas propriedade é `$this->repository`.
+Encontrado nos métodos: `renderKycDetails`, `handleApproveDocument`, `handleRejectDocument`,
+`handleDeleteDocument`, `handleUploadDocument`.
+
+**Fix:**
+```php
+// Antes
+$this->professionalRepository->findById($id);
+// Depois
+$this->repository->findById($id);
+```
+
+---
+
+#### Bug #2: TypeError — `DateTimeImmutable` sem namespace global
+**Arquivo:** `src/Domain/Professional/Professional.php`
+**Commit:** `12a164a`
+
+**Erro:**
+```
+PHP Fatal error: Uncaught TypeError: Cannot assign DateTimeImmutable to property
+LimpVix\Domain\Professional\Professional::$kycExpiresAt
+of type ?LimpVix\Domain\Professional\DateTimeImmutable
+```
+
+**Causa:** No namespace `LimpVix\Domain\Professional`, `?DateTimeImmutable` (sem `\`)
+é resolvido pelo PHP como `?LimpVix\Domain\Professional\DateTimeImmutable` — que não existe.
+
+**6 propriedades corrigidas** (`?\DateTimeImmutable`):
+- `kycStartedAt`, `kycSubmittedAt`, `kycApprovedAt`
+- `kycRejectedAt`, `kycExpiresAt`, `kycLastRetryAt`
+
+---
+
+#### Bug #3: Mesmo TypeError em outros arquivos
+**Arquivos:** `Issue.php`, `ProfessionalDocument.php`
+**Commit:** `87a366d`
+
+| Arquivo | Propriedades |
+|---------|-------------|
+| `src/Domain/Execution/Issue.php` | `reportedAt`, `resolvedAt` |
+| `src/Domain/Professional/ProfessionalDocument.php` | `reviewedAt`, `expiresAt`, `createdAt`, `updatedAt` |
+
+---
+
+### Migrations Executadas com Sucesso
+
+| Migration | Tabela/Coluna | Status |
+|-----------|--------------|--------|
+| 023 | `wp_limpvix_professional_documents` | ✅ Criada |
+| 024 | `wp_limpvix_payout_audit_trail` + 6 colunas em `payouts` | ✅ Criada |
+| 025 | `required_skills JSON` em `wp_limpvix_service_catalog` | ✅ Criada e populada |
+
+**Nota MySQL 5.7:** Scripts safe criados (`execute-migration-024-safe.php`,
+`execute-migration-025-safe.php`) que usam `INFORMATION_SCHEMA.COLUMNS` para
+verificar existência antes de criar colunas (sem `ADD COLUMN IF NOT EXISTS`).
+
+---
+
+**Última Atualização:** 2026-02-17
+**Status:** ✅ Página limpvix-professionals FUNCIONANDO
