@@ -1003,43 +1003,36 @@ class ProfessionalManagementPage
      */
     private function renderKycTab(): void
     {
-        $statusFilter = $_GET['kyc_status'] ?? 'all';
+        $statusFilter = sanitize_key($_GET['kyc_status'] ?? 'all');
 
+        // ── Hero card ──────────────────────────────────────────────────────────
+        $this->renderKycStatistics();
+
+        // ── Filtro de status ───────────────────────────────────────────────────
         ?>
-        <p class="description">
-            Gerencie as verificações biométricas (OCR + Liveness + Face Match) dos profissionais.
-        </p>
-
-        <!-- Status Filter -->
-        <div class="tablenav top">
-            <div class="alignleft actions">
-                <select name="kyc_status" id="kyc-status-filter">
-                    <option value="all" <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
-                    <option value="not_started" <?php selected($statusFilter, 'not_started'); ?>>❌ Não Iniciado</option>
-                    <option value="pending" <?php selected($statusFilter, 'pending'); ?>>⏳ Pendente</option>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span style="font-size:14px; font-weight:600; color:#374151;">🔍 Filtrar por status:</span>
+            <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;">
+                <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
+                <input type="hidden" name="tab" value="kyc">
+                <select name="kyc_status" style="min-width:180px;">
+                    <option value="all"        <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
+                    <option value="not_started"<?php selected($statusFilter, 'not_started'); ?>>❌ Não Iniciado</option>
+                    <option value="pending"    <?php selected($statusFilter, 'pending'); ?>>⏳ Pendente</option>
                     <option value="processing" <?php selected($statusFilter, 'processing'); ?>>🔄 Processando</option>
-                    <option value="approved" <?php selected($statusFilter, 'approved'); ?>>✅ Aprovado</option>
-                    <option value="rejected" <?php selected($statusFilter, 'rejected'); ?>>❌ Rejeitado</option>
-                    <option value="expired" <?php selected($statusFilter, 'expired'); ?>>⏰ Expirado</option>
+                    <option value="approved"   <?php selected($statusFilter, 'approved'); ?>>✅ Aprovado</option>
+                    <option value="rejected"   <?php selected($statusFilter, 'rejected'); ?>>❌ Rejeitado</option>
+                    <option value="expired"    <?php selected($statusFilter, 'expired'); ?>>⏰ Expirado</option>
                 </select>
-                <button type="button" class="button" id="kyc-filter-submit">Filtrar</button>
-            </div>
+                <button type="submit" class="button button-primary">Filtrar</button>
+                <?php if ($statusFilter !== 'all'): ?>
+                    <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=kyc" class="button">Limpar</a>
+                <?php endif; ?>
+            </form>
         </div>
 
-        <!-- Statistics Cards -->
-        <?php $this->renderKycStatistics(); ?>
-
-        <!-- Professionals Table -->
+        <!-- Tabela de profissionais -->
         <?php $this->renderKycProfessionalsTable($statusFilter); ?>
-
-        <script>
-        jQuery(document).ready(function($) {
-            $('#kyc-filter-submit').on('click', function() {
-                var status = $('#kyc-status-filter').val();
-                window.location.href = '?page=<?php echo self::PAGE_SLUG; ?>&tab=kyc&kyc_status=' + status;
-            });
-        });
-        </script>
         <?php
     }
 
@@ -1064,49 +1057,70 @@ class ProfessionalManagementPage
         ", ARRAY_A);
 
         ?>
-        <div class="limpvix-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
-            <!-- Total -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #2271b1; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Total de Profissionais</div>
-                <div style="font-size: 32px; font-weight: bold; color: #2271b1;"><?php echo $stats['total']; ?></div>
+        <!-- ── Hero Card – KYC Biométrico ────────────────────────────────────── -->
+        <div style="background:linear-gradient(135deg, #4c1d95 0%, #6d28d9 55%, #7c3aed 100%); border-radius:12px; padding:32px; margin-bottom:20px; box-shadow:0 8px 32px rgba(76,29,149,0.40); position:relative; overflow:hidden;">
+
+            <!-- Círculos decorativos -->
+            <div style="position:absolute; top:-60px; right:-60px; width:220px; height:220px; background:rgba(255,255,255,0.06); border-radius:50%; pointer-events:none;"></div>
+            <div style="position:absolute; bottom:-50px; left:260px; width:170px; height:170px; background:rgba(255,255,255,0.05); border-radius:50%; pointer-events:none;"></div>
+
+            <!-- Título -->
+            <div style="margin-bottom:28px; position:relative; z-index:1;">
+                <h2 style="color:#fff; margin:0 0 8px 0; font-size:26px; font-weight:700; line-height:1.2;">
+                    🔐 KYC Biométrico
+                </h2>
+                <p style="color:rgba(255,255,255,0.80); margin:0; font-size:14px;">
+                    OCR de documentos · Liveness Detection · Face Match — pipeline de verificação de identidade
+                </p>
             </div>
 
-            <!-- Não Iniciado -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #8c8f94; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Não Iniciado</div>
-                <div style="font-size: 32px; font-weight: bold; color: #8c8f94;"><?php echo $stats['not_started']; ?></div>
-            </div>
+            <!-- Grid 7 colunas -->
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:10px; position:relative; z-index:1;">
 
-            <!-- Pendente -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #f0b849; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">⏳ Pendente</div>
-                <div style="font-size: 32px; font-weight: bold; color: #f0b849;"><?php echo $stats['pending']; ?></div>
-            </div>
+                <!-- Total -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#fff; line-height:1;"><?php echo (int) $stats['total']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
+                </div>
 
-            <!-- Processando -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #00a0d2; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">🔄 Processando</div>
-                <div style="font-size: 32px; font-weight: bold; color: #00a0d2;"><?php echo $stats['processing']; ?></div>
-            </div>
+                <!-- Não Iniciado -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#d1d5db; line-height:1;"><?php echo (int) $stats['not_started']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Não Iniciado</div>
+                </div>
 
-            <!-- Aprovado -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #00a32a; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">✅ Aprovado</div>
-                <div style="font-size: 32px; font-weight: bold; color: #00a32a;"><?php echo $stats['approved']; ?></div>
-            </div>
+                <!-- Pendente -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo (int) $stats['pending']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendente</div>
+                </div>
 
-            <!-- Rejeitado -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #d63638; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">❌ Rejeitado</div>
-                <div style="font-size: 32px; font-weight: bold; color: #d63638;"><?php echo $stats['rejected']; ?></div>
-            </div>
+                <!-- Processando -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#67e8f9; line-height:1;"><?php echo (int) $stats['processing']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Processando</div>
+                </div>
 
-            <!-- Expirado -->
-            <div class="stat-card" style="background: #fff; padding: 20px; border-left: 4px solid #dba617; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">⏰ Expirado</div>
-                <div style="font-size: 32px; font-weight: bold; color: #dba617;"><?php echo $stats['expired']; ?></div>
-            </div>
-        </div>
+                <!-- Aprovado -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#4ade80; line-height:1;"><?php echo (int) $stats['approved']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Aprovado</div>
+                </div>
+
+                <!-- Rejeitado -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['rejected']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Rejeitado</div>
+                </div>
+
+                <!-- Expirado -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 10px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:34px; font-weight:700; color:#fde68a; line-height:1;"><?php echo (int) $stats['expired']; ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Expirado</div>
+                </div>
+
+            </div><!-- /grid -->
+        </div><!-- /hero card -->
         <?php
     }
 
@@ -1152,65 +1166,83 @@ class ProfessionalManagementPage
             LIMIT 50
         ", ARRAY_A);
 
+        $count = count($professionals);
         ?>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Profissional</th>
-                    <th>Contato</th>
-                    <th>Status KYC</th>
-                    <th>Data Submissão</th>
-                    <th>Tentativas</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($professionals)): ?>
-                    <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px;">
-                            Nenhum profissional encontrado.
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($professionals as $prof): ?>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
+
+            <!-- Cabeçalho -->
+            <div style="padding:20px 24px 0; border-bottom:1px solid #f1f5f9; margin-bottom:16px;">
+                <h3 style="margin:0 0 16px 0; font-size:16px; color:#4c1d95; font-weight:700; display:flex; align-items:center; gap:8px;">
+                    📋 <span>Verificações KYC</span>
+                    <span style="background:#ede9fe; color:#6d28d9; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
+                        <?php echo esc_html($count); ?> registro<?php echo $count !== 1 ? 's' : ''; ?>
+                    </span>
+                </h3>
+            </div>
+
+            <!-- Tabela -->
+            <div style="padding:0 24px 24px;">
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
                         <tr>
-                            <td><strong>#<?php echo $prof['id']; ?></strong></td>
-                            <td><?php echo esc_html($prof['full_name']); ?></td>
-                            <td>
-                                <?php echo esc_html($prof['email']); ?><br>
-                                <small><?php echo esc_html($prof['phone']); ?></small>
-                            </td>
-                            <td><?php echo $this->renderKycStatusBadge($prof['kyc_status']); ?></td>
-                            <td>
-                                <?php
-                                if ($prof['kyc_submitted_at']) {
-                                    echo date('d/m/Y H:i', strtotime($prof['kyc_submitted_at']));
-                                } else {
-                                    echo '—';
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <?php
-                                $retries = (int) $prof['kyc_retry_count'];
-                                if ($retries > 0) {
-                                    echo "<span style='color: #ef4444;'>{$retries} tentativa(s)</span>";
-                                } else {
-                                    echo '—';
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=kyc&kyc_action=view&id=<?php echo $prof['id']; ?>" class="button button-small">
-                                    👁️ Ver Detalhes
-                                </a>
-                            </td>
+                            <th style="width:60px;">ID</th>
+                            <th>Profissional</th>
+                            <th>Contato</th>
+                            <th style="width:160px;">Status KYC</th>
+                            <th style="width:140px;">Data Submissão</th>
+                            <th style="width:100px;">Tentativas</th>
+                            <th style="width:130px;">Ações</th>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($professionals)): ?>
+                            <tr>
+                                <td colspan="7" style="text-align:center; padding:48px; color:#6b7280;">
+                                    <div style="font-size:40px; margin-bottom:12px;">🔍</div>
+                                    <div style="font-weight:600;">Nenhum profissional encontrado.</div>
+                                    <div style="font-size:13px; margin-top:6px;">Tente ajustar o filtro de status.</div>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($professionals as $prof): ?>
+                                <tr>
+                                    <td><strong style="color:#6d28d9;">#<?php echo esc_html($prof['id']); ?></strong></td>
+                                    <td><strong><?php echo esc_html($prof['full_name']); ?></strong></td>
+                                    <td>
+                                        <span style="font-size:13px;"><?php echo esc_html($prof['email']); ?></span><br>
+                                        <small style="color:#6b7280;"><?php echo esc_html($prof['phone']); ?></small>
+                                    </td>
+                                    <td><?php echo $this->renderKycStatusBadge($prof['kyc_status']); ?></td>
+                                    <td style="font-size:13px;">
+                                        <?php echo $prof['kyc_submitted_at']
+                                            ? esc_html(date('d/m/Y H:i', strtotime($prof['kyc_submitted_at'])))
+                                            : '<span style="color:#9ca3af;">—</span>'; ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $retries = (int) $prof['kyc_retry_count'];
+                                        if ($retries > 0) {
+                                            echo "<span style='background:#fee2e2; color:#dc2626; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:600;'>{$retries}×</span>";
+                                        } else {
+                                            echo '<span style="color:#9ca3af;">—</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=kyc&kyc_action=view&id=<?php echo esc_attr($prof['id']); ?>"
+                                           class="button button-small"
+                                           style="font-size:12px;">
+                                            👁️ Ver Detalhes
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+        </div><!-- /card -->
         <?php
     }
 
