@@ -233,8 +233,8 @@ class Professional_List_Table extends \WP_List_Table
         // ── Verificar (se não verificado e não banido) ─────────────────────
         if (!$isVerified && !$isBanned) {
             $actions[] = sprintf(
-                '<a href="?page=%s&action=verify&id=%d" style="color:#1d4ed8;">✓ Verificar</a>',
-                $page, $id
+                '<a href="%s" style="color:#1d4ed8;">✓ Verificar</a>',
+                wp_nonce_url("?page={$page}&quick_action=verify&id={$id}", "limpvix_quick_action_verify_{$id}")
             );
         }
 
@@ -242,8 +242,8 @@ class Professional_List_Table extends \WP_List_Table
         if (!$isBanned) {
             if ($isSuspended) {
                 $actions[] = sprintf(
-                    '<a href="?page=%s&action=unsuspend&id=%d" style="color:#16a34a;">▶ Remover Suspensão</a>',
-                    $page, $id
+                    '<a href="%s" style="color:#16a34a;">▶ Remover Suspensão</a>',
+                    wp_nonce_url("?page={$page}&quick_action=unsuspend&id={$id}", "limpvix_quick_action_unsuspend_{$id}")
                 );
             } else {
                 $actions[] = sprintf(
@@ -256,13 +256,13 @@ class Professional_List_Table extends \WP_List_Table
         // ── Banir / Desbanir permanentemente ──────────────────────────────
         if ($isBanned) {
             $actions[] = sprintf(
-                '<a href="?page=%s&action=unban&id=%d" style="color:#16a34a;">🔓 Desbanir</a>',
-                $page, $id
+                '<a href="%s" style="color:#16a34a;">🔓 Desbanir</a>',
+                wp_nonce_url("?page={$page}&quick_action=unban&id={$id}", "limpvix_quick_action_unban_{$id}")
             );
         } else {
             $actions[] = sprintf(
-                '<a href="?page=%s&action=ban&id=%d" style="color:#dc2626;" onclick="return confirm(\'Banir permanentemente este profissional? Esta ação exige confirmação.\')">🚫 Banir</a>',
-                $page, $id
+                '<a href="%s" style="color:#dc2626;" onclick="return confirm(\'Banir permanentemente este profissional?\')">🚫 Banir</a>',
+                wp_nonce_url("?page={$page}&quick_action=ban&id={$id}", "limpvix_quick_action_ban_{$id}")
             );
         }
 
@@ -270,13 +270,13 @@ class Professional_List_Table extends \WP_List_Table
         if (!$isBanned && !$isSuspended) {
             if ($isActive) {
                 $actions[] = sprintf(
-                    '<a href="?page=%s&action=deactivate&id=%d" style="color:#6b7280;">⬛ Desativar</a>',
-                    $page, $id
+                    '<a href="%s" style="color:#6b7280;">⬛ Desativar</a>',
+                    wp_nonce_url("?page={$page}&quick_action=deactivate&id={$id}", "limpvix_quick_action_deactivate_{$id}")
                 );
             } else {
                 $actions[] = sprintf(
-                    '<a href="?page=%s&action=activate&id=%d" style="color:#16a34a;">✅ Ativar</a>',
-                    $page, $id
+                    '<a href="%s" style="color:#16a34a;">✅ Ativar</a>',
+                    wp_nonce_url("?page={$page}&quick_action=activate&id={$id}", "limpvix_quick_action_activate_{$id}")
                 );
             }
         }

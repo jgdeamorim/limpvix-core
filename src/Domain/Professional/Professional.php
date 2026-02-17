@@ -359,6 +359,26 @@ class Professional
         $this->updatedAt = new \DateTimeImmutable();
     }
 
+    public function liftBan(): void
+    {
+        $this->isPermanentlyBanned = false;
+        $this->banReason = null;
+        $this->isActive = true;
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    public function activate(): void
+    {
+        $this->isActive = true;
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    public function deactivate(): void
+    {
+        $this->isActive = false;
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
     public function verify(int $verifiedByUserId): void
     {
         $this->isVerified = true;

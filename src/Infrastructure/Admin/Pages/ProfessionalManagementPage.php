@@ -48,6 +48,7 @@ class ProfessionalManagementPage
 
         // Register other hooks normally
         add_action('admin_init', [$this, 'handleFormSubmission']);
+        add_action('admin_init', [$this, 'handleQuickActions']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
         
         // Register KYC AJAX handlers
@@ -117,6 +118,92 @@ class ProfessionalManagementPage
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('limpvix_professionals_ajax'),
         ]);
+    }
+
+    /**
+     * Handles GET-based quick actions from the Professional_List_Table row actions.
+     * Actions: verify, unsuspend, ban, unban, activate, deactivate.
+     * Each action URL is nonce-protected via wp_nonce_url().
+     */
+    public function handleQuickActions(): void
+    {
+        if (
+            !isset($_GET['page'], $_GET['quick_action'], $_GET['id']) ||
+            $_GET['page'] !== self::PAGE_SLUG
+        ) {
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die('Sem permissão');
+        }
+
+        $quickAction = sanitize_text_field($_GET['quick_action']);
+        $id = (int) $_GET['id'];
+
+        if ($id <= 0) {
+            return;
+        }
+
+        $nonceKey = "limpvix_quick_action_{$quickAction}_{$id}";
+
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], $nonceKey)) {
+            wp_die('Nonce inválido');
+        }
+
+        $professional = $this->repository->findById($id);
+
+        if (!$professional) {
+            add_settings_error('limpvix_professionals', 'not_found', 'Profissional não encontrado.', 'error');
+            set_transient('limpvix_professional_action_result', get_settings_errors('limpvix_professionals'), 30);
+            wp_redirect(add_query_arg(['page' => self::PAGE_SLUG], admin_url('admin.php')));
+            exit;
+        }
+
+        switch ($quickAction) {
+            case 'verify':
+                $professional->verify(get_current_user_id());
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Profissional verificado com sucesso!', 'success');
+                break;
+
+            case 'unsuspend':
+                $professional->removeSuspension();
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Suspensão removida com sucesso!', 'success');
+                break;
+
+            case 'ban':
+                $professional->banPermanently('Banimento manual pelo admin (user #' . get_current_user_id() . ')');
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Profissional banido permanentemente.', 'success');
+                break;
+
+            case 'unban':
+                $professional->liftBan();
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Banimento removido. Profissional reativado.', 'success');
+                break;
+
+            case 'activate':
+                $professional->activate();
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Profissional ativado.', 'success');
+                break;
+
+            case 'deactivate':
+                $professional->deactivate();
+                $this->repository->save($professional);
+                add_settings_error('limpvix_professionals', 'success', 'Profissional desativado.', 'success');
+                break;
+
+            default:
+                return;
+        }
+
+        set_transient('limpvix_professional_action_result', get_settings_errors('limpvix_professionals'), 30);
+        wp_redirect(add_query_arg(['page' => self::PAGE_SLUG], admin_url('admin.php')));
+        exit;
     }
 
     public function handleFormSubmission(): void
@@ -252,7 +339,7 @@ class ProfessionalManagementPage
             return;
         }
 
-        $professional->verify();
+        $professional->verify(get_current_user_id());
         $this->repository->save($professional);
 
         add_settings_error('limpvix_professionals', 'success', 'Profissional verificado!', 'success');
@@ -360,7 +447,14 @@ class ProfessionalManagementPage
             return;
         }
 
-        $this->repository->delete($professionalId);
+        $professional = $this->repository->findById($professionalId);
+        if (!$professional) {
+            add_settings_error('limpvix_professionals', 'not_found', 'Profissional não encontrado', 'error');
+            return;
+        }
+
+        $professional->deactivate();
+        $this->repository->save($professional);
 
         add_settings_error('limpvix_professionals', 'success', 'Profissional desativado!', 'success');
         set_transient('limpvix_professional_action_result', get_settings_errors('limpvix_professionals'), 30);
