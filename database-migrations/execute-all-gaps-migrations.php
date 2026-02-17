@@ -200,53 +200,79 @@ echo '</div>';
 
 echo '<div class="migration-block">';
 echo '<h2>🛠️ Migration 025: Service Catalog Required Skills (GAP D - Database-Driven Mapping)</h2>';
+echo '<p><em>Using SAFE method with step-by-step verification</em></p>';
 
-$sql_file_025 = __DIR__ . '/025_add_service_catalog_required_skills.sql';
+$table_025 = $wpdb->prefix . 'limpvix_service_catalog';
+$error_count_025 = 0;
 
-if (!file_exists($sql_file_025)) {
-    echo '<div class="error">❌ ERROR: SQL file not found: ' . $sql_file_025 . '</div>';
-    $failedMigrations++;
+// Step 1: Check if column exists
+$column_exists_025 = $wpdb->get_var(
+    $wpdb->prepare(
+        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = 'required_skills'",
+        DB_NAME,
+        $table_025
+    )
+);
+
+if ($column_exists_025) {
+    echo '<p class="status-ok">✅ Column required_skills already exists</p>';
 } else {
-    $sql_content_025 = file_get_contents($sql_file_025);
+    echo '<p>Creating column required_skills...</p>';
 
-    // Remove comments
-    $sql_content_025 = preg_replace('/--.*$/m', '', $sql_content_025);
-    $sql_content_025 = preg_replace('/\/\*.*?\*\//s', '', $sql_content_025);
+    $result = $wpdb->query("ALTER TABLE $table_025 ADD COLUMN required_skills JSON NULL");
 
-    $statements_025 = array_filter(
-        array_map('trim', explode(';', $sql_content_025)),
-        function($stmt) {
-            return !empty($stmt) && strlen($stmt) > 5;
-        }
-    );
+    if ($result === false) {
+        echo '<div class="error">❌ Failed to add column: ' . htmlspecialchars($wpdb->last_error) . '</div>';
+        $error_count_025++;
+        $failedMigrations++;
+    } else {
+        echo '<p class="status-ok">✅ Column created successfully</p>';
+    }
+}
 
-    echo '<p><strong>Statements to execute:</strong> ' . count($statements_025) . '</p>';
+// Step 2: Populate required_skills (only if column was created or already exists)
+if ($error_count_025 === 0) {
+    echo '<p>Populating required_skills for services...</p>';
 
-    $success_count_025 = 0;
-    $error_count_025 = 0;
+    $updates_025 = [
+        'residential_standard' => ['limpeza_residencial'],
+        'residential_pre_move' => ['limpeza_residencial', 'limpeza_pesada'],
+        'residential_post_construction' => ['limpeza_residencial', 'limpeza_pesada', 'limpeza_pos_obra'],
+        'commercial_standard' => ['limpeza_comercial'],
+        'commercial_pre_move' => ['limpeza_comercial', 'manutencao_piso'],
+        'commercial_post_construction' => ['limpeza_comercial', 'manutencao_piso', 'limpeza_pos_obra'],
+    ];
 
-    foreach ($statements_025 as $i => $statement) {
-        $statement_num = $i + 1;
-        $result = $wpdb->query($statement);
+    $updated_count_025 = 0;
+
+    foreach ($updates_025 as $service_code => $skills) {
+        $skills_json = json_encode($skills);
+
+        $result = $wpdb->update(
+            $table_025,
+            ['required_skills' => $skills_json],
+            ['service_code' => $service_code],
+            ['%s'],
+            ['%s']
+        );
 
         if ($result === false) {
-            echo '<div class="error">Statement ' . $statement_num . ' FAILED: ' . htmlspecialchars($wpdb->last_error) . '</div>';
+            echo '<div class="error">❌ Failed to update ' . $service_code . '</div>';
             $error_count_025++;
         } else {
-            $success_count_025++;
+            $updated_count_025++;
         }
     }
 
-    echo '<div class="' . ($error_count_025 === 0 ? 'success' : 'info') . '">';
-    echo '📊 <strong>Migration 025 Results:</strong> ';
-    echo $success_count_025 . ' success, ' . $error_count_025 . ' errors';
-    echo '</div>';
+    echo '<p class="status-ok">✅ Updated ' . $updated_count_025 . ' services</p>';
+}
 
-    if ($error_count_025 === 0) {
-        $successfulMigrations++;
-    } else {
-        $failedMigrations++;
-    }
+if ($error_count_025 === 0) {
+    $successfulMigrations++;
+} else {
+    $failedMigrations++;
+}
 
     // Verify column added
     $table_catalog = $wpdb->prefix . 'limpvix_service_catalog';
