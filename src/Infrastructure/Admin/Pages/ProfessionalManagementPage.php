@@ -2086,35 +2086,52 @@ class ProfessionalManagementPage
     private function renderRiskScoreTab(): void
     {
         $statusFilter = sanitize_key($_GET['risk_status'] ?? 'all');
+        $search       = sanitize_text_field($_GET['risk_search'] ?? '');
 
         // ── Hero card com stats + provider status ──────────────────────────────
         $this->renderRiskScoreStatistics();
 
-        // ── Filtro de status ───────────────────────────────────────────────────
+        // ── Filtros ────────────────────────────────────────────────────────────
+        $hasFilter = $statusFilter !== 'all' || $search !== '';
         ?>
-        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span style="font-size:14px; font-weight:600; color:#374151;">🔍 Filtrar por status final:</span>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px;">
             <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;">
                 <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
                 <input type="hidden" name="tab" value="risk_score">
-                <select name="risk_status" style="min-width:210px;">
+
+                <!-- Filtro de status final -->
+                <select name="risk_status" style="min-width:220px;">
                     <option value="all"                 <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
-                    <option value="PENDING_VERIFICATION"<?php selected($statusFilter, 'PENDING_VERIFICATION'); ?>>⏳ Aguardando Verificação</option>
-                    <option value="ACTIVE"              <?php selected($statusFilter, 'ACTIVE'); ?>>✅ Ativo</option>
-                    <option value="ACTIVE_MONITORED"    <?php selected($statusFilter, 'ACTIVE_MONITORED'); ?>>👁️ Ativo (Monitorado)</option>
-                    <option value="UNDER_REVIEW"        <?php selected($statusFilter, 'UNDER_REVIEW'); ?>>🔍 Em Revisão</option>
-                    <option value="NOT_ELIGIBLE"        <?php selected($statusFilter, 'NOT_ELIGIBLE'); ?>>🚫 Não Elegível</option>
-                    <option value="SUSPENDED"           <?php selected($statusFilter, 'SUSPENDED'); ?>>⛔ Suspenso</option>
+                    <optgroup label="── Status final ──">
+                        <option value="PENDING_VERIFICATION"<?php selected($statusFilter, 'PENDING_VERIFICATION'); ?>>⏳ Aguardando Verificação</option>
+                        <option value="ACTIVE"              <?php selected($statusFilter, 'ACTIVE'); ?>>✅ Ativo</option>
+                        <option value="ACTIVE_MONITORED"    <?php selected($statusFilter, 'ACTIVE_MONITORED'); ?>>👁️ Ativo (Monitorado)</option>
+                        <option value="UNDER_REVIEW"        <?php selected($statusFilter, 'UNDER_REVIEW'); ?>>🔍 Em Revisão</option>
+                        <option value="NOT_ELIGIBLE"        <?php selected($statusFilter, 'NOT_ELIGIBLE'); ?>>🚫 Não Elegível</option>
+                        <option value="SUSPENDED"           <?php selected($statusFilter, 'SUSPENDED'); ?>>⛔ Suspenso</option>
+                    </optgroup>
+                    <optgroup label="── Situações especiais ──">
+                        <option value="bg_expired"          <?php selected($statusFilter, 'bg_expired'); ?>>⏰ BG Expirado</option>
+                        <option value="high_risk"           <?php selected($statusFilter, 'high_risk'); ?>>🔴 Alto Risco</option>
+                    </optgroup>
                 </select>
+
+                <!-- Busca por nome / email / telefone -->
+                <input type="search" name="risk_search"
+                       value="<?php echo esc_attr($search); ?>"
+                       placeholder="🔍 Buscar por nome, email ou telefone…"
+                       style="min-width:280px;">
+
                 <button type="submit" class="button button-primary">Filtrar</button>
-                <?php if ($statusFilter !== 'all'): ?>
+
+                <?php if ($hasFilter): ?>
                     <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=risk_score" class="button">Limpar</a>
                 <?php endif; ?>
             </form>
         </div>
 
         <!-- Tabela de verificações -->
-        <?php $this->renderRiskScoreTable($statusFilter); ?>
+        <?php $this->renderRiskScoreTable($statusFilter, $search); ?>
         <?php
     }
 
@@ -2191,62 +2208,70 @@ class ProfessionalManagementPage
             </div>
 
             <!-- Grid 8 colunas -->
+            <?php $rSlug = self::PAGE_SLUG; ?>
             <div style="display:grid; grid-template-columns:repeat(8,1fr); gap:10px; position:relative; z-index:1;">
 
-                <!-- Total Pipeline -->
+                <!-- Total Pipeline (estático) -->
                 <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
                     <div style="font-size:30px; font-weight:700; color:#fff; line-height:1;"><?php echo (int) $stats['total']; ?></div>
                     <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
                 </div>
 
                 <!-- Ativos -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=ACTIVE"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#4ade80; line-height:1;"><?php echo (int) $stats['active']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos ↗</div>
+                </a>
 
                 <!-- Monitorados -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=ACTIVE_MONITORED"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo (int) $stats['monitored']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Monitorados</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Monitorados ↗</div>
+                </a>
 
                 <!-- Em Revisão -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=UNDER_REVIEW"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#67e8f9; line-height:1;"><?php echo (int) $stats['review']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Em Revisão</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Em Revisão ↗</div>
+                </a>
 
                 <!-- Não Elegíveis -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=NOT_ELIGIBLE"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['not_eligible']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">N. Elegíveis</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">N. Elegíveis ↗</div>
+                </a>
 
                 <!-- Suspensos -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=SUSPENDED"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#d1d5db; line-height:1;"><?php echo (int) $stats['suspended']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos ↗</div>
+                </a>
 
                 <!-- BG Expirado -->
-                <div style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=bg_expired"
+                   style="background:rgba(255,255,255,0.12); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
                     <div style="font-size:30px; font-weight:700; color:#fde68a; line-height:1;"><?php echo (int) $stats['bg_expired']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">BG Expirado</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">BG Expirado ↗</div>
+                </a>
 
                 <!-- Alto Risco -->
-                <div style="background:rgba(248,113,113,0.20); border:1px solid rgba(248,113,113,0.30); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px);">
+                <a href="?page=<?php echo esc_attr($rSlug); ?>&tab=risk_score&risk_status=high_risk"
+                   style="background:rgba(248,113,113,0.20); border:1px solid rgba(248,113,113,0.30); border-radius:10px; padding:14px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(248,113,113,0.35)'" onmouseout="this.style.background='rgba(248,113,113,0.20)'">
                     <div style="font-size:30px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) $stats['high_risk']; ?></div>
-                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Alto Risco</div>
-                </div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Alto Risco ↗</div>
+                </a>
 
             </div><!-- /grid -->
         </div><!-- /hero card -->
         <?php
     }
 
-    private function renderRiskScoreTable(string $statusFilter): void
+    private function renderRiskScoreTable(string $statusFilter, string $search = ''): void
     {
         global $wpdb;
         $vtable = $wpdb->prefix . 'limpvix_professional_verification';
@@ -2257,31 +2282,29 @@ class ProfessionalManagementPage
             return;
         }
 
-        $where = 'WHERE 1=1';
-        if ($statusFilter !== 'all') {
-            $where .= $wpdb->prepare(' AND v.final_status = %s', $statusFilter);
+        // ── Build WHERE ────────────────────────────────────────────────────────
+        $whereParts = ['1=1'];
+        $params     = [];
+
+        // Filtros especiais (virtuais) ou status padrão
+        if ($statusFilter === 'bg_expired') {
+            $whereParts[] = 'v.background_expires_at IS NOT NULL AND v.background_expires_at < NOW() AND v.final_status IN (\'ACTIVE\',\'ACTIVE_MONITORED\')';
+        } elseif ($statusFilter === 'high_risk') {
+            $whereParts[] = 'v.risk_level = \'HIGH\'';
+        } elseif ($statusFilter !== 'all') {
+            $whereParts[] = 'v.final_status = %s';
+            $params[]     = $statusFilter;
         }
 
-        $rows = $wpdb->get_results("
-            SELECT
-                v.id            AS v_id,
-                v.user_id,
-                v.otp_verified,
-                v.kyc_status,
-                v.background_status,
-                v.risk_level,
-                v.final_status,
-                v.background_expires_at,
-                v.kyc_provider,
-                v.background_provider,
-                v.updated_at,
-                p.full_name,
-                p.email,
-                p.phone
-            FROM {$vtable} v
-            LEFT JOIN {$ptable} p ON p.user_id = v.user_id
-            {$where}
-            ORDER BY
+        if ($search !== '') {
+            $like         = '%' . $wpdb->esc_like($search) . '%';
+            $whereParts[] = '(p.full_name LIKE %s OR p.email LIKE %s OR p.phone LIKE %s)';
+            $params       = array_merge($params, [$like, $like, $like]);
+        }
+
+        $whereStr = 'WHERE ' . implode(' AND ', $whereParts);
+
+        $orderSql = "ORDER BY
                 CASE v.final_status
                     WHEN 'UNDER_REVIEW'         THEN 1
                     WHEN 'NOT_ELIGIBLE'         THEN 2
@@ -2290,22 +2313,71 @@ class ProfessionalManagementPage
                     WHEN 'PENDING_VERIFICATION' THEN 5
                     WHEN 'ACTIVE'               THEN 6
                 END,
-                v.updated_at DESC
-            LIMIT 100
-        ", ARRAY_A);
+                v.updated_at DESC";
 
+        // ── Paginação ──────────────────────────────────────────────────────────
+        $perPage     = 20;
+        $currentPage = max(1, (int) ($_GET['risk_paged'] ?? 1));
+        $offset      = ($currentPage - 1) * $perPage;
+
+        $joinSql = "FROM {$vtable} v LEFT JOIN {$ptable} p ON p.user_id = v.user_id";
+
+        // Total
+        $countSql = empty($params)
+            ? "SELECT COUNT(*) {$joinSql} {$whereStr}"
+            : $wpdb->prepare("SELECT COUNT(*) {$joinSql} {$whereStr}", ...$params);
+
+        $total      = (int) $wpdb->get_var($countSql);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+
+        // Dados da página
+        $selectSql = "SELECT
+                v.id AS v_id, v.user_id, v.otp_verified, v.kyc_status,
+                v.background_status, v.risk_level, v.final_status,
+                v.background_expires_at, v.kyc_provider, v.background_provider,
+                v.updated_at, p.full_name, p.email, p.phone";
+
+        $dataSql = empty($params)
+            ? $wpdb->prepare(
+                "{$selectSql} {$joinSql} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                $perPage, $offset
+            )
+            : $wpdb->prepare(
+                "{$selectSql} {$joinSql} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                ...[...$params, $perPage, $offset]
+            );
+
+        $rows  = $wpdb->get_results($dataSql, ARRAY_A) ?? [];
         $count = count($rows);
+
+        // URL base para paginação (preserva filtros)
+        $paginationBase = add_query_arg([
+            'page'        => self::PAGE_SLUG,
+            'tab'         => 'risk_score',
+            'risk_status' => $statusFilter !== 'all' ? $statusFilter : false,
+            'risk_search' => $search !== '' ? $search : false,
+        ], admin_url('admin.php'));
         ?>
         <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
 
             <!-- Cabeçalho -->
-            <div style="padding:20px 24px 0; border-bottom:1px solid #f1f5f9; margin-bottom:16px;">
-                <h3 style="margin:0 0 16px 0; font-size:16px; color:#0f172a; font-weight:700; display:flex; align-items:center; gap:8px;">
+            <div style="padding:20px 24px 16px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:16px; color:#0f172a; font-weight:700; display:flex; align-items:center; gap:8px;">
                     📋 <span>Pipeline de Verificação</span>
                     <span style="background:#f1f5f9; color:#334155; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
-                        <?php echo esc_html($count); ?> registro<?php echo $count !== 1 ? 's' : ''; ?>
+                        <?php echo esc_html($total); ?> registro<?php echo $total !== 1 ? 's' : ''; ?>
                     </span>
+                    <?php if ($search !== ''): ?>
+                        <span style="background:#fef3c7; color:#92400e; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;">
+                            🔍 "<?php echo esc_html($search); ?>"
+                        </span>
+                    <?php endif; ?>
                 </h3>
+                <?php if ($totalPages > 1): ?>
+                    <span style="font-size:13px; color:#6b7280;">
+                        Página <?php echo $currentPage; ?> de <?php echo $totalPages; ?>
+                    </span>
+                <?php endif; ?>
             </div>
 
             <!-- Tabela -->
@@ -2329,10 +2401,18 @@ class ProfessionalManagementPage
                             <tr>
                                 <td colspan="9" style="text-align:center; padding:48px; color:#6b7280;">
                                     <div style="font-size:40px; margin-bottom:12px;">🛡️</div>
-                                    <div style="font-weight:600;">Nenhum profissional no pipeline ainda.</div>
-                                    <div style="font-size:13px; margin-top:6px; color:#9ca3af;">
-                                        Inicie via <code>RunVerificationPipeline</code> ou pelo app mobile.
-                                    </div>
+                                    <?php if ($search !== ''): ?>
+                                        <div style="font-weight:600;">Nenhum resultado para "<?php echo esc_html($search); ?>".</div>
+                                        <div style="font-size:13px; margin-top:6px; color:#9ca3af;">Tente outro termo ou limpe a busca.</div>
+                                    <?php elseif ($statusFilter !== 'all'): ?>
+                                        <div style="font-weight:600;">Nenhum profissional com este status no pipeline.</div>
+                                        <div style="font-size:13px; margin-top:6px; color:#9ca3af;">Tente outro filtro de status.</div>
+                                    <?php else: ?>
+                                        <div style="font-weight:600;">Nenhum profissional no pipeline ainda.</div>
+                                        <div style="font-size:13px; margin-top:6px; color:#9ca3af;">
+                                            Inicie via <code>RunVerificationPipeline</code> ou pelo app mobile.
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -2378,6 +2458,37 @@ class ProfessionalManagementPage
                         <?php endif; ?>
                     </tbody>
                 </table>
+
+                <!-- Paginação -->
+                <?php if ($totalPages > 1): ?>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:20px; flex-wrap:wrap;">
+                        <?php if ($currentPage > 1): ?>
+                            <a href="<?php echo esc_url(add_query_arg('risk_paged', $currentPage - 1, $paginationBase)); ?>"
+                               class="button">&laquo; Anterior</a>
+                        <?php endif; ?>
+
+                        <?php
+                        $start = max(1, $currentPage - 2);
+                        $end   = min($totalPages, $currentPage + 2);
+                        if ($start > 1) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        for ($p = $start; $p <= $end; $p++):
+                            $isActive = $p === $currentPage;
+                        ?>
+                            <a href="<?php echo esc_url(add_query_arg('risk_paged', $p, $paginationBase)); ?>"
+                               class="button"
+                               style="<?php echo $isActive ? 'background:#0f172a; color:#fff; border-color:#0f172a; font-weight:700;' : ''; ?>">
+                                <?php echo $p; ?>
+                            </a>
+                        <?php endfor;
+                        if ($end < $totalPages) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        ?>
+
+                        <?php if ($currentPage < $totalPages): ?>
+                            <a href="<?php echo esc_url(add_query_arg('risk_paged', $currentPage + 1, $paginationBase)); ?>"
+                               class="button">Próxima &raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div><!-- /card -->
