@@ -92,13 +92,15 @@ class LimpVixSettingsPage
         register_setting(self::OPTION_GROUP_SCHEDULING, 'limpvix_scheduling_geofence_radius');
         register_setting(self::OPTION_GROUP_SCHEDULING, 'limpvix_scheduling_time_tolerance');
 
-        // Aba Verificação
+        // Aba Conexões — Exato Digital (adicionado ao mesmo grupo)
+        register_setting(self::OPTION_GROUP_CONNECTIONS, 'limpvix_exato_api_key');
+        register_setting(self::OPTION_GROUP_CONNECTIONS, 'limpvix_exato_token');
+        register_setting(self::OPTION_GROUP_CONNECTIONS, 'limpvix_exato_endpoint');
+
+        // Aba Verificação — PPID + Policy Engine
         register_setting('limpvix_verificacao', 'limpvix_ppid_api_key');
         register_setting('limpvix_verificacao', 'limpvix_ppid_api_secret');
         register_setting('limpvix_verificacao', 'limpvix_ppid_endpoint');
-        register_setting('limpvix_verificacao', 'limpvix_exato_api_key');
-        register_setting('limpvix_verificacao', 'limpvix_exato_token');
-        register_setting('limpvix_verificacao', 'limpvix_exato_endpoint');
         register_setting('limpvix_verificacao', 'limpvix_policy_review_categories');
     }
 
@@ -885,6 +887,90 @@ class LimpVixSettingsPage
 
 
 
+        <!-- Exato Digital – Background Check -->
+        <?php
+        $exatoApiKey  = get_option('limpvix_exato_api_key', '');
+        $exatoToken   = get_option('limpvix_exato_token', '');
+        $exatoEndpoint = get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1');
+        ?>
+        <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
+            <h2>🔍 Exato Digital — Background Check</h2>
+            <p>Integração com a Exato Digital para consulta de antecedentes criminais e restrições de profissionais.
+               Ativado automaticamente pelo pipeline de verificação ao preencher as credenciais abaixo.
+               Requer consentimento LGPD separado do profissional antes de cada consulta.</p>
+
+            <div style="background:#e7f3ff;border-left:4px solid #2196F3;padding:12px;margin:0 0 16px">
+                <strong>ℹ️ Modo Teste:</strong> Sem credenciais, o sistema usa <code>MockBackgroundProvider</code>
+                que aprova automaticamente (ideal para desenvolvimento). Ao preencher API Key e Token abaixo,
+                o <code>ExatoBackgroundProvider</code> real é ativado sem nenhuma mudança de código.
+            </div>
+
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="exato_api_key">API Key *</label>
+                    </th>
+                    <td>
+                        <input type="password"
+                               id="exato_api_key"
+                               name="exato_api_key"
+                               value="<?php echo esc_attr($exatoApiKey); ?>"
+                               class="regular-text"
+                               autocomplete="off"
+                               placeholder="sua-api-key-exato">
+                        <p class="description">
+                            API Key fornecida pela Exato Digital (obrigatório para ativar o provider real)
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="exato_token">Token *</label>
+                    </th>
+                    <td>
+                        <input type="password"
+                               id="exato_token"
+                               name="exato_token"
+                               value="<?php echo esc_attr($exatoToken); ?>"
+                               class="regular-text"
+                               autocomplete="off"
+                               placeholder="seu-token-exato">
+                        <p class="description">
+                            Token de autenticação da Exato Digital (mantenha secreto)
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="exato_endpoint">Endpoint</label>
+                    </th>
+                    <td>
+                        <input type="url"
+                               id="exato_endpoint"
+                               name="exato_endpoint"
+                               value="<?php echo esc_attr($exatoEndpoint); ?>"
+                               class="regular-text"
+                               placeholder="https://api.exatodigital.com.br/v1">
+                        <p class="description">
+                            URL base da API Exato Digital (não alterar sem orientação do suporte)
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php if (!empty($exatoApiKey) && !empty($exatoToken)): ?>
+                <div style="background:#d4edda;border-left:4px solid #28a745;padding:15px;margin-top:15px">
+                    ✅ <strong>Exato Digital configurado!</strong>
+                    Provider real (<code>ExatoBackgroundProvider</code>) ativo no pipeline de verificação.
+                </div>
+            <?php else: ?>
+                <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin-top:15px">
+                    ⚠️ <strong>Exato Digital não configurado.</strong>
+                    Usando <code>MockBackgroundProvider</code> — background check aprovado automaticamente (modo teste).
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- System Info -->
         <div style="background:#fff;border:1px solid #ccd0d4;padding:20px;margin:20px 0">
             <h2>ℹ️ Informações do Sistema</h2>
@@ -988,6 +1074,10 @@ class LimpVixSettingsPage
             update_option('limpvix_google_mybusiness_api_key', sanitize_text_field($_POST['google_mybusiness_api_key'] ?? ''));
             update_option('limpvix_twilio_account_sid', sanitize_text_field($_POST['twilio_account_sid'] ?? ''));
             update_option('limpvix_twilio_auth_token', sanitize_text_field($_POST['twilio_auth_token'] ?? ''));
+            // Exato Digital
+            update_option('limpvix_exato_api_key',  sanitize_text_field($_POST['exato_api_key']  ?? ''));
+            update_option('limpvix_exato_token',    sanitize_text_field($_POST['exato_token']    ?? ''));
+            update_option('limpvix_exato_endpoint', esc_url_raw($_POST['exato_endpoint']         ?? 'https://api.exatodigital.com.br/v1'));
         } elseif ($tab === 'briefing') {
             // Salvar tabela m²
             $m2Table = [
@@ -1018,14 +1108,9 @@ class LimpVixSettingsPage
             update_option('limpvix_scheduling_time_tolerance', (int) ($_POST['time_tolerance'] ?? 60));
         } elseif ($tab === 'verificacao') {
             // PPID KYC Provider
-            update_option('limpvix_ppid_api_key',      sanitize_text_field($_POST['ppid_api_key']      ?? ''));
-            update_option('limpvix_ppid_api_secret',   sanitize_text_field($_POST['ppid_api_secret']   ?? ''));
-            update_option('limpvix_ppid_endpoint',     esc_url_raw($_POST['ppid_endpoint']              ?? 'https://api.ppid.com.br/v1'));
-
-            // Exato Digital Background Check Provider
-            update_option('limpvix_exato_api_key',     sanitize_text_field($_POST['exato_api_key']     ?? ''));
-            update_option('limpvix_exato_token',       sanitize_text_field($_POST['exato_token']       ?? ''));
-            update_option('limpvix_exato_endpoint',    esc_url_raw($_POST['exato_endpoint']             ?? 'https://api.exatodigital.com.br/v1'));
+            update_option('limpvix_ppid_api_key',    sanitize_text_field($_POST['ppid_api_key']    ?? ''));
+            update_option('limpvix_ppid_api_secret', sanitize_text_field($_POST['ppid_api_secret'] ?? ''));
+            update_option('limpvix_ppid_endpoint',   esc_url_raw($_POST['ppid_endpoint']           ?? 'https://api.ppid.com.br/v1'));
 
             // Policy Engine
             $reviewCategories = array_map('sanitize_text_field', (array) ($_POST['policy_review_categories'] ?? []));
@@ -1040,7 +1125,7 @@ class LimpVixSettingsPage
     {
         // Estado de conexão dos provedores
         $ppidConnected  = !empty(get_option('limpvix_ppid_api_key')) && !empty(get_option('limpvix_ppid_api_secret'));
-        $exatoConnected = !empty(get_option('limpvix_exato_api_key')) && !empty(get_option('limpvix_exato_token'));
+        $exatoConnected = !empty(get_option('limpvix_exato_api_key')) && !empty(get_option('limpvix_exato_token')); // lido apenas para o banner
 
         $policyCategories = (array) get_option('limpvix_policy_review_categories', []);
 
@@ -1066,15 +1151,17 @@ class LimpVixSettingsPage
                         <?php echo $ppidConnected ? 'Conectado — usando provider real' : 'Desconectado — usando MockKycProvider (modo teste)'; ?>
                     </p>
                 </div>
-                <!-- Exato -->
+                <!-- Exato (somente status — credenciais em Conexões) -->
                 <div style="padding:16px 20px;background:<?php echo $exatoConnected ? '#f0fdf4' : '#fef9f1'; ?>;border:1px solid <?php echo $exatoConnected ? '#bbf7d0' : '#fed7aa'; ?>;border-radius:8px;">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
                         <span style="font-size:20px;"><?php echo $exatoConnected ? '✅' : '🔴'; ?></span>
                         <strong style="font-size:15px;">Exato Digital – Background Check</strong>
                     </div>
-                    <p style="margin:0;font-size:13px;color:<?php echo $exatoConnected ? '#15803d' : '#c2410c'; ?>;">
+                    <p style="margin:0 0 8px;font-size:13px;color:<?php echo $exatoConnected ? '#15803d' : '#c2410c'; ?>;">
                         <?php echo $exatoConnected ? 'Conectado — usando provider real' : 'Desconectado — usando MockBackgroundProvider (modo teste)'; ?>
                     </p>
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=connections#exato_api_key"
+                       style="font-size:12px;">⚙️ Configurar em Conexões →</a>
                 </div>
             </div>
 
@@ -1118,45 +1205,6 @@ class LimpVixSettingsPage
                                value="<?php echo esc_attr(get_option('limpvix_ppid_endpoint', 'https://api.ppid.com.br/v1')); ?>"
                                class="regular-text">
                         <p class="description">URL base da API PPID (não alterar sem orientação do suporte)</p>
-                    </td>
-                </tr>
-            </table>
-
-            <!-- Seção Exato Digital -->
-            <h2 style="margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
-                🔍 Exato Digital — Background Check
-            </h2>
-            <p style="color:#64748b;margin-bottom:16px;font-size:13px;">
-                A Exato Digital realiza consultas de antecedentes criminais, processos e restrições.
-                Ativado automaticamente ao preencher API Key e Token abaixo.
-                Requer consentimento LGPD separado do profissional antes de cada consulta.
-            </p>
-            <table class="form-table" role="presentation" style="margin-bottom:24px;">
-                <tr>
-                    <th scope="row"><label for="exato_api_key">API Key</label></th>
-                    <td>
-                        <input type="password" id="exato_api_key" name="exato_api_key"
-                               value="<?php echo esc_attr(get_option('limpvix_exato_api_key', '')); ?>"
-                               class="regular-text" autocomplete="off">
-                        <p class="description">API Key da Exato Digital (obrigatório para ativar)</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="exato_token">Token</label></th>
-                    <td>
-                        <input type="password" id="exato_token" name="exato_token"
-                               value="<?php echo esc_attr(get_option('limpvix_exato_token', '')); ?>"
-                               class="regular-text" autocomplete="off">
-                        <p class="description">Token de autenticação da Exato Digital (obrigatório para ativar)</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="exato_endpoint">Endpoint</label></th>
-                    <td>
-                        <input type="url" id="exato_endpoint" name="exato_endpoint"
-                               value="<?php echo esc_attr(get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1')); ?>"
-                               class="regular-text">
-                        <p class="description">URL base da API Exato Digital</p>
                     </td>
                 </tr>
             </table>
