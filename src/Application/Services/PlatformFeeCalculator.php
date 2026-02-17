@@ -111,13 +111,20 @@ class PlatformFeeCalculator
      */
     private function loadConfiguredFee(): ?float
     {
-        // Buscar opção do admin (será criada na Task #25)
-        if (function_exists('get_option')) {
-            $fee = get_option('limpvix_platform_fee_percentage', null);
+        if (!function_exists('get_option')) {
+            return null;
+        }
 
-            if ($fee !== null && is_numeric($fee)) {
-                return (float) $fee;
-            }
+        // Chave primária: limpvix_prof_platform_fee_percentage (salva pelo Settings > Profissionais)
+        $fee = get_option('limpvix_prof_platform_fee_percentage', null);
+
+        // Fallback: chave legada limpvix_platform_fee_percentage
+        if ($fee === null || !is_numeric($fee)) {
+            $fee = get_option('limpvix_platform_fee_percentage', null);
+        }
+
+        if ($fee !== null && is_numeric($fee)) {
+            return (float) $fee;
         }
 
         return null;

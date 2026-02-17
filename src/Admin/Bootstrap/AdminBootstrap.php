@@ -2960,6 +2960,8 @@ class AdminBootstrap
         $requireBackgroundCheck = get_option('limpvix_prof_require_background_check', false);
         $autoVerifyAfterServices = get_option('limpvix_prof_auto_verify_after_services', 10);
         $verificationExpiryDays = get_option('limpvix_prof_verification_expiry_days', 365);
+        $bgCheckValidityDays = get_option('limpvix_prof_background_check_validity_days', 365);
+        $bgCheckUseMock = get_option('limpvix_prof_background_check_use_mock', true);
 
         $initialScore = get_option('limpvix_prof_initial_score', 80); // NOVO: Score inicial neutro
         $minScoreThreshold = get_option('limpvix_prof_min_score_threshold', 70);
@@ -3000,6 +3002,10 @@ class AdminBootstrap
             update_option('limpvix_prof_auto_verify_after_services', intval($_POST['auto_verify_after_services']));
             update_option('limpvix_prof_verification_expiry_days', intval($_POST['verification_expiry_days']));
 
+            // Background Check
+            update_option('limpvix_prof_background_check_validity_days', max(30, intval($_POST['background_check_validity_days'] ?? 365)));
+            update_option('limpvix_prof_background_check_use_mock', isset($_POST['background_check_use_mock']));
+
             // Score
             update_option('limpvix_prof_initial_score', intval($_POST['initial_score'])); // NOVO
             update_option('limpvix_prof_min_score_threshold', intval($_POST['min_score_threshold']));
@@ -3025,7 +3031,9 @@ class AdminBootstrap
             // Payouts Gerais
             update_option('limpvix_prof_payout_mode', sanitize_text_field($_POST['payout_mode']));
             update_option('limpvix_prof_min_payout_amount', floatval($_POST['min_payout_amount']));
-            update_option('limpvix_prof_platform_fee_percentage', floatval($_POST['platform_fee_percentage']));
+            $feePct = max(0, min(100, floatval($_POST['platform_fee_percentage'])));
+            update_option('limpvix_prof_platform_fee_percentage', $feePct); // chave primária
+            update_option('limpvix_platform_fee_percentage', $feePct);      // sync chave legada (PlatformFeeCalculator)
             update_option('limpvix_prof_allow_withdrawal', isset($_POST['allow_professional_withdrawal']));
 
             // Payouts baseados em Feedback (NOVO)
@@ -3175,6 +3183,7 @@ class AdminBootstrap
                                     <input type="checkbox" name="require_id_verification" value="1" <?php checked($requireIdVerification); ?>>
                                     Exigir verificação de documento de identidade
                                 </label>
+                                <p class="description">Gerenciado via KYC Biométrico (PPID). <a href="?page=limpvix-settings&tab=conexoes">Configure credenciais em Conexões</a>.</p>
                             </td>
                         </tr>
                         <tr>
@@ -3182,8 +3191,9 @@ class AdminBootstrap
                             <td>
                                 <label>
                                     <input type="checkbox" name="require_background_check" value="1" <?php checked($requireBackgroundCheck); ?>>
-                                    Exigir checagem de antecedentes criminais
+                                    Exigir checagem de antecedentes criminais obrigatória
                                 </label>
+                                <p class="description">Quando ativado, profissional só pode aceitar ofertas com background check aprovado.</p>
                             </td>
                         </tr>
                         <tr>
@@ -3194,13 +3204,143 @@ class AdminBootstrap
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row">Validade da Verificação:</th>
+                            <th scope="row">Validade da Verificação (KYC):</th>
                             <td>
                                 <input type="number" name="verification_expiry_days" value="<?php echo esc_attr($verificationExpiryDays); ?>" min="0" class="small-text"> dias
-                                <p class="description">Verificação expira após este período (0 = nunca expira)</p>
+                                <p class="description">Verificação KYC expira após este período (0 = nunca expira)</p>
                             </td>
                         </tr>
                     </table>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- Card: Background Check (Antecedentes)       -->
+            <!-- ============================================ -->
+            <div class="limpvix-card" style="background: #faf5ff; border-left: 4px solid #7c3aed; margin-bottom: 20px; margin-top: 20px;">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-search"></span>
+                        🔍 Background Check — Antecedentes Criminais
+                    </h3>
+                    <p>Verificação de antecedentes via Exato Digital. Gerencie nas abas <a href="?page=limpvix-professionals&tab=risk_score">Risk Score</a> e <a href="?page=limpvix-settings&tab=conexoes">Conexões</a>.</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    // Detectar qual provider está ativo
+                    $exatoApiKey = get_option('limpvix_exato_api_key', '');
+                    $exatoEnabled = !empty($exatoApiKey);
+                    $bgMockActive = $bgCheckUseMock || !$exatoEnabled;
+
+                    // Buscar estatísticas de background check
+                    global $wpdb;
+                    $bgTable = $wpdb->prefix . 'limpvix_professional_verification';
+                    $bgStats = [];
+                    if ($wpdb->get_var("SHOW TABLES LIKE '{$bgTable}'") === $bgTable) {
+                        $bgStats = $wpdb->get_row(
+                            "SELECT
+                                COUNT(*) AS total,
+                                SUM(background_status = 'CLEAR') AS cleared,
+                                SUM(background_status = 'CONSIDER') AS consider,
+                                SUM(background_status = 'ADVERSE') AS adverse,
+                                SUM(background_status = 'PENDING') AS pending,
+                                SUM(background_expires_at IS NOT NULL AND background_expires_at < NOW() AND final_status IN ('ACTIVE','ACTIVE_MONITORED')) AS expired
+                            FROM {$bgTable}",
+                            ARRAY_A
+                        ) ?? [];
+                    }
+                    ?>
+
+                    <!-- Status do Provider -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 160px; background: <?php echo $exatoEnabled ? '#d1fae5' : '#fef3c7'; ?>; border: 1px solid <?php echo $exatoEnabled ? '#10b981' : '#f59e0b'; ?>; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 22px;"><?php echo $exatoEnabled ? '✅' : '⚠️'; ?></div>
+                            <strong>Exato Digital</strong><br>
+                            <span style="font-size: 12px; color: <?php echo $exatoEnabled ? '#065f46' : '#92400e'; ?>;">
+                                <?php echo $exatoEnabled ? 'Configurado' : 'Não configurado'; ?>
+                            </span>
+                            <?php if (!$exatoEnabled): ?>
+                            <br><a href="?page=limpvix-settings&tab=conexoes" style="font-size: 11px;">Configurar →</a>
+                            <?php endif; ?>
+                        </div>
+                        <div style="flex: 1; min-width: 160px; background: <?php echo $bgMockActive ? '#fef3c7' : '#f0fdf4'; ?>; border: 1px solid <?php echo $bgMockActive ? '#f59e0b' : '#22c55e'; ?>; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 22px;"><?php echo $bgMockActive ? '🧪' : '🚀'; ?></div>
+                            <strong>Modo Ativo</strong><br>
+                            <span style="font-size: 12px; color: <?php echo $bgMockActive ? '#92400e' : '#15803d'; ?>;">
+                                <?php echo $bgMockActive ? 'Mock (Teste)' : 'Real (Produção)'; ?>
+                            </span>
+                        </div>
+                        <?php if (!empty($bgStats)): ?>
+                        <div style="flex: 1; min-width: 160px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 22px;">📊</div>
+                            <strong>Verificações</strong><br>
+                            <span style="font-size: 12px; color: #1e40af;">
+                                <?php echo (int)($bgStats['cleared'] ?? 0); ?> aprovadas /
+                                <?php echo (int)($bgStats['total'] ?? 0); ?> total
+                            </span>
+                        </div>
+                        <?php if ((int)($bgStats['expired'] ?? 0) > 0): ?>
+                        <div style="flex: 1; min-width: 160px; background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 14px; text-align: center;">
+                            <div style="font-size: 22px;">⚠️</div>
+                            <strong>Expirados</strong><br>
+                            <span style="font-size: 12px; color: #991b1b;">
+                                <?php echo (int)$bgStats['expired']; ?> checks expirados
+                            </span>
+                            <br><a href="?page=limpvix-professionals&tab=risk_score&filter_risk=bg_expired" style="font-size: 11px;">Ver →</a>
+                        </div>
+                        <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Usar Provider Mock (Teste):</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="background_check_use_mock" value="1" <?php checked($bgCheckUseMock); ?>>
+                                    Ativar modo mock (simula aprovação automática, não consume créditos)
+                                </label>
+                                <p class="description">
+                                    <?php if (!$exatoEnabled): ?>
+                                    <strong>⚠️ Exato Digital não configurado.</strong> Mock é obrigatório enquanto as credenciais não estiverem configuradas em <a href="?page=limpvix-settings&tab=conexoes">Conexões</a>.
+                                    <?php else: ?>
+                                    Desmarque para usar a API real do Exato Digital em produção.
+                                    <?php endif; ?>
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Validade do Background Check:</th>
+                            <td>
+                                <input type="number" name="background_check_validity_days" value="<?php echo esc_attr($bgCheckValidityDays); ?>" min="30" max="730" class="small-text"> dias
+                                <p class="description">
+                                    Após este período, o profissional precisa renovar o background check.<br>
+                                    Recomendado: <strong>365 dias</strong> (anual). Mínimo: 30 dias.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <?php if (!empty($bgStats) && (int)($bgStats['total'] ?? 0) > 0): ?>
+                    <!-- Mini-tabela de status -->
+                    <div style="margin-top: 15px; padding: 12px; background: #f8fafc; border-radius: 6px;">
+                        <strong style="display: block; margin-bottom: 8px; font-size: 13px;">📈 Distribuição de Status:</strong>
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;">
+                            <span>✅ Clear: <strong><?php echo (int)($bgStats['cleared'] ?? 0); ?></strong></span>
+                            <span>⚠️ Consider: <strong><?php echo (int)($bgStats['consider'] ?? 0); ?></strong></span>
+                            <span>❌ Adverse: <strong><?php echo (int)($bgStats['adverse'] ?? 0); ?></strong></span>
+                            <span>⏳ Pending: <strong><?php echo (int)($bgStats['pending'] ?? 0); ?></strong></span>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div style="background: #ede9fe; padding: 12px; border-left: 3px solid #7c3aed; margin-top: 15px;">
+                        <strong>🔍 Gerencie verificações em:</strong>
+                        <ul style="margin: 5px 0 0 20px;">
+                            <li><a href="?page=limpvix-professionals&tab=risk_score">Profissionais → Aba Risk Score</a> — Ver todos os checks e renovar manualmente</li>
+                            <li><a href="?page=limpvix-professionals&tab=kyc">Profissionais → Aba KYC</a> — Pipeline completo de verificação</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
