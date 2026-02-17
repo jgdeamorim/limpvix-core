@@ -2984,7 +2984,7 @@ class AdminBootstrap
 
         $payoutMode = get_option('limpvix_prof_payout_mode', 'immediate'); // immediate, on_demand
         $minPayoutAmount = get_option('limpvix_prof_min_payout_amount', 50.00);
-        $platformFeePercentage = get_option('limpvix_prof_platform_fee_percentage', 20);
+        $platformFeePercentage = \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::getFeePercentage();
         $allowProfessionalWithdrawal = get_option('limpvix_prof_allow_withdrawal', true);
 
         // NOVO: Payouts baseados em Feedback
@@ -3031,9 +3031,10 @@ class AdminBootstrap
             // Payouts Gerais
             update_option('limpvix_prof_payout_mode', sanitize_text_field($_POST['payout_mode']));
             update_option('limpvix_prof_min_payout_amount', floatval($_POST['min_payout_amount']));
-            $feePct = max(0, min(100, floatval($_POST['platform_fee_percentage'])));
-            update_option('limpvix_prof_platform_fee_percentage', $feePct); // chave primária
-            update_option('limpvix_platform_fee_percentage', $feePct);      // sync chave legada (PlatformFeeCalculator)
+            // Persistir taxa via SSOT — única chave canônica: limpvix_platform_fee_percentage
+            \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::setFeePercentage(
+                floatval($_POST['platform_fee_percentage'])
+            );
             update_option('limpvix_prof_allow_withdrawal', isset($_POST['allow_professional_withdrawal']));
 
             // Payouts baseados em Feedback (NOVO)

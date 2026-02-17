@@ -178,6 +178,11 @@ register_activation_hook(__FILE__, function() {
         LimpVix\Infrastructure\Communication\CommunicationBootstrap::onActivation();
     }
 
+    // Inicializar opções padrão (idempotente — não sobrescreve valor já configurado pelo admin)
+    if (class_exists('LimpVix\\Infrastructure\\Configuration\\PlatformFeeConfig')) {
+        LimpVix\Infrastructure\Configuration\PlatformFeeConfig::initializeDefault();
+    }
+
     // Remover custom user roles
     if (class_exists('LimpVix\\Core\\UserRoles')) {
         LimpVix\Core\UserRoles::unregister();

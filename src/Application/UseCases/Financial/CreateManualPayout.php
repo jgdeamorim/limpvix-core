@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LimpVix\Application\UseCases\Financial;
 
 use LimpVix\Domain\Finance\PayoutRepositoryInterface;
+use LimpVix\Infrastructure\Configuration\PlatformFeeConfig;
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 
 /**
@@ -201,16 +202,13 @@ final class CreateManualPayout
     }
 
     /**
-     * Calculate platform fee usando a taxa configurada em Configurações > Profissionais
+     * Calculate platform fee — delega ao PlatformFeeConfig (Single Source of Truth).
+     * Taxa configurada em: limpvix-settings&tab=profissionais
      */
     private function calculatePlatformFee(float $gross_amount): float
     {
-        // Chave primária (Settings > Profissionais); fallback para chave legada; último recurso: 15%
-        $fee_percentage = get_option('limpvix_prof_platform_fee_percentage', null);
-        if ($fee_percentage === null || !is_numeric($fee_percentage)) {
-            $fee_percentage = get_option('limpvix_platform_fee_percentage', 15.0);
-        }
-        return round($gross_amount * ((float) $fee_percentage / 100), 2);
+        $fee_pct = PlatformFeeConfig::getFeePercentage();
+        return round($gross_amount * ($fee_pct / 100), 2);
     }
 
     /**

@@ -24,16 +24,19 @@
 
 namespace LimpVix\Application\Services;
 
+use LimpVix\Infrastructure\Configuration\PlatformFeeConfig;
+
 defined('ABSPATH') || exit;
 
 class PlatformFeeCalculator
 {
     /**
-     * Taxa padrão da plataforma (15%)
+     * Taxa padrão — delegado ao PlatformFeeConfig (SSOT).
+     * Mantido como referência local para validação.
      *
      * @var float
      */
-    private const DEFAULT_FEE_PERCENTAGE = 15.0;
+    private const DEFAULT_FEE_PERCENTAGE = PlatformFeeConfig::DEFAULT_FEE_PERCENTAGE;
 
     /**
      * Taxa configurada (override via WordPress option)
@@ -111,23 +114,13 @@ class PlatformFeeCalculator
      */
     private function loadConfiguredFee(): ?float
     {
-        if (!function_exists('get_option')) {
-            return null;
-        }
+        // Delega ao PlatformFeeConfig (Single Source of Truth).
+        // getFeePercentage() já trata migração de chave legada e retorna DEFAULT se não configurado.
+        $fee = PlatformFeeConfig::getFeePercentage();
 
-        // Chave primária: limpvix_prof_platform_fee_percentage (salva pelo Settings > Profissionais)
-        $fee = get_option('limpvix_prof_platform_fee_percentage', null);
-
-        // Fallback: chave legada limpvix_platform_fee_percentage
-        if ($fee === null || !is_numeric($fee)) {
-            $fee = get_option('limpvix_platform_fee_percentage', null);
-        }
-
-        if ($fee !== null && is_numeric($fee)) {
-            return (float) $fee;
-        }
-
-        return null;
+        // Retornar null apenas se igual ao default — assim calculate() decide usar DEFAULT_FEE_PERCENTAGE
+        // Mas aqui SSOT já retorna o valor correto, inclusive o default, então podemos retornar direto.
+        return $fee;
     }
 
     /**
