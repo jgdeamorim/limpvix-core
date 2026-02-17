@@ -1646,7 +1646,7 @@ class ProfessionalManagementPage
         }
 
         try {
-            $professional = $this->professionalRepository->findById($professionalId);
+            $professional = $this->repository->findById($professionalId);
 
             if (!$professional) {
                 wp_send_json_error(['message' => 'Profissional não encontrado.']);
@@ -1661,7 +1661,7 @@ class ProfessionalManagementPage
             $professional->approveKyc($adminName, 24);
 
             // Save
-            $this->professionalRepository->save($professional);
+            $this->repository->save($professional);
 
             wp_send_json_success([
                 'message' => 'KYC aprovado com sucesso!',
@@ -1699,7 +1699,7 @@ class ProfessionalManagementPage
         }
 
         try {
-            $professional = $this->professionalRepository->findById($professionalId);
+            $professional = $this->repository->findById($professionalId);
 
             if (!$professional) {
                 wp_send_json_error(['message' => 'Profissional não encontrado.']);
@@ -1714,7 +1714,7 @@ class ProfessionalManagementPage
             $professional->rejectKyc($rejectionReason, $adminName);
 
             // Save
-            $this->professionalRepository->save($professional);
+            $this->repository->save($professional);
 
             wp_send_json_success([
                 'message' => 'KYC rejeitado.',
