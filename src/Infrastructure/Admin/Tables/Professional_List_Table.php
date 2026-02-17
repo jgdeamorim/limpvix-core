@@ -364,7 +364,7 @@ class Professional_List_Table extends \WP_List_Table
             $hasFilter = $filterStatus !== 'all' || $filterVerified !== 'all' || $filterKyc !== 'all' || $filterScore > 0 || !empty($_GET['s']);
             if ($hasFilter):
             ?>
-                <a href="?page=limpvix-professionals" class="button">Limpar</a>
+                <a href="?page=limpvix-professionals&tab=professionals" class="button">Limpar</a>
             <?php endif; ?>
 
         </div>

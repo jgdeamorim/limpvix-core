@@ -852,11 +852,12 @@ class ProfessionalManagementPage
                     <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Verificados</div>
                 </div>
 
-                <!-- Pendentes -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
+                <!-- Pendentes (ativos não verificados) -->
+                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=professionals&filter_status=active&filter_verified=not_verified"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block; cursor:pointer; transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                     <div style="font-size:36px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo esc_html($pending); ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendentes</div>
-                </div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendentes ↗</div>
+                </a>
 
                 <!-- Suspensos -->
                 <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
@@ -967,6 +968,7 @@ class ProfessionalManagementPage
             <!-- Busca + Tabela -->
             <form method="get" style="padding:0 24px 24px;">
                 <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>" />
+                <input type="hidden" name="tab" value="professionals" />
                 <?php
                 $listTable->search_box('🔍 Buscar profissional', 'professional-search');
                 $listTable->display();
