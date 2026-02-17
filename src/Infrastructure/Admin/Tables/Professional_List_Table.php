@@ -84,17 +84,17 @@ class Professional_List_Table extends \WP_List_Table
         $filterStatus   = sanitize_text_field($_GET['filter_status']   ?? 'all');
         $filterVerified = sanitize_text_field($_GET['filter_verified']  ?? 'all');
         $filterKyc      = sanitize_text_field($_GET['filter_kyc']       ?? 'all');
-        $filterScore    = (float) ($_GET['filter_score'] ?? 0);
+        $filterScore    = sanitize_text_field($_GET['filter_score'] ?? '');
         $search         = sanitize_text_field($_GET['s'] ?? '');
 
         $orderby = sanitize_text_field($_GET['orderby'] ?? 'created_at');
         $order   = strtoupper(sanitize_text_field($_GET['order'] ?? 'DESC'));
 
         $filters = [
-            'status'       => $filterStatus,
-            'verified'     => $filterVerified,
-            'filter_kyc'   => $filterKyc,
-            'min_score'    => $filterScore,
+            'status'        => $filterStatus,
+            'verified'      => $filterVerified,
+            'filter_kyc'    => $filterKyc,
+            'filter_score'  => $filterScore,
             'search'       => $search,
             'offset'       => $offset,
             'limit'        => $per_page,
@@ -146,11 +146,21 @@ class Professional_List_Table extends \WP_List_Table
 
             case 'score':
                 $score = (float) ($item['score'] ?? 0);
-                $color = $score >= 4.0 ? '#16a34a' : ($score >= 3.0 ? '#d97706' : '#dc2626');
-                $bg    = $score >= 4.0 ? '#dcfce7' : ($score >= 3.0 ? '#fef9c3' : '#fee2e2');
+                // 5 faixas alinhadas com os presets do filtro
+                if ($score >= 4.5) {
+                    [$bg, $color, $label] = ['#dcfce7', '#15803d', '⭐⭐⭐⭐⭐'];
+                } elseif ($score >= 4.0) {
+                    [$bg, $color, $label] = ['#d1fae5', '#16a34a', '⭐⭐⭐⭐'];
+                } elseif ($score >= 3.0) {
+                    [$bg, $color, $label] = ['#fef9c3', '#a16207', '⭐⭐⭐'];
+                } elseif ($score >= 2.0) {
+                    [$bg, $color, $label] = ['#ffedd5', '#c2410c', '⭐⭐'];
+                } else {
+                    [$bg, $color, $label] = ['#fee2e2', '#b91c1c', '⭐'];
+                }
                 return sprintf(
-                    '<span style="background:%s; color:%s; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:700;">%.2f ★</span>',
-                    $bg, $color, $score
+                    '<span style="background:%s; color:%s; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; white-space:nowrap;" title="%s">%s %.2f</span>',
+                    $bg, $color, esc_attr($label), $label, $score
                 );
 
             case 'kyc_status':
@@ -319,7 +329,7 @@ class Professional_List_Table extends \WP_List_Table
         $filterStatus   = sanitize_text_field($_GET['filter_status']  ?? 'all');
         $filterVerified = sanitize_text_field($_GET['filter_verified'] ?? 'all');
         $filterKyc      = sanitize_text_field($_GET['filter_kyc']      ?? 'all');
-        $filterScore    = (float) ($_GET['filter_score'] ?? 0);
+        $filterScore    = sanitize_text_field($_GET['filter_score']    ?? '');
         ?>
         <div class="alignleft actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:4px 0;">
 
@@ -329,18 +339,18 @@ class Professional_List_Table extends \WP_List_Table
                 <option value="active"   <?php selected($filterStatus, 'active'); ?>>✅ Ativos</option>
                 <option value="inactive" <?php selected($filterStatus, 'inactive'); ?>>⬛ Inativos</option>
                 <option value="suspended"<?php selected($filterStatus, 'suspended'); ?>>⛔ Suspensos</option>
-                <option value="banned"   <?php selected($filterStatus, 'banned'); ?>>🚫 Banidos Permanentemente</option>
+                <option value="banned"   <?php selected($filterStatus, 'banned'); ?>>🚫 Banidos</option>
             </select>
 
             <!-- Verificação -->
-            <select name="filter_verified" style="min-width:150px;">
+            <select name="filter_verified" style="min-width:148px;">
                 <option value="all"         <?php selected($filterVerified, 'all'); ?>>Toda Verificação</option>
                 <option value="verified"    <?php selected($filterVerified, 'verified'); ?>>✓ Verificados</option>
                 <option value="not_verified"<?php selected($filterVerified, 'not_verified'); ?>>⚠ Não Verificados</option>
             </select>
 
             <!-- KYC -->
-            <select name="filter_kyc" style="min-width:160px;">
+            <select name="filter_kyc" style="min-width:152px;">
                 <option value="all"        <?php selected($filterKyc, 'all'); ?>>Todo KYC</option>
                 <option value="not_started"<?php selected($filterKyc, 'not_started'); ?>>— Não Iniciado</option>
                 <option value="pending"    <?php selected($filterKyc, 'pending'); ?>>⏳ Pendente</option>
@@ -350,18 +360,24 @@ class Professional_List_Table extends \WP_List_Table
                 <option value="expired"    <?php selected($filterKyc, 'expired'); ?>>⏰ KYC Expirado</option>
             </select>
 
-            <!-- Score mínimo -->
-            <label style="display:flex; align-items:center; gap:5px; font-size:13px; color:#374151;">
-                Score ≥
-                <input type="number" name="filter_score"
-                       value="<?php echo esc_attr($filterScore); ?>"
-                       min="0" max="5" step="0.1" style="width:58px;">
-            </label>
+            <!-- Score — presets semânticos alinhados com as faixas visuais da tabela -->
+            <select name="filter_score" style="min-width:190px;">
+                <option value=""       <?php selected($filterScore, ''); ?>>Qualquer Score</option>
+                <optgroup label="──── Score mínimo ────">
+                    <option value="4.5" <?php selected($filterScore, '4.5'); ?>>⭐⭐⭐⭐⭐ Excelente  (≥ 4.5)</option>
+                    <option value="4.0" <?php selected($filterScore, '4.0'); ?>>⭐⭐⭐⭐   Bom+       (≥ 4.0)</option>
+                    <option value="3.0" <?php selected($filterScore, '3.0'); ?>>⭐⭐⭐      Regular+   (≥ 3.0)</option>
+                </optgroup>
+                <optgroup label="──── Com problemas ────">
+                    <option value="below3" <?php selected($filterScore, 'below3'); ?>>⛔ Com problemas    (< 3.0)</option>
+                    <option value="below2" <?php selected($filterScore, 'below2'); ?>>🚨 Crítico           (< 2.0)</option>
+                </optgroup>
+            </select>
 
             <button type="submit" class="button button-primary">Filtrar</button>
 
             <?php
-            $hasFilter = $filterStatus !== 'all' || $filterVerified !== 'all' || $filterKyc !== 'all' || $filterScore > 0 || !empty($_GET['s']);
+            $hasFilter = $filterStatus !== 'all' || $filterVerified !== 'all' || $filterKyc !== 'all' || $filterScore !== '' || !empty($_GET['s']);
             if ($hasFilter):
             ?>
                 <a href="?page=limpvix-professionals&tab=professionals" class="button">Limpar</a>

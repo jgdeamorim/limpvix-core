@@ -807,6 +807,21 @@ class ProfessionalManagementPage
         // Calcular pending (ainda usa repository por enquanto)
         $pending = count($this->repository->findPendingVerification());
 
+        // Distribuição de score por faixa (query direta — leve, sem aggregate)
+        $table = $this->wpdb->prefix . 'limpvix_professionals';
+        $scoreDist = $this->wpdb->get_row(
+            "SELECT
+                COUNT(CASE WHEN score >= 4.5 THEN 1 END) AS excellent,
+                COUNT(CASE WHEN score >= 4.0 AND score < 4.5 THEN 1 END) AS good,
+                COUNT(CASE WHEN score >= 3.0 AND score < 4.0 THEN 1 END) AS regular,
+                COUNT(CASE WHEN score >= 2.0 AND score < 3.0 THEN 1 END) AS poor,
+                COUNT(CASE WHEN score < 2.0 THEN 1 END) AS critical
+             FROM {$table}",
+            ARRAY_A
+        ) ?: ['excellent' => 0, 'good' => 0, 'regular' => 0, 'poor' => 0, 'critical' => 0];
+
+        $slug = self::PAGE_SLUG;
+
         ?>
         <!-- ── Hero Card – Profissionais ────────────────────────────────────────── -->
         <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%); border-radius: 12px; padding: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(30,58,138,0.40); position: relative; overflow: hidden;">
@@ -831,47 +846,95 @@ class ProfessionalManagementPage
                 </a>
             </div>
 
-            <!-- Grid de métricas (6 colunas) -->
-            <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px; position:relative; z-index:1;">
+            <!-- Linha 1: métricas operacionais (6 colunas) -->
+            <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:12px; position:relative; z-index:1; margin-bottom:12px;">
 
                 <!-- Total -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
-                    <div style="font-size:36px; font-weight:700; color:#fff; line-height:1;"><?php echo esc_html($total); ?></div>
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:32px; font-weight:700; color:#fff; line-height:1;"><?php echo esc_html($total); ?></div>
                     <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
                 </div>
 
                 <!-- Ativos -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
-                    <div style="font-size:36px; font-weight:700; color:#4ade80; line-height:1;"><?php echo esc_html($active); ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos</div>
-                </div>
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_status=active"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:32px; font-weight:700; color:#4ade80; line-height:1;"><?php echo esc_html($active); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Ativos ↗</div>
+                </a>
 
                 <!-- Verificados -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
-                    <div style="font-size:36px; font-weight:700; color:#86efac; line-height:1;"><?php echo esc_html($verified); ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Verificados</div>
-                </div>
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_verified=verified"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:32px; font-weight:700; color:#86efac; line-height:1;"><?php echo esc_html($verified); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Verificados ↗</div>
+                </a>
 
                 <!-- Pendentes (ativos não verificados) -->
-                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=professionals&filter_status=active&filter_verified=not_verified"
-                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block; cursor:pointer; transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-                    <div style="font-size:36px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo esc_html($pending); ?></div>
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_status=active&filter_verified=not_verified"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:32px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo esc_html($pending); ?></div>
                     <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendentes ↗</div>
                 </a>
 
                 <!-- Suspensos -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
-                    <div style="font-size:36px; font-weight:700; color:#f87171; line-height:1;"><?php echo esc_html($suspended); ?></div>
-                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos</div>
-                </div>
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_status=suspended"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:32px; font-weight:700; color:#f87171; line-height:1;"><?php echo esc_html($suspended); ?></div>
+                    <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Suspensos ↗</div>
+                </a>
 
-                <!-- Score Médio -->
-                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:18px 12px; text-align:center; backdrop-filter:blur(4px);">
-                    <div style="font-size:30px; font-weight:700; color:#fde68a; line-height:1;"><?php echo number_format($avgScore, 1, ',', '.'); ?>★</div>
+                <!-- Score Médio (não filtrável diretamente) -->
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 12px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:28px; font-weight:700; color:#fde68a; line-height:1;"><?php echo number_format($avgScore, 1, ',', '.'); ?>★</div>
                     <div style="font-size:11px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Score Médio</div>
                 </div>
 
-            </div><!-- /grid -->
+            </div><!-- /linha 1 -->
+
+            <!-- Linha 2: distribuição de score (5 faixas clicáveis) -->
+            <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; position:relative; z-index:1;">
+
+                <!-- Excelente ≥4.5 -->
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_score=4.5"
+                   style="background:rgba(134,239,172,0.20); border:1px solid rgba(134,239,172,0.35); border-radius:8px; padding:12px 8px; text-align:center; text-decoration:none; display:block;" onmouseover="this.style.background='rgba(134,239,172,0.35)'" onmouseout="this.style.background='rgba(134,239,172,0.20)'">
+                    <div style="font-size:22px; font-weight:700; color:#86efac; line-height:1;"><?php echo esc_html($scoreDist['excellent']); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600;">⭐⭐⭐⭐⭐ Excelente</div>
+                    <div style="font-size:9px; color:rgba(255,255,255,0.55); margin-top:2px;">≥ 4.5 ↗</div>
+                </a>
+
+                <!-- Bom 4.0–4.49 -->
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_score=4.0"
+                   style="background:rgba(74,222,128,0.15); border:1px solid rgba(74,222,128,0.30); border-radius:8px; padding:12px 8px; text-align:center; text-decoration:none; display:block;" onmouseover="this.style.background='rgba(74,222,128,0.28)'" onmouseout="this.style.background='rgba(74,222,128,0.15)'">
+                    <div style="font-size:22px; font-weight:700; color:#4ade80; line-height:1;"><?php echo esc_html($scoreDist['good']); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600;">⭐⭐⭐⭐ Bom</div>
+                    <div style="font-size:9px; color:rgba(255,255,255,0.55); margin-top:2px;">4.0 – 4.49 ↗</div>
+                </a>
+
+                <!-- Regular 3.0–3.99 -->
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_score=3.0"
+                   style="background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.30); border-radius:8px; padding:12px 8px; text-align:center; text-decoration:none; display:block;" onmouseover="this.style.background='rgba(251,191,36,0.28)'" onmouseout="this.style.background='rgba(251,191,36,0.15)'">
+                    <div style="font-size:22px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo esc_html($scoreDist['regular']); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600;">⭐⭐⭐ Regular</div>
+                    <div style="font-size:9px; color:rgba(255,255,255,0.55); margin-top:2px;">3.0 – 3.99 ↗</div>
+                </a>
+
+                <!-- Problemas <3.0 -->
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_score=below3"
+                   style="background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.30); border-radius:8px; padding:12px 8px; text-align:center; text-decoration:none; display:block;" onmouseover="this.style.background='rgba(248,113,113,0.28)'" onmouseout="this.style.background='rgba(248,113,113,0.15)'">
+                    <div style="font-size:22px; font-weight:700; color:#f87171; line-height:1;"><?php echo esc_html($scoreDist['poor']); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600;">⭐⭐ Problemas</div>
+                    <div style="font-size:9px; color:rgba(255,255,255,0.55); margin-top:2px;">2.0 – 2.99 ↗</div>
+                </a>
+
+                <!-- Crítico <2.0 -->
+                <a href="?page=<?php echo esc_attr($slug); ?>&tab=professionals&filter_score=below2"
+                   style="background:rgba(220,38,38,0.20); border:1px solid rgba(220,38,38,0.40); border-radius:8px; padding:12px 8px; text-align:center; text-decoration:none; display:block;" onmouseover="this.style.background='rgba(220,38,38,0.35)'" onmouseout="this.style.background='rgba(220,38,38,0.20)'">
+                    <div style="font-size:22px; font-weight:700; color:#fca5a5; line-height:1;"><?php echo esc_html($scoreDist['critical']); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.80); margin-top:5px; font-weight:600;">⭐ Crítico</div>
+                    <div style="font-size:9px; color:rgba(255,255,255,0.55); margin-top:2px;">&lt; 2.0 ↗</div>
+                </a>
+
+            </div><!-- /linha 2 -->
         </div><!-- /hero card -->
         <?php
     }

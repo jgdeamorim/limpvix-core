@@ -90,9 +90,18 @@ final class ListProfessionals
             }
         }
 
-        // SAFE CASTING: Filter by min score
-        if (isset($filters['min_score']) && $filters['min_score'] > 0) {
-            $where[] = $wpdb->prepare('score >= %f', (float) $filters['min_score']);
+        // SCORE FILTER: suporta presets semânticos ('below3', 'below2') e valores numéricos (>= X)
+        // Prioridade: filter_score (novo, semântico) > min_score (legado, numérico)
+        $scoreFilter = $filters['filter_score'] ?? $filters['min_score'] ?? '';
+
+        if ($scoreFilter !== '' && $scoreFilter !== null) {
+            if ($scoreFilter === 'below3') {
+                $where[] = 'score < 3.00';
+            } elseif ($scoreFilter === 'below2') {
+                $where[] = 'score < 2.00';
+            } elseif (is_numeric($scoreFilter) && (float) $scoreFilter > 0) {
+                $where[] = $wpdb->prepare('score >= %f', (float) $scoreFilter);
+            }
         }
 
         // SAFE ESCAPING: Search in full_name, cpf, email
