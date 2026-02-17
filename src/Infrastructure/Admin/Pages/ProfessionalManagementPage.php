@@ -18,6 +18,8 @@ namespace LimpVix\Infrastructure\Admin\Pages;
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 use LimpVix\Application\UseCase\Professional\RegisterProfessional;
 use LimpVix\Application\UseCase\Professional\UpdateProfessionalScore;
+use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
+use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 
 defined('ABSPATH') || exit;
 
@@ -510,6 +512,10 @@ class ProfessionalManagementPage
                        class="nav-tab <?php echo $tab === 'risk_score' ? 'nav-tab-active' : ''; ?>">
                         🛡️ Risk Score
                     </a>
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=payouts"
+                       class="nav-tab <?php echo $tab === 'payouts' ? 'nav-tab-active' : ''; ?>">
+                        💰 Payouts
+                    </a>
                 </nav>
             <?php endif; ?>
 
@@ -527,6 +533,8 @@ class ProfessionalManagementPage
                     $this->renderKycTab();
                 } elseif ($tab === 'risk_score') {
                     $this->renderRiskScoreTab();
+                } elseif ($tab === 'payouts') {
+                    $this->renderPayoutsTab();
                 } else {
                     // Default: professionals tab
                     $this->renderStatistics($this->repository->getStatistics());
@@ -2534,6 +2542,409 @@ class ProfessionalManagementPage
             'SUSPENDED'            => '<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">⛔ Suspenso</span>',
             'PENDING_VERIFICATION' => '<span style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:700;">⏳ Aguardando</span>',
             default                => '<span style="color:#9ca3af;font-size:12px;">' . esc_html($status) . '</span>',
+        };
+    }
+
+    // ─── Payouts Tab ──────────────────────────────────────────────────────────
+
+    private function renderPayoutsTab(): void
+    {
+        $payoutRepo  = new WpPayoutRepository();
+        $mpProvider  = new MercadoPagoPayoutProvider();
+        $mpOk        = $mpProvider->isAvailable();
+        $mpSandbox   = $mpProvider->isSandbox();
+
+        $statusFilter = sanitize_key($_GET['payout_status'] ?? 'all');
+        $search       = sanitize_text_field($_GET['payout_search'] ?? '');
+
+        // ── Notices ────────────────────────────────────────────────────────────
+        if (!$mpOk): ?>
+            <div class="notice notice-error" style="margin:0 0 16px;">
+                <p><strong>⚠️ Mercado Pago não configurado!</strong>
+                Configure em <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-settings')); ?>">Configurações</a>.</p>
+            </div>
+        <?php elseif ($mpSandbox): ?>
+            <div class="notice notice-warning" style="margin:0 0 16px;">
+                <p><strong>🧪 Modo Sandbox Ativo</strong> — Transferências são simuladas (não reais).</p>
+            </div>
+        <?php endif;
+
+        // ── Stats ──────────────────────────────────────────────────────────────
+        $stats = $payoutRepo->getStats();
+
+        $pSlug = self::PAGE_SLUG;
+        ?>
+
+        <!-- Hero Card – Payouts -->
+        <div style="background:linear-gradient(135deg,#065f46 0%,#047857 55%,#059669 100%); border-radius:12px; padding:32px; margin-bottom:20px; box-shadow:0 8px 32px rgba(6,95,70,0.45); position:relative; overflow:hidden;">
+            <div style="position:absolute; top:-60px; right:-60px; width:220px; height:220px; background:rgba(255,255,255,0.05); border-radius:50%; pointer-events:none;"></div>
+            <div style="position:absolute; bottom:-50px; left:260px; width:170px; height:170px; background:rgba(255,255,255,0.04); border-radius:50%; pointer-events:none;"></div>
+
+            <!-- Título + botão sincronizar -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; position:relative; z-index:1; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h2 style="color:#fff; margin:0 0 8px; font-size:26px; font-weight:700; line-height:1.2;">💰 Payouts — Repasses Financeiros</h2>
+                    <p style="color:rgba(255,255,255,0.80); margin:0; font-size:14px;">
+                        Gestão de repasses automáticos e manuais para profissionais
+                    </p>
+                </div>
+                <?php if ($mpOk): ?>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:0;">
+                        <input type="hidden" name="action" value="limpvix_sync_payouts">
+                        <?php wp_nonce_field('limpvix_sync_payouts'); ?>
+                        <button type="submit" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.30); padding:10px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                            🔄 Sincronizar com MP
+                        </button>
+                    </form>
+                <?php endif; ?>
+            </div>
+
+            <!-- Grid de cards clicáveis -->
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:10px; position:relative; z-index:1;">
+
+                <!-- Total (estático) -->
+                <?php $total = ($stats['total_pending'] ?? 0) + ($stats['total_approved'] ?? 0) + ($stats['total_processing'] ?? 0) + ($stats['total_completed'] ?? 0) + ($stats['total_failed'] ?? 0) + ($stats['total_cancelled'] ?? 0) + ($stats['total_on_hold'] ?? 0); ?>
+                <div style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px);">
+                    <div style="font-size:30px; font-weight:700; color:#fff; line-height:1;"><?php echo $total; ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Total</div>
+                </div>
+
+                <!-- Pendentes -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=pending"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:30px; font-weight:700; color:#fbbf24; line-height:1;"><?php echo (int) ($stats['total_pending'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Pendentes ↗</div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.65); margin-top:2px;">R$ <?php echo number_format($stats['amount_pending'] ?? 0, 2, ',', '.'); ?></div>
+                </a>
+
+                <!-- Aprovados -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=approved"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:30px; font-weight:700; color:#67e8f9; line-height:1;"><?php echo (int) ($stats['total_approved'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Aprovados ↗</div>
+                </a>
+
+                <!-- Processando -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=processing"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:30px; font-weight:700; color:#c4b5fd; line-height:1;"><?php echo (int) ($stats['total_processing'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Processando ↗</div>
+                </a>
+
+                <!-- Concluídos -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=completed"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:30px; font-weight:700; color:#4ade80; line-height:1;"><?php echo (int) ($stats['total_completed'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Concluídos ↗</div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.65); margin-top:2px;">R$ <?php echo number_format($stats['amount_completed'] ?? 0, 2, ',', '.'); ?></div>
+                </a>
+
+                <!-- Falhas -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=failed"
+                   style="background:rgba(248,113,113,0.20); border:1px solid rgba(248,113,113,0.30); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(248,113,113,0.35)'" onmouseout="this.style.background='rgba(248,113,113,0.20)'">
+                    <div style="font-size:30px; font-weight:700; color:#f87171; line-height:1;"><?php echo (int) ($stats['total_failed'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Falhas ↗</div>
+                </a>
+
+                <!-- Retidos (on_hold) -->
+                <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=on_hold"
+                   style="background:rgba(255,255,255,0.15); border-radius:10px; padding:16px 8px; text-align:center; backdrop-filter:blur(4px); text-decoration:none; display:block;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                    <div style="font-size:30px; font-weight:700; color:#fde68a; line-height:1;"><?php echo (int) ($stats['total_on_hold'] ?? 0); ?></div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.85); margin-top:6px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Retidos ↗</div>
+                </a>
+
+            </div><!-- /grid -->
+        </div><!-- /hero card -->
+
+        <!-- ── Filtros ──────────────────────────────────────────────────────────── -->
+        <?php
+        $hasFilter = $statusFilter !== 'all' || $search !== '';
+        ?>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); padding:16px 24px; margin-bottom:20px;">
+            <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0;">
+                <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
+                <input type="hidden" name="tab" value="payouts">
+
+                <select name="payout_status" style="min-width:200px;">
+                    <option value="all"        <?php selected($statusFilter, 'all'); ?>>Todos os Status</option>
+                    <option value="pending"    <?php selected($statusFilter, 'pending'); ?>>⏳ Pendentes</option>
+                    <option value="approved"   <?php selected($statusFilter, 'approved'); ?>>✓ Aprovados</option>
+                    <option value="processing" <?php selected($statusFilter, 'processing'); ?>>⚙️ Processando</option>
+                    <option value="completed"  <?php selected($statusFilter, 'completed'); ?>>✅ Concluídos</option>
+                    <option value="failed"     <?php selected($statusFilter, 'failed'); ?>>✗ Falhas</option>
+                    <option value="cancelled"  <?php selected($statusFilter, 'cancelled'); ?>>⊘ Cancelados</option>
+                    <option value="on_hold"    <?php selected($statusFilter, 'on_hold'); ?>>⏸ Retidos</option>
+                </select>
+
+                <input type="search" name="payout_search"
+                       value="<?php echo esc_attr($search); ?>"
+                       placeholder="🔍 Buscar por profissional ou ID do pedido…"
+                       style="min-width:280px;">
+
+                <button type="submit" class="button button-primary">Filtrar</button>
+
+                <?php if ($hasFilter): ?>
+                    <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=payouts" class="button">Limpar</a>
+                <?php endif; ?>
+            </form>
+        </div>
+
+        <!-- ── Tabela ────────────────────────────────────────────────────────────── -->
+        <?php $this->renderPayoutsTable($payoutRepo, $mpOk, $statusFilter, $search); ?>
+        <?php
+    }
+
+    private function renderPayoutsTable(
+        WpPayoutRepository $repo,
+        bool $mpOk,
+        string $statusFilter,
+        string $search
+    ): void {
+        global $wpdb;
+        $ptable = $wpdb->prefix . 'limpvix_payouts';
+        $prftable = $wpdb->prefix . 'limpvix_professionals';
+
+        // ── WHERE ──────────────────────────────────────────────────────────────
+        $whereParts = ['1=1'];
+        $params     = [];
+
+        if ($statusFilter !== 'all') {
+            $whereParts[] = 'py.status = %s';
+            $params[]     = $statusFilter;
+        }
+
+        if ($search !== '') {
+            if (is_numeric($search)) {
+                $whereParts[] = '(py.order_id = %d OR py.id = %d)';
+                $params       = array_merge($params, [(int) $search, (int) $search]);
+            } else {
+                $like         = '%' . $wpdb->esc_like($search) . '%';
+                $whereParts[] = '(py.recipient_name LIKE %s OR pr.full_name LIKE %s OR pr.cpf LIKE %s)';
+                $params       = array_merge($params, [$like, $like, $like]);
+            }
+        }
+
+        $whereStr = 'WHERE ' . implode(' AND ', $whereParts);
+
+        $joinSql = "FROM {$ptable} py
+                    LEFT JOIN {$prftable} pr ON pr.id = py.professional_id";
+
+        $orderSql = 'ORDER BY py.created_at DESC';
+
+        // Paginação
+        $perPage     = 20;
+        $currentPage = max(1, (int) ($_GET['payouts_paged'] ?? 1));
+        $offset      = ($currentPage - 1) * $perPage;
+
+        $countSql = empty($params)
+            ? "SELECT COUNT(*) {$joinSql} {$whereStr}"
+            : $wpdb->prepare("SELECT COUNT(*) {$joinSql} {$whereStr}", ...$params);
+
+        $total      = (int) $wpdb->get_var($countSql);
+        $totalPages = max(1, (int) ceil($total / $perPage));
+
+        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf';
+
+        $dataSql = empty($params)
+            ? $wpdb->prepare(
+                "{$selectSql} {$joinSql} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                $perPage, $offset
+            )
+            : $wpdb->prepare(
+                "{$selectSql} {$joinSql} {$whereStr} {$orderSql} LIMIT %d OFFSET %d",
+                ...[...$params, $perPage, $offset]
+            );
+
+        $payouts = $wpdb->get_results($dataSql, ARRAY_A) ?? [];
+
+        $paginationBase = add_query_arg([
+            'page'          => self::PAGE_SLUG,
+            'tab'           => 'payouts',
+            'payout_status' => $statusFilter !== 'all' ? $statusFilter : false,
+            'payout_search' => $search !== '' ? $search : false,
+        ], admin_url('admin.php'));
+        ?>
+        <div style="background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.10); overflow:hidden;">
+
+            <!-- Cabeçalho -->
+            <div style="padding:20px 24px 16px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:16px; color:#065f46; font-weight:700; display:flex; align-items:center; gap:8px;">
+                    💳 <span>Repasses</span>
+                    <span style="background:#d1fae5; color:#065f46; font-size:12px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:4px;">
+                        <?php echo $total; ?> registro<?php echo $total !== 1 ? 's' : ''; ?>
+                    </span>
+                    <?php if ($search !== ''): ?>
+                        <span style="background:#fef3c7; color:#92400e; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;">
+                            🔍 "<?php echo esc_html($search); ?>"
+                        </span>
+                    <?php endif; ?>
+                </h3>
+                <?php if ($totalPages > 1): ?>
+                    <span style="font-size:13px; color:#6b7280;">Página <?php echo $currentPage; ?> de <?php echo $totalPages; ?></span>
+                <?php endif; ?>
+            </div>
+
+            <!-- Tabela -->
+            <div style="padding:0 24px 24px;">
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th style="width:55px;">ID</th>
+                            <th style="width:90px;">Pedido</th>
+                            <th>Profissional</th>
+                            <th style="width:95px;">Bruto</th>
+                            <th style="width:75px;">Taxa</th>
+                            <th style="width:95px;">Líquido</th>
+                            <th>Destinatário</th>
+                            <th style="width:130px;">Status</th>
+                            <th style="width:110px;">Gateway</th>
+                            <th style="width:110px;">Criado em</th>
+                            <th style="width:120px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($payouts)): ?>
+                            <tr>
+                                <td colspan="11" style="text-align:center; padding:48px; color:#6b7280;">
+                                    <div style="font-size:40px; margin-bottom:12px;">💰</div>
+                                    <?php if ($search !== ''): ?>
+                                        <div style="font-weight:600;">Nenhum resultado para "<?php echo esc_html($search); ?>".</div>
+                                        <div style="font-size:13px; margin-top:6px; color:#9ca3af;">Tente outro termo ou limpe o filtro.</div>
+                                    <?php elseif ($statusFilter !== 'all'): ?>
+                                        <div style="font-weight:600;">Nenhum payout com este status.</div>
+                                    <?php else: ?>
+                                        <div style="font-weight:600;">Nenhum payout registrado ainda.</div>
+                                        <div style="font-size:13px; margin-top:6px; color:#9ca3af;">Payouts são criados automaticamente após execuções validadas.</div>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($payouts as $py): ?>
+                                <tr>
+                                    <td><strong style="color:#065f46;">#<?php echo esc_html($py['id']); ?></strong></td>
+                                    <td>
+                                        <?php if (!empty($py['order_id'])): ?>
+                                            <a href="<?php echo esc_url(admin_url('admin.php?page=limpvix-orders&order_id=' . (int) $py['order_id'])); ?>">
+                                                #<?php echo esc_html($py['order_id']); ?>
+                                            </a>
+                                        <?php else: ?>
+                                            <span style="color:#9ca3af;">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <strong style="font-size:13px;"><?php echo esc_html($py['professional_name'] ?? 'Prof. #' . $py['professional_id']); ?></strong>
+                                        <?php if (!empty($py['professional_cpf'])): ?>
+                                            <br><small style="color:#9ca3af; font-family:monospace;"><?php echo esc_html($py['professional_cpf']); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="font-size:13px;">R$ <?php echo number_format((float) ($py['gross_amount'] ?? 0), 2, ',', '.'); ?></td>
+                                    <td style="font-size:13px; color:#6b7280;">R$ <?php echo number_format((float) ($py['platform_fee'] ?? 0), 2, ',', '.'); ?></td>
+                                    <td><strong style="color:#065f46;">R$ <?php echo number_format((float) ($py['net_amount'] ?? 0), 2, ',', '.'); ?></strong></td>
+                                    <td style="font-size:12px;">
+                                        <?php if (!empty($py['recipient_name'])): ?>
+                                            <div><strong><?php echo esc_html($py['recipient_name']); ?></strong></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($py['recipient_type'])): ?>
+                                            <div style="color:#6b7280;"><?php echo match($py['recipient_type']) {
+                                                'pix'          => '💳 PIX',
+                                                'bank_account' => '🏦 Conta Bancária',
+                                                'mp_account'   => '💰 Saldo MP',
+                                                default        => esc_html($py['recipient_type']),
+                                            }; ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo $this->renderPayoutStatusBadge($py['status']); ?></td>
+                                    <td style="font-size:11px; color:#6b7280; line-height:1.6;">
+                                        <?php echo esc_html($py['gateway'] ?? '—'); ?>
+                                        <?php if (!empty($py['gateway_transfer_id'])): ?>
+                                            <br><span style="font-family:monospace;"><?php echo esc_html(substr($py['gateway_transfer_id'], 0, 10)); ?>…</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="font-size:12px; color:#6b7280;">
+                                        <?php echo !empty($py['created_at'])
+                                            ? esc_html(date('d/m/Y H:i', strtotime($py['created_at'])))
+                                            : '—'; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($py['status'] === 'approved' && $mpOk): ?>
+                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                                                <input type="hidden" name="action" value="limpvix_process_payout">
+                                                <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
+                                                <?php wp_nonce_field('limpvix_process_payout_' . $py['id']); ?>
+                                                <button type="submit" class="button button-primary button-small"
+                                                        onclick="return confirm('Processar payout #<?php echo (int) $py['id']; ?>?');">
+                                                    ▶️ Processar
+                                                </button>
+                                            </form>
+                                        <?php elseif ($py['status'] === 'failed' && (int) ($py['retry_count'] ?? 0) < (int) ($py['max_retries'] ?? 3)): ?>
+                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                                                <input type="hidden" name="action" value="limpvix_process_payout">
+                                                <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
+                                                <?php wp_nonce_field('limpvix_process_payout_' . $py['id']); ?>
+                                                <button type="submit" class="button button-secondary button-small">
+                                                    🔄 Retry (<?php echo (int) ($py['retry_count'] ?? 0); ?>/<?php echo (int) ($py['max_retries'] ?? 3); ?>)
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span style="color:#9ca3af; font-size:12px;">—</span>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($py['failure_reason'])): ?>
+                                            <button type="button" class="button button-small" style="margin-top:4px;"
+                                                    onclick="alert(<?php echo json_encode($py['failure_reason']); ?>);">
+                                                ⚠️ Erro
+                                            </button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+
+                <!-- Paginação -->
+                <?php if ($totalPages > 1): ?>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-top:20px; flex-wrap:wrap;">
+                        <?php if ($currentPage > 1): ?>
+                            <a href="<?php echo esc_url(add_query_arg('payouts_paged', $currentPage - 1, $paginationBase)); ?>" class="button">&laquo; Anterior</a>
+                        <?php endif; ?>
+                        <?php
+                        $start = max(1, $currentPage - 2);
+                        $end   = min($totalPages, $currentPage + 2);
+                        if ($start > 1) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        for ($p = $start; $p <= $end; $p++):
+                            $isActive = $p === $currentPage;
+                        ?>
+                            <a href="<?php echo esc_url(add_query_arg('payouts_paged', $p, $paginationBase)); ?>"
+                               class="button"
+                               style="<?php echo $isActive ? 'background:#065f46; color:#fff; border-color:#065f46; font-weight:700;' : ''; ?>">
+                                <?php echo $p; ?>
+                            </a>
+                        <?php endfor;
+                        if ($end < $totalPages) echo '<span style="color:#9ca3af; padding:4px 2px;">…</span>';
+                        ?>
+                        <?php if ($currentPage < $totalPages): ?>
+                            <a href="<?php echo esc_url(add_query_arg('payouts_paged', $currentPage + 1, $paginationBase)); ?>" class="button">Próxima &raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+        </div><!-- /card -->
+        <?php
+    }
+
+    private function renderPayoutStatusBadge(string $status): string
+    {
+        return match($status) {
+            'pending'    => '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">⏳ Pendente</span>',
+            'approved'   => '<span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">✓ Aprovado</span>',
+            'processing' => '<span style="background:#ede9fe;color:#5b21b6;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">⚙️ Processando</span>',
+            'completed'  => '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">✅ Concluído</span>',
+            'failed'     => '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">✗ Falhou</span>',
+            'cancelled'  => '<span style="background:#f3f4f6;color:#374151;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">⊘ Cancelado</span>',
+            'on_hold'    => '<span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;">⏸ Retido</span>',
+            default      => '<span style="color:#9ca3af;font-size:11px;">' . esc_html($status) . '</span>',
         };
     }
 }

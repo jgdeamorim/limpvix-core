@@ -117,7 +117,7 @@ class PayoutsPage
             <!-- Filtros -->
             <div class="tablenav top" style="background: #fff; padding: 16px; margin: 20px 0; border-radius: 4px;">
                 <form method="get" style="display: flex; gap: 12px; align-items: center;">
-                    <input type="hidden" name="page" value="limpvix-payouts">
+                    <input type="hidden" name="page" value="limpvix-professionals">
 
                     <select name="status" style="min-width: 150px;">
                         <option value="all" <?php selected($status_filter, 'all'); ?>>Todos os Status</option>
@@ -274,7 +274,7 @@ class PayoutsPage
 
         if ($result->isOk()) {
             wp_redirect(add_query_arg([
-                'page' => 'limpvix-payouts',
+                'page' => 'limpvix-professionals', 'tab' => 'payouts',
                 'message' => 'payout_processed'
             ], admin_url('admin.php')));
         } else {
@@ -282,7 +282,7 @@ class PayoutsPage
             wp_die(
                 '<h1>Erro ao Processar Payout</h1>' .
                 '<p><strong>Motivo:</strong> ' . esc_html($result->error()) . '</p>' .
-                '<p><a href="' . admin_url('admin.php?page=limpvix-payouts') . '">← Voltar para Payouts</a></p>',
+                '<p><a href="' . admin_url('admin.php?page=limpvix-professionals&tab=payouts') . '">← Voltar para Payouts</a></p>',
                 'Erro - Payout Bloqueado'
             );
         }
@@ -303,7 +303,7 @@ class PayoutsPage
         $synced = $this->mpProvider->syncProcessingPayouts();
 
         wp_redirect(add_query_arg([
-            'page' => 'limpvix-payouts',
+            'page' => 'limpvix-professionals', 'tab' => 'payouts',
             'message' => 'payouts_synced',
             'synced_count' => $synced
         ], admin_url('admin.php')));
