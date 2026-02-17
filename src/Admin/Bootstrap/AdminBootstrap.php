@@ -360,6 +360,15 @@ class AdminBootstrap
         if ($activeTab === 'conexoes' && isset($_POST['limpvix_save_twilio_settings'])) {
             \LimpVix\Admin\Settings\TwilioSettings::save();
         }
+
+        // Processar salvamento Exato Digital
+        if ($activeTab === 'conexoes' && isset($_POST['limpvix_save_exato_settings']) && check_admin_referer('limpvix_exato_settings')) {
+            update_option('limpvix_exato_api_key',  sanitize_text_field($_POST['exato_api_key']  ?? ''));
+            update_option('limpvix_exato_token',    sanitize_text_field($_POST['exato_token']    ?? ''));
+            update_option('limpvix_exato_endpoint', esc_url_raw($_POST['exato_endpoint']         ?? 'https://api.exatodigital.com.br/v1'));
+            wp_redirect(add_query_arg(['page' => 'limpvix-settings', 'tab' => 'conexoes', 'updated' => '1'], admin_url('admin.php')));
+            exit;
+        }
         }
 
         ?>
@@ -2026,15 +2035,17 @@ class AdminBootstrap
         $nvoipConfigured = !empty(get_option('limpvix_nvoip_api_key'));
         $ppidConfigured = !empty(get_option('limpvix_ppid_api_key'));
         $twilioConfigured = !empty(get_option('limpvix_twilio_account_sid')) && !empty(get_option('limpvix_twilio_auth_token'));
+        $exatoConfigured = !empty(get_option('limpvix_exato_api_key')) && !empty(get_option('limpvix_exato_token'));
 
         // Contar conexões ativas
-        $totalConnections = 5;
+        $totalConnections = 6;
         $activeConnections = 0;
         if ($firebaseConfigured) $activeConnections++;
         if ($googleBusinessConfigured) $activeConnections++;
         if ($nvoipConfigured) $activeConnections++;
         if ($ppidConfigured) $activeConnections++;
         if ($twilioConfigured) $activeConnections++;
+        if ($exatoConfigured) $activeConnections++;
 
         // Determinar provider OTP ativo
         $activeOtpProvider = 'Nenhum';
@@ -2072,39 +2083,48 @@ class AdminBootstrap
                 </div>
 
                 <!-- Quick Stats Grid -->
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 25px;">
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 25px;">
                     <!-- Firebase -->
-                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🔥</div>
-                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">Firebase Auth</div>
-                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 6px;">🔥</div>
+                        <div style="font-size: 13px; font-weight: 600; color: white; margin-bottom: 4px;">Firebase Auth</div>
+                        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.8);">
                             <?php echo $firebaseConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
                         </div>
                     </div>
 
                     <!-- Google Business -->
-                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
-                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">Google Business</div>
-                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 6px;">🏢</div>
+                        <div style="font-size: 13px; font-weight: 600; color: white; margin-bottom: 4px;">Google Business</div>
+                        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.8);">
                             <?php echo $googleBusinessConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
                         </div>
                     </div>
 
                     <!-- PPID KYC -->
-                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🔐</div>
-                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">PPID KYC</div>
-                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 6px;">🔐</div>
+                        <div style="font-size: 13px; font-weight: 600; color: white; margin-bottom: 4px;">PPID KYC</div>
+                        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.8);">
                             <?php echo $ppidConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
                         </div>
                     </div>
 
+                    <!-- Exato Digital -->
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 6px;">🕵️</div>
+                        <div style="font-size: 13px; font-weight: 600; color: white; margin-bottom: 4px;">Exato Digital</div>
+                        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.8);">
+                            <?php echo $exatoConfigured ? '<span style="color: #4ade80;">✓ Configurado</span>' : '<span style="color: #fbbf24;">⚠ Pendente</span>'; ?>
+                        </div>
+                    </div>
+
                     <!-- OTP Provider Ativo -->
-                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 8px;">📱</div>
-                        <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 5px;">OTP Provider</div>
-                        <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
+                    <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.2); text-align: center;">
+                        <div style="font-size: 28px; margin-bottom: 6px;">📱</div>
+                        <div style="font-size: 13px; font-weight: 600; color: white; margin-bottom: 4px;">OTP Provider</div>
+                        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.8);">
                             <strong><?php echo $activeOtpProvider; ?></strong>
                         </div>
                     </div>
@@ -2355,6 +2375,134 @@ class AdminBootstrap
                 });
             });
             </script>
+        </div>
+
+        <!-- Grid 4: Exato Digital Background Check -->
+        <div class="limpvix-grid limpvix-grid-2" style="margin-top: 20px;">
+            <div class="limpvix-card">
+                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                        🕵️ Exato Digital — Background Check
+                    </h3>
+                    <p style="color: rgba(255, 255, 255, 0.85); margin: 0; font-size: 14px;">
+                        Consulta de antecedentes criminais e restrições (LGPD Art. 7)
+                    </p>
+                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
+                        <?php echo $exatoConfigured ? '✓ Configurado' : '⚠ Não Configurado'; ?>
+                    </div>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php if ($exatoConfigured): ?>
+                        <div class="limpvix-alert limpvix-alert-success" style="margin-bottom: 20px;">
+                            <span class="dashicons dashicons-yes-alt"></span>
+                            <div>
+                                <strong>✅ Exato Digital conectado</strong>
+                                <p style="margin: 4px 0 0 0; font-size: 13px;">
+                                    Background check real ativo. Provider mock desativado.
+                                </p>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="limpvix-alert limpvix-alert-warning" style="margin-bottom: 20px;">
+                            <span class="dashicons dashicons-warning"></span>
+                            <div>
+                                <strong>⚠️ Modo Mock Ativo</strong>
+                                <p style="margin: 4px 0 0 0; font-size: 13px;">
+                                    Sem credenciais, o MockBackgroundProvider aprova automaticamente.
+                                    Configure abaixo para ativar o provider real.
+                                </p>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="post" action="">
+                        <?php wp_nonce_field('limpvix_exato_settings'); ?>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="exato_api_key">API Key *</label>
+                                </th>
+                                <td>
+                                    <input type="password"
+                                           id="exato_api_key"
+                                           name="exato_api_key"
+                                           value="<?php echo esc_attr(get_option('limpvix_exato_api_key', '')); ?>"
+                                           class="regular-text"
+                                           autocomplete="new-password"
+                                           placeholder="Sua API Key da Exato Digital">
+                                    <p class="description">Chave de API fornecida pela <a href="https://exatodigital.com.br" target="_blank">Exato Digital</a></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="exato_token">Token *</label>
+                                </th>
+                                <td>
+                                    <input type="password"
+                                           id="exato_token"
+                                           name="exato_token"
+                                           value="<?php echo esc_attr(get_option('limpvix_exato_token', '')); ?>"
+                                           class="regular-text"
+                                           autocomplete="new-password"
+                                           placeholder="Token de autenticação">
+                                    <p class="description">Token de autenticação (mantenha secreto)</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="exato_endpoint">Endpoint</label>
+                                </th>
+                                <td>
+                                    <input type="url"
+                                           id="exato_endpoint"
+                                           name="exato_endpoint"
+                                           value="<?php echo esc_attr(get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1')); ?>"
+                                           class="regular-text">
+                                    <p class="description">URL base da API Exato Digital</p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div style="margin: 16px 0; padding: 12px 16px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 13px;">
+                            <strong>🔒 LGPD Art. 7:</strong> Cada consulta requer consentimento explícito do profissional
+                            registrado em <code>wp_limpvix_consent_records</code> (imutável).
+                        </div>
+
+                        <p>
+                            <input type="hidden" name="limpvix_save_exato_settings" value="1">
+                            <button type="submit" class="button button-primary">
+                                💾 Salvar Exato Digital
+                            </button>
+                            <?php if ($exatoConfigured): ?>
+                                <span style="margin-left: 10px; color: #15803d; font-size: 13px;">✅ Credenciais salvas</span>
+                            <?php endif; ?>
+                        </p>
+                    </form>
+
+                    <div class="limpvix-card" style="margin-top: 16px; background: #f8fafc; border-left: 4px solid #0f172a;">
+                        <div class="limpvix-card-body" style="padding: 14px 18px;">
+                            <h4 style="margin: 0 0 10px 0; font-size: 13px;">📘 Endpoints Utilizados</h4>
+                            <table class="widefat" style="background: white; font-size: 12px;">
+                                <tr>
+                                    <td><strong>Antecedentes criminais</strong></td>
+                                    <td><code>/v1/criminal/check</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Restrições financeiras</strong></td>
+                                    <td><code>/v1/financial/restrictions</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Documentação</strong></td>
+                                    <td><a href="https://docs.exatodigital.com.br" target="_blank">📖 Acessar Docs</a></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna vazia para manter alinhamento no grid de 2 -->
+            <div></div>
         </div>
         <?php
     }
@@ -6381,17 +6529,7 @@ class AdminBootstrap
             return;
         }
 
-        // PPID KYC Provider
-        update_option('limpvix_ppid_api_key',    sanitize_text_field($_POST['ppid_api_key']    ?? ''));
-        update_option('limpvix_ppid_api_secret', sanitize_text_field($_POST['ppid_api_secret'] ?? ''));
-        update_option('limpvix_ppid_endpoint',   esc_url_raw($_POST['ppid_endpoint']           ?? 'https://api.ppid.com.br/v1'));
-
-        // Exato Digital Background Check
-        update_option('limpvix_exato_api_key',  sanitize_text_field($_POST['exato_api_key']  ?? ''));
-        update_option('limpvix_exato_token',    sanitize_text_field($_POST['exato_token']    ?? ''));
-        update_option('limpvix_exato_endpoint', esc_url_raw($_POST['exato_endpoint']         ?? 'https://api.exatodigital.com.br/v1'));
-
-        // Policy Engine
+        // Policy Engine — únicas configurações desta aba
         $reviewCategories = array_map('sanitize_text_field', (array) ($_POST['policy_review_categories'] ?? []));
         update_option('limpvix_policy_review_categories', $reviewCategories);
 
@@ -6406,7 +6544,7 @@ class AdminBootstrap
             $this->handleRiskSave();
         }
 
-        $ppidConnected  = !empty(get_option('limpvix_ppid_api_key')) && !empty(get_option('limpvix_ppid_api_secret'));
+        $ppidConnected  = !empty(get_option('limpvix_ppid_api_key'));
         $exatoConnected = !empty(get_option('limpvix_exato_api_key')) && !empty(get_option('limpvix_exato_token'));
         $policyCategories = (array) get_option('limpvix_policy_review_categories', []);
 
@@ -6421,8 +6559,8 @@ class AdminBootstrap
             <?php wp_nonce_field('limpvix_risk_settings'); ?>
             <div style="max-width:900px;margin-top:20px;">
 
-                <!-- Status Resumido dos Provedores -->
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+                <!-- Status Resumido dos Provedores (somente leitura — config em Conexões) -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
                     <div style="padding:14px 18px;background:<?php echo $ppidConnected ? '#f0fdf4' : '#fef9f1'; ?>;border:1px solid <?php echo $ppidConnected ? '#bbf7d0' : '#fed7aa'; ?>;border-radius:8px;">
                         <strong><?php echo $ppidConnected ? '✅' : '🔴'; ?> PPID – KYC</strong><br>
                         <small style="color:<?php echo $ppidConnected ? '#15803d' : '#c2410c'; ?>;">
@@ -6436,86 +6574,10 @@ class AdminBootstrap
                         </small>
                     </div>
                 </div>
-
-                <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:11px 15px;margin-bottom:28px;font-size:13px;">
-                    <strong>ℹ️ Modo Teste:</strong> Sem credenciais os providers mock aprovam automaticamente.
-                    Preencha abaixo para ativar os providers reais — nenhuma mudança de código necessária.
-                </div>
-
-                <!-- ── KYC: PPID ──────────────────────────────────────────────── -->
-                <h2 style="margin:0 0 8px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
-                    🎯 KYC — PPID (Verificação de Identidade)
-                </h2>
-                <p style="color:#64748b;margin:0 0 16px;font-size:13px;">
-                    Verificação biométrica via documento + selfie. Ativado ao preencher API Key e Secret.
+                <p style="font-size:13px;color:#6b7280;margin:0 0 28px;">
+                    Para configurar as credenciais dos providers, acesse
+                    <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=conexoes'); ?>">⚙️ Conexões</a>.
                 </p>
-                <table class="form-table" role="presentation" style="margin-bottom:28px;">
-                    <tr>
-                        <th scope="row"><label for="ppid_api_key">API Key</label></th>
-                        <td>
-                            <input type="password" id="ppid_api_key" name="ppid_api_key"
-                                   value="<?php echo esc_attr(get_option('limpvix_ppid_api_key', '')); ?>"
-                                   class="regular-text" autocomplete="new-password">
-                            <p class="description">Chave de API fornecida pelo PPID</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="ppid_api_secret">API Secret</label></th>
-                        <td>
-                            <input type="password" id="ppid_api_secret" name="ppid_api_secret"
-                                   value="<?php echo esc_attr(get_option('limpvix_ppid_api_secret', '')); ?>"
-                                   class="regular-text" autocomplete="new-password">
-                            <p class="description">Secret de API fornecido pelo PPID</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="ppid_endpoint">Endpoint</label></th>
-                        <td>
-                            <input type="url" id="ppid_endpoint" name="ppid_endpoint"
-                                   value="<?php echo esc_attr(get_option('limpvix_ppid_endpoint', 'https://api.ppid.com.br/v1')); ?>"
-                                   class="regular-text">
-                            <p class="description">URL base da API PPID</p>
-                        </td>
-                    </tr>
-                </table>
-
-                <!-- ── Background Check: Exato Digital ──────────────────────── -->
-                <h2 style="margin:0 0 8px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
-                    🔍 Background Check — Exato Digital
-                </h2>
-                <p style="color:#64748b;margin:0 0 16px;font-size:13px;">
-                    Consulta de antecedentes criminais e restrições. Ativado ao preencher API Key e Token.
-                    Requer consentimento LGPD separado do profissional antes de cada consulta.
-                </p>
-                <table class="form-table" role="presentation" style="margin-bottom:28px;">
-                    <tr>
-                        <th scope="row"><label for="exato_api_key">API Key</label></th>
-                        <td>
-                            <input type="password" id="exato_api_key" name="exato_api_key"
-                                   value="<?php echo esc_attr(get_option('limpvix_exato_api_key', '')); ?>"
-                                   class="regular-text" autocomplete="new-password">
-                            <p class="description">API Key fornecida pela Exato Digital</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="exato_token">Token</label></th>
-                        <td>
-                            <input type="password" id="exato_token" name="exato_token"
-                                   value="<?php echo esc_attr(get_option('limpvix_exato_token', '')); ?>"
-                                   class="regular-text" autocomplete="new-password">
-                            <p class="description">Token de autenticação (mantenha secreto)</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="exato_endpoint">Endpoint</label></th>
-                        <td>
-                            <input type="url" id="exato_endpoint" name="exato_endpoint"
-                                   value="<?php echo esc_attr(get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1')); ?>"
-                                   class="regular-text">
-                            <p class="description">URL base da API Exato Digital</p>
-                        </td>
-                    </tr>
-                </table>
 
                 <!-- ── Policy Engine ─────────────────────────────────────────── -->
                 <h2 style="margin:0 0 8px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
@@ -6553,7 +6615,7 @@ class AdminBootstrap
                 <p class="submit">
                     <input type="hidden" name="limpvix_save_risk_settings" value="1">
                     <button type="submit" class="button button-primary button-large">
-                        💾 Salvar Configurações de Risk
+                        💾 Salvar Policy Engine
                     </button>
                 </p>
             </div>
