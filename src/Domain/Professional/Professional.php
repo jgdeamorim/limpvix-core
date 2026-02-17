@@ -85,11 +85,11 @@ class Professional
     private ?\DateTimeImmutable $epiLastCheck;
     // KYC (Know Your Customer) - Verificação Biométrica
     private string $kycStatus;
-    private ?DateTimeImmutable $kycStartedAt;
-    private ?DateTimeImmutable $kycSubmittedAt;
-    private ?DateTimeImmutable $kycApprovedAt;
-    private ?DateTimeImmutable $kycRejectedAt;
-    private ?DateTimeImmutable $kycExpiresAt;
+    private ?\DateTimeImmutable $kycStartedAt;
+    private ?\DateTimeImmutable $kycSubmittedAt;
+    private ?\DateTimeImmutable $kycApprovedAt;
+    private ?\DateTimeImmutable $kycRejectedAt;
+    private ?\DateTimeImmutable $kycExpiresAt;
     private ?string $kycDocumentUrl;
     private ?string $kycSelfieUrl;
     private ?array $kycOcrData;
@@ -101,7 +101,7 @@ class Professional
     private ?int $kycRejectedBy;
     private ?string $kycDocumentType;
     private int $kycRetryCount;
-    private ?DateTimeImmutable $kycLastRetryAt;
+    private ?\DateTimeImmutable $kycLastRetryAt;
 
 
     // Timestamps
