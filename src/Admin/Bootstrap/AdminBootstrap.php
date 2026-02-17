@@ -65,6 +65,12 @@ class AdminBootstrap
         $adminActionsController = new AdminActionsController();
         $adminActionsController->registerAjaxHandlers();
 
+        // Registrar AJAX handler para Manual Payouts (GAP C)
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Ajax\\ManualPayoutAjaxHandler')) {
+            $manualPayoutAjax = new \LimpVix\Infrastructure\Admin\Ajax\ManualPayoutAjaxHandler();
+            $manualPayoutAjax->register();
+        }
+
         // Registrar páginas de payouts
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PayoutsPage')) {
             PayoutsPage::register();
