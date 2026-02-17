@@ -390,6 +390,19 @@ class ProfessionalManagementPage
     {
         $action = $_GET['action'] ?? 'list';
         $tab = $_GET['tab'] ?? 'professionals';
+
+        // Salvar credenciais Exato Digital (card na tab risk_score)
+        if (
+            $tab === 'risk_score'
+            && isset($_POST['limpvix_save_exato'])
+            && check_admin_referer('limpvix_exato_credentials')
+        ) {
+            update_option('limpvix_exato_api_key',  sanitize_text_field($_POST['exato_api_key']  ?? ''));
+            update_option('limpvix_exato_token',    sanitize_text_field($_POST['exato_token']    ?? ''));
+            update_option('limpvix_exato_endpoint', esc_url_raw($_POST['exato_endpoint']         ?? 'https://api.exatodigital.com.br/v1'));
+            wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=risk_score&updated=exato'));
+            exit;
+        }
         $professionalId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
         // DEBUG: Log para confirmar que este método está sendo chamado
@@ -1772,14 +1785,70 @@ class ProfessionalManagementPage
                     <small style="color:#9a3412;"> — usando mock provider (modo teste)</small>
                 <?php endif; ?>
             </div>
-            <div style="margin-left: auto;">
-                <a href="?page=limpvix-settings&tab=verificacao" class="button button-small">⚙️ Configurar Credenciais</a>
-            </div>
         </div>
 
         <p class="description">
             Pipeline de elegibilidade profissional: OTP → KYC → Background Check → Risk Engine → Status Final.
         </p>
+
+        <?php if (isset($_GET['updated']) && $_GET['updated'] === 'exato'): ?>
+        <div class="notice notice-success is-dismissible"><p>✅ Credenciais Exato Digital salvas com sucesso!</p></div>
+        <?php endif; ?>
+
+        <!-- Card: Exato Digital — Credenciais -->
+        <div style="background:#fff;border:1px solid #ccd0d4;border-radius:4px;padding:20px;margin:0 0 24px;">
+            <h2 style="margin:0 0 6px;font-size:16px;">🔍 Exato Digital — Background Check</h2>
+            <p style="margin:0 0 14px;color:#646970;font-size:13px;">
+                Integração com a Exato Digital para consulta de antecedentes criminais e restrições.
+                Ativado automaticamente pelo pipeline ao preencher as credenciais abaixo.
+                Requer consentimento LGPD separado do profissional antes de cada consulta.
+            </p>
+
+            <?php if (!$providerStatus['background']['connected']): ?>
+            <div style="background:#fffbeb;border-left:3px solid #f59e0b;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+                <strong>Modo Teste ativo:</strong> usando <code>MockBackgroundProvider</code> — aprovações automáticas.
+                Preencha as credenciais abaixo para ativar o provider real.
+            </div>
+            <?php endif; ?>
+
+            <form method="post" action="">
+                <?php wp_nonce_field('limpvix_exato_credentials'); ?>
+                <input type="hidden" name="limpvix_save_exato" value="1">
+
+                <table class="form-table" style="margin:0;">
+                    <tr>
+                        <th scope="row" style="width:160px;"><label for="exato_api_key">API Key</label></th>
+                        <td>
+                            <input type="password" id="exato_api_key" name="exato_api_key"
+                                   value="<?php echo esc_attr(get_option('limpvix_exato_api_key', '')); ?>"
+                                   class="regular-text" autocomplete="new-password">
+                            <p class="description">API Key fornecida pela Exato Digital</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="exato_token">Token</label></th>
+                        <td>
+                            <input type="password" id="exato_token" name="exato_token"
+                                   value="<?php echo esc_attr(get_option('limpvix_exato_token', '')); ?>"
+                                   class="regular-text" autocomplete="new-password">
+                            <p class="description">Token de autenticação (mantenha secreto)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="exato_endpoint">Endpoint</label></th>
+                        <td>
+                            <input type="url" id="exato_endpoint" name="exato_endpoint"
+                                   value="<?php echo esc_attr(get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1')); ?>"
+                                   class="regular-text">
+                            <p class="description">URL base da API Exato Digital</p>
+                        </td>
+                    </tr>
+                </table>
+                <p style="margin:14px 0 0;">
+                    <button type="submit" class="button button-primary">💾 Salvar Credenciais Exato</button>
+                </p>
+            </form>
+        </div>
 
         <!-- Status Filter -->
         <div class="tablenav top">
