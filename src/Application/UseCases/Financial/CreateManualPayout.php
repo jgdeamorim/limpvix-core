@@ -201,12 +201,16 @@ final class CreateManualPayout
     }
 
     /**
-     * Calculate platform fee (10% default)
+     * Calculate platform fee usando a taxa configurada em Configurações > Profissionais
      */
     private function calculatePlatformFee(float $gross_amount): float
     {
-        $fee_percentage = (float) get_option('limpvix_platform_fee_percentage', 10.0);
-        return round($gross_amount * ($fee_percentage / 100), 2);
+        // Chave primária (Settings > Profissionais); fallback para chave legada; último recurso: 15%
+        $fee_percentage = get_option('limpvix_prof_platform_fee_percentage', null);
+        if ($fee_percentage === null || !is_numeric($fee_percentage)) {
+            $fee_percentage = get_option('limpvix_platform_fee_percentage', 15.0);
+        }
+        return round($gross_amount * ((float) $fee_percentage / 100), 2);
     }
 
     /**
