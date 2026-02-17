@@ -91,6 +91,15 @@ class LimpVixSettingsPage
         // Aba Scheduling
         register_setting(self::OPTION_GROUP_SCHEDULING, 'limpvix_scheduling_geofence_radius');
         register_setting(self::OPTION_GROUP_SCHEDULING, 'limpvix_scheduling_time_tolerance');
+
+        // Aba Verificação
+        register_setting('limpvix_verificacao', 'limpvix_ppid_api_key');
+        register_setting('limpvix_verificacao', 'limpvix_ppid_api_secret');
+        register_setting('limpvix_verificacao', 'limpvix_ppid_endpoint');
+        register_setting('limpvix_verificacao', 'limpvix_exato_api_key');
+        register_setting('limpvix_verificacao', 'limpvix_exato_token');
+        register_setting('limpvix_verificacao', 'limpvix_exato_endpoint');
+        register_setting('limpvix_verificacao', 'limpvix_policy_review_categories');
     }
 
     public function enqueueAssets($hook): void
@@ -160,6 +169,10 @@ class LimpVixSettingsPage
                    class="nav-tab <?php echo $activeTab === 'fluxos-operacionais' ? 'nav-tab-active' : ''; ?>">
                     🔄 Fluxos Operacionais
                 </a>
+                <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=verificacao"
+                   class="nav-tab <?php echo $activeTab === 'verificacao' ? 'nav-tab-active' : ''; ?>">
+                    🛡️ Verificação
+                </a>
             </h2>
 
             <?php if ($activeTab === 'connections'): ?>
@@ -189,6 +202,17 @@ class LimpVixSettingsPage
 
             <?php elseif ($activeTab === 'fluxos-operacionais'): ?>
                 <?php $this->renderFluxosOperacionaisTab(); ?>
+
+            <?php elseif ($activeTab === 'verificacao'): ?>
+                <form method="post" action="">
+                    <?php wp_nonce_field('limpvix_settings_' . $activeTab); ?>
+                    <?php $this->renderVerificacaoTab(); ?>
+                    <p class="submit">
+                        <button type="submit" name="submit" class="button button-primary button-large">
+                            💾 Salvar Credenciais
+                        </button>
+                    </p>
+                </form>
             <?php endif; ?>
         </div>
 
@@ -992,10 +1016,188 @@ class LimpVixSettingsPage
         } elseif ($tab === 'scheduling') {
             update_option('limpvix_scheduling_geofence_radius', (int) ($_POST['geofence_radius'] ?? 150));
             update_option('limpvix_scheduling_time_tolerance', (int) ($_POST['time_tolerance'] ?? 60));
+        } elseif ($tab === 'verificacao') {
+            // PPID KYC Provider
+            update_option('limpvix_ppid_api_key',      sanitize_text_field($_POST['ppid_api_key']      ?? ''));
+            update_option('limpvix_ppid_api_secret',   sanitize_text_field($_POST['ppid_api_secret']   ?? ''));
+            update_option('limpvix_ppid_endpoint',     esc_url_raw($_POST['ppid_endpoint']              ?? 'https://api.ppid.com.br/v1'));
+
+            // Exato Digital Background Check Provider
+            update_option('limpvix_exato_api_key',     sanitize_text_field($_POST['exato_api_key']     ?? ''));
+            update_option('limpvix_exato_token',       sanitize_text_field($_POST['exato_token']       ?? ''));
+            update_option('limpvix_exato_endpoint',    esc_url_raw($_POST['exato_endpoint']             ?? 'https://api.exatodigital.com.br/v1'));
+
+            // Policy Engine
+            $reviewCategories = array_map('sanitize_text_field', (array) ($_POST['policy_review_categories'] ?? []));
+            update_option('limpvix_policy_review_categories', $reviewCategories);
         }
 
         wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=' . $tab . '&updated=1'));
         exit;
+    }
+
+    private function renderVerificacaoTab(): void
+    {
+        // Estado de conexão dos provedores
+        $ppidConnected  = !empty(get_option('limpvix_ppid_api_key')) && !empty(get_option('limpvix_ppid_api_secret'));
+        $exatoConnected = !empty(get_option('limpvix_exato_api_key')) && !empty(get_option('limpvix_exato_token'));
+
+        $policyCategories = (array) get_option('limpvix_policy_review_categories', []);
+
+        $allReviewCategories = [
+            'FRAUD_RELEVANT'   => 'Fraude / Estelionato',
+            'PROPERTY_CRIME'   => 'Crime contra patrimônio (furto, roubo)',
+            'DRUG_OFFENSE'     => 'Tráfico / Uso de entorpecentes',
+            'PUBLIC_DISORDER'  => 'Perturbação da ordem pública',
+        ];
+
+        ?>
+        <div style="max-width:900px;">
+
+            <!-- Status dos Provedores -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;">
+                <!-- PPID -->
+                <div style="padding:16px 20px;background:<?php echo $ppidConnected ? '#f0fdf4' : '#fef9f1'; ?>;border:1px solid <?php echo $ppidConnected ? '#bbf7d0' : '#fed7aa'; ?>;border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                        <span style="font-size:20px;"><?php echo $ppidConnected ? '✅' : '🔴'; ?></span>
+                        <strong style="font-size:15px;">PPID – KYC Provider</strong>
+                    </div>
+                    <p style="margin:0;font-size:13px;color:<?php echo $ppidConnected ? '#15803d' : '#c2410c'; ?>;">
+                        <?php echo $ppidConnected ? 'Conectado — usando provider real' : 'Desconectado — usando MockKycProvider (modo teste)'; ?>
+                    </p>
+                </div>
+                <!-- Exato -->
+                <div style="padding:16px 20px;background:<?php echo $exatoConnected ? '#f0fdf4' : '#fef9f1'; ?>;border:1px solid <?php echo $exatoConnected ? '#bbf7d0' : '#fed7aa'; ?>;border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                        <span style="font-size:20px;"><?php echo $exatoConnected ? '✅' : '🔴'; ?></span>
+                        <strong style="font-size:15px;">Exato Digital – Background Check</strong>
+                    </div>
+                    <p style="margin:0;font-size:13px;color:<?php echo $exatoConnected ? '#15803d' : '#c2410c'; ?>;">
+                        <?php echo $exatoConnected ? 'Conectado — usando provider real' : 'Desconectado — usando MockBackgroundProvider (modo teste)'; ?>
+                    </p>
+                </div>
+            </div>
+
+            <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px 16px;margin-bottom:24px;font-size:13px;">
+                <strong>ℹ️ Modo Teste:</strong> Enquanto as credenciais não estiverem configuradas, o sistema usa
+                providers mock que aprovam automaticamente — perfeito para desenvolvimento e testes.
+                Ao preencher as credenciais abaixo, o sistema ativa os providers reais sem nenhuma mudança de código.
+            </div>
+
+            <!-- Seção PPID -->
+            <h2 style="margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
+                🎯 PPID — KYC &amp; Verificação de Identidade
+            </h2>
+            <p style="color:#64748b;margin-bottom:16px;font-size:13px;">
+                O PPID (Provedor de Prova de Identidade Digital) realiza verificação biométrica via documento + selfie.
+                Ativado automaticamente ao preencher API Key e Secret abaixo.
+            </p>
+            <table class="form-table" role="presentation" style="margin-bottom:24px;">
+                <tr>
+                    <th scope="row"><label for="ppid_api_key">API Key</label></th>
+                    <td>
+                        <input type="password" id="ppid_api_key" name="ppid_api_key"
+                               value="<?php echo esc_attr(get_option('limpvix_ppid_api_key', '')); ?>"
+                               class="regular-text" autocomplete="off">
+                        <p class="description">Chave de API fornecida pelo PPID (obrigatório para ativar)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ppid_api_secret">API Secret</label></th>
+                    <td>
+                        <input type="password" id="ppid_api_secret" name="ppid_api_secret"
+                               value="<?php echo esc_attr(get_option('limpvix_ppid_api_secret', '')); ?>"
+                               class="regular-text" autocomplete="off">
+                        <p class="description">Secret de API fornecido pelo PPID (obrigatório para ativar)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ppid_endpoint">Endpoint</label></th>
+                    <td>
+                        <input type="url" id="ppid_endpoint" name="ppid_endpoint"
+                               value="<?php echo esc_attr(get_option('limpvix_ppid_endpoint', 'https://api.ppid.com.br/v1')); ?>"
+                               class="regular-text">
+                        <p class="description">URL base da API PPID (não alterar sem orientação do suporte)</p>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Seção Exato Digital -->
+            <h2 style="margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
+                🔍 Exato Digital — Background Check
+            </h2>
+            <p style="color:#64748b;margin-bottom:16px;font-size:13px;">
+                A Exato Digital realiza consultas de antecedentes criminais, processos e restrições.
+                Ativado automaticamente ao preencher API Key e Token abaixo.
+                Requer consentimento LGPD separado do profissional antes de cada consulta.
+            </p>
+            <table class="form-table" role="presentation" style="margin-bottom:24px;">
+                <tr>
+                    <th scope="row"><label for="exato_api_key">API Key</label></th>
+                    <td>
+                        <input type="password" id="exato_api_key" name="exato_api_key"
+                               value="<?php echo esc_attr(get_option('limpvix_exato_api_key', '')); ?>"
+                               class="regular-text" autocomplete="off">
+                        <p class="description">API Key da Exato Digital (obrigatório para ativar)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="exato_token">Token</label></th>
+                    <td>
+                        <input type="password" id="exato_token" name="exato_token"
+                               value="<?php echo esc_attr(get_option('limpvix_exato_token', '')); ?>"
+                               class="regular-text" autocomplete="off">
+                        <p class="description">Token de autenticação da Exato Digital (obrigatório para ativar)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="exato_endpoint">Endpoint</label></th>
+                    <td>
+                        <input type="url" id="exato_endpoint" name="exato_endpoint"
+                               value="<?php echo esc_attr(get_option('limpvix_exato_endpoint', 'https://api.exatodigital.com.br/v1')); ?>"
+                               class="regular-text">
+                        <p class="description">URL base da API Exato Digital</p>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Seção Policy Engine -->
+            <h2 style="margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
+                ⚙️ Policy Engine — Regras de Elegibilidade
+            </h2>
+            <p style="color:#64748b;margin-bottom:16px;font-size:13px;">
+                Configure quais categorias de antecedentes geram <strong>revisão manual</strong> (UNDER_REVIEW)
+                ao invés de bloqueio automático. Crimes violentos e sexuais são sempre bloqueadores imutáveis
+                independente desta configuração.
+            </p>
+
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin-bottom:16px;">
+                <p style="margin:0 0 10px;font-weight:600;font-size:13px;color:#374151;">
+                    🔴 Bloqueadores Imutáveis (sempre NOT_ELIGIBLE — não configurável):
+                </p>
+                <ul style="margin:0 0 16px;padding-left:20px;color:#6b7280;font-size:13px;">
+                    <li>Crimes sexuais (SEXUAL_CRIME)</li>
+                    <li>Crimes violentos com vítima (VIOLENT_CRIME)</li>
+                </ul>
+
+                <p style="margin:0 0 10px;font-weight:600;font-size:13px;color:#374151;">
+                    🟡 Categorias configuráveis (marque as que devem gerar UNDER_REVIEW):
+                </p>
+                <?php foreach ($allReviewCategories as $value => $label): ?>
+                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;cursor:pointer;">
+                        <input type="checkbox"
+                               name="policy_review_categories[]"
+                               value="<?php echo esc_attr($value); ?>"
+                               <?php checked(in_array($value, $policyCategories, true)); ?>>
+                        <strong><?php echo esc_html($value); ?></strong> — <?php echo esc_html($label); ?>
+                    </label>
+                <?php endforeach; ?>
+                <p style="margin:8px 0 0;font-size:12px;color:#9ca3af;">
+                    Categorias não marcadas → status APPROVED (aprovado com monitoramento).
+                </p>
+            </div>
+        </div>
+        <?php
     }
 
     private function renderFluxosOperacionaisTab(): void
