@@ -235,10 +235,45 @@ final class MigrationRunner
      */
     private function splitQueries(string $sql): array
     {
-        // Simple split by semicolon (doesn't handle stored procedures correctly, but ok for our use case)
-        $queries = explode(';', $sql);
+        // Split by semicolon but respect single-quoted strings (e.g. COMMENT 'a;b;c')
+        $queries  = [];
+        $current  = '';
+        $inString = false;
+        $len      = strlen($sql);
 
-        return array_filter(array_map('trim', $queries));
+        for ($i = 0; $i < $len; $i++) {
+            $char = $sql[$i];
+
+            if ($char === "'" && !$inString) {
+                $inString = true;
+                $current .= $char;
+            } elseif ($char === "'" && $inString) {
+                // Handle escaped single quote ('')
+                if (isset($sql[$i + 1]) && $sql[$i + 1] === "'") {
+                    $current .= "''";
+                    $i++;
+                } else {
+                    $inString = false;
+                    $current .= $char;
+                }
+            } elseif ($char === ';' && !$inString) {
+                $trimmed = trim($current);
+                if ($trimmed !== '') {
+                    $queries[] = $trimmed;
+                }
+                $current = '';
+            } else {
+                $current .= $char;
+            }
+        }
+
+        // Capture last statement without trailing semicolon
+        $trimmed = trim($current);
+        if ($trimmed !== '') {
+            $queries[] = $trimmed;
+        }
+
+        return $queries;
     }
 
     /**
