@@ -173,7 +173,7 @@ class ContractAutomation
     {
         // REFATORADO: Usar ExpireContract Use Case se disponível
         if (isset($GLOBALS['limpvix_contract_use_cases']['expire'])) {
-            /** @var \LimpVix\Application\UseCase\Contract\ExpireContract $expireUseCase */
+            /** @var \LimpVix\Application\UseCases\Contract\ExpireContract $expireUseCase */
             $expireUseCase = $GLOBALS['limpvix_contract_use_cases']['expire'];
 
             try {

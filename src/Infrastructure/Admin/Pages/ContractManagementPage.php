@@ -41,7 +41,7 @@ class ContractManagementPage
 
     public function register(): void
     {
-        add_action('admin_menu', [$this, 'addMenu']);
+        // Menu registration centralized in AdminBootstrap::registerMenu()
         add_action('admin_init', [$this, 'handleFormSubmission']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueScripts']);
 
@@ -119,7 +119,7 @@ class ContractManagementPage
                 $professionalRepo = $GLOBALS['limpvix_professional_repository']
                     ?? new \LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository();
 
-                $sendOffersUseCase = new \LimpVix\Application\UseCase\Briefing\SendOffers(
+                $sendOffersUseCase = new \LimpVix\Application\UseCases\Briefing\SendOffers(
                     $contractRepo,
                     $professionalRepo
                 );
@@ -234,7 +234,7 @@ class ContractManagementPage
                     throw new \Exception('CreateContract Use Case not available');
                 }
 
-                /** @var \LimpVix\Application\UseCase\Contract\CreateContract $createUseCase */
+                /** @var \LimpVix\Application\UseCases\Contract\CreateContract $createUseCase */
                 $createUseCase = $this->useCases['create'];
 
                 $contract = $createUseCase->execute([
@@ -271,7 +271,7 @@ class ContractManagementPage
                 throw new \Exception('CancelContract Use Case not available');
             }
 
-            /** @var \LimpVix\Application\UseCase\Contract\CancelContract $cancelUseCase */
+            /** @var \LimpVix\Application\UseCases\Contract\CancelContract $cancelUseCase */
             $cancelUseCase = $this->useCases['cancel'];
             $cancelUseCase->execute($contractId, $reason);
 
@@ -295,7 +295,7 @@ class ContractManagementPage
                 throw new \Exception('ResumeContract Use Case not available');
             }
 
-            /** @var \LimpVix\Application\UseCase\Contract\ResumeContract $resumeUseCase */
+            /** @var \LimpVix\Application\UseCases\Contract\ResumeContract $resumeUseCase */
             $resumeUseCase = $this->useCases['resume'];
             $resumeUseCase->execute($contractId);
 

@@ -24,16 +24,16 @@
 namespace LimpVix\Core;
 
 use LimpVix\Infrastructure\Persistence\Contract\WpContractRepository;
-use LimpVix\Application\UseCase\Contract\CreateContract;
-use LimpVix\Application\UseCase\Contract\SubmitForAllocation;
-use LimpVix\Application\UseCase\Contract\ActivateContract;
-use LimpVix\Application\UseCase\Contract\PauseContract;
-use LimpVix\Application\UseCase\Contract\ResumeContract;
-use LimpVix\Application\UseCase\Contract\CancelContract;
-use LimpVix\Application\UseCase\Contract\CompleteContract;
-use LimpVix\Application\UseCase\Contract\ExpireContract;
-use LimpVix\Application\UseCase\Contract\RenewContract;
-use LimpVix\Application\UseCase\Contract\ScheduleNextExecution;
+use LimpVix\Application\UseCases\Contract\CreateContract;
+use LimpVix\Application\UseCases\Contract\SubmitForAllocation;
+use LimpVix\Application\UseCases\Contract\ActivateContract;
+use LimpVix\Application\UseCases\Contract\PauseContract;
+use LimpVix\Application\UseCases\Contract\ResumeContract;
+use LimpVix\Application\UseCases\Contract\CancelContract;
+use LimpVix\Application\UseCases\Contract\CompleteContract;
+use LimpVix\Application\UseCases\Contract\ExpireContract;
+use LimpVix\Application\UseCases\Contract\RenewContract;
+use LimpVix\Application\UseCases\Contract\ScheduleNextExecution;
 use LimpVix\Infrastructure\Events\WordPressEventDispatcher;
 
 defined('ABSPATH') || exit;
@@ -150,8 +150,8 @@ final class ContractBootstrap
         // Build Use Cases array
         $useCases = [
             'create' => new CreateContract($repository, $contractNumberGenerator),
-            'list' => new \LimpVix\Application\UseCase\Contract\ListContracts($repository),
-            'get_statistics' => new \LimpVix\Application\UseCase\Contract\GetContractStatistics(),
+            'list' => new \LimpVix\Application\UseCases\Contract\ListContracts($repository),
+            'get_statistics' => new \LimpVix\Application\UseCases\Contract\GetContractStatistics(),
             'submit_for_allocation' => new SubmitForAllocation($repository),
             'activate' => new ActivateContract($repository),
             'pause' => new PauseContract($repository),
@@ -165,19 +165,19 @@ final class ContractBootstrap
 
         // GAP #7: Add reallocation use cases (if dependencies available)
         if ($professionalRepository && $executionRepository) {
-            $useCases['reallocate_professional'] = new \LimpVix\Application\UseCase\Contract\ReallocateProfessional(
+            $useCases['reallocate_professional'] = new \LimpVix\Application\UseCases\Contract\ReallocateProfessional(
                 $repository,
                 $professionalRepository,
                 $executionRepository
             );
 
-            $useCases['get_reallocation_options'] = new \LimpVix\Application\UseCase\Contract\GetReallocationOptions(
+            $useCases['get_reallocation_options'] = new \LimpVix\Application\UseCases\Contract\GetReallocationOptions(
                 $repository,
                 $professionalRepository
             );
 
             // GAP #3: Add SendOffers use case
-            $useCases['send_offers'] = new \LimpVix\Application\UseCase\Briefing\SendOffers(
+            $useCases['send_offers'] = new \LimpVix\Application\UseCases\Briefing\SendOffers(
                 $professionalRepository,
                 $repository
             );
@@ -734,7 +734,7 @@ final class ContractBootstrap
                 return;
             }
 
-            /** @var \LimpVix\Application\UseCase\Briefing\SendOffers $sendOffersUseCase */
+            /** @var \LimpVix\Application\UseCases\Briefing\SendOffers $sendOffersUseCase */
             $sendOffersUseCase = $useCases['send_offers'];
 
             // Execute SendOffers

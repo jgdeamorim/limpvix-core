@@ -35,7 +35,7 @@ class ServiceCatalogPage
 
     public function register(): void
     {
-        add_action('admin_menu', [$this, 'addMenu']);
+        // Menu registration centralized in AdminBootstrap::registerMenu()
         add_action('admin_init', [$this, 'handleFormSubmission']);
     }
 

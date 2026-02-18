@@ -16,8 +16,8 @@
 namespace LimpVix\Infrastructure\Admin\Pages;
 
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
-use LimpVix\Application\UseCase\Professional\RegisterProfessional;
-use LimpVix\Application\UseCase\Professional\UpdateProfessionalScore;
+use LimpVix\Application\UseCases\Professional\RegisterProfessional;
+use LimpVix\Application\UseCases\Professional\UpdateProfessionalScore;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
 
 defined('ABSPATH') || exit;
@@ -43,15 +43,13 @@ class ProfessionalManagementPage
 
     public function register(): void
     {
-        // Call addMenu() directly since we're already inside admin_menu hook
-        // (called from ProfessionalBootstrap::registerAdminPages() which is hooked to admin_menu)
-        $this->addMenu();
+        // Menu registration centralized in AdminBootstrap::registerMenu()
 
         // Register other hooks normally
         add_action('admin_init', [$this, 'handleFormSubmission']);
         add_action('admin_init', [$this, 'handleQuickActions']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
-        
+
         // Register KYC AJAX handlers
         $this->registerAjaxHandlers();
     }

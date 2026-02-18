@@ -9,11 +9,11 @@ use WP_REST_Request;
 use WP_REST_Response;
 use WP_Error;
 use LimpVix\Infrastructure\Persistence\Customer\WpCustomerRepository;
-use LimpVix\Application\UseCase\Customer\GetCustomerProfile;
-use LimpVix\Application\UseCase\Customer\ListCustomers;
-use LimpVix\Application\UseCase\Customer\UpdateCustomerProfile;
-use LimpVix\Application\UseCase\Customer\GetCustomerContracts;
-use LimpVix\Application\UseCase\Customer\GetCustomerBriefings;
+use LimpVix\Application\UseCases\Customer\GetCustomerProfile;
+use LimpVix\Application\UseCases\Customer\ListCustomers;
+use LimpVix\Application\UseCases\Customer\UpdateCustomerProfile;
+use LimpVix\Application\UseCases\Customer\GetCustomerContracts;
+use LimpVix\Application\UseCases\Customer\GetCustomerBriefings;
 
 defined("ABSPATH") || exit;
 

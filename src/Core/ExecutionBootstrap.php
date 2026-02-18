@@ -14,13 +14,13 @@
 namespace LimpVix\Core;
 
 use LimpVix\Infrastructure\Persistence\Execution\WpContractExecutionRepository;
-use LimpVix\Application\UseCase\Execution\CreateExecution;
-use LimpVix\Application\UseCase\Execution\ScheduleExecution;
-use LimpVix\Application\UseCase\Execution\StartExecution;
-use LimpVix\Application\UseCase\Execution\CompleteExecution;
-use LimpVix\Application\UseCase\Execution\CancelExecution;
-use LimpVix\Application\UseCase\Execution\MarkNoShow;
-use LimpVix\Application\UseCase\Execution\RescheduleExecution;
+use LimpVix\Application\UseCases\Execution\CreateExecution;
+use LimpVix\Application\UseCases\Execution\ScheduleExecution;
+use LimpVix\Application\UseCases\Execution\StartExecution;
+use LimpVix\Application\UseCases\Execution\CompleteExecution;
+use LimpVix\Application\UseCases\Execution\CancelExecution;
+use LimpVix\Application\UseCases\Execution\MarkNoShow;
+use LimpVix\Application\UseCases\Execution\RescheduleExecution;
 
 defined('ABSPATH') || exit;
 
@@ -78,8 +78,8 @@ final class ExecutionBootstrap
 
         $GLOBALS['limpvix_execution_use_cases'] = [
             'create' => new CreateExecution($repository),
-            'list' => new \LimpVix\Application\UseCase\Execution\ListExecutions($repository),
-            'get' => new \LimpVix\Application\UseCase\Execution\GetExecution($repository),
+            'list' => new \LimpVix\Application\UseCases\Execution\ListExecutions($repository),
+            'get' => new \LimpVix\Application\UseCases\Execution\GetExecution($repository),
             'schedule' => new ScheduleExecution($repository),
             'start' => new StartExecution($repository),
             'complete' => new CompleteExecution($repository),

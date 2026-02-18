@@ -117,7 +117,7 @@ final class SendOffersCronAdapter
                 return $stats;
             }
 
-            /** @var \LimpVix\Application\UseCase\Briefing\SendOffers $sendOffersUseCase */
+            /** @var \LimpVix\Application\UseCases\Briefing\SendOffers $sendOffersUseCase */
             $sendOffersUseCase = $useCases['send_offers'];
 
             // Process each contract

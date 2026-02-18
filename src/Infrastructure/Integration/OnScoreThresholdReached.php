@@ -1,7 +1,7 @@
 <?php
 namespace LimpVix\Infrastructure\Integration;
 
-use LimpVix\Application\UseCase\Contract\GetReallocationOptions;
+use LimpVix\Application\UseCases\Contract\GetReallocationOptions;
 use LimpVix\Application\Services\AdminNotificationService;
 use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 use LimpVix\Infrastructure\Persistence\WpContractRepository;

@@ -32,7 +32,7 @@ class CustomersManagementPage
 
     public function register(): void
     {
-        add_action('admin_menu', [$this, 'addMenu']);
+        // Menu registration centralized in AdminBootstrap::registerMenu()
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
     }
 

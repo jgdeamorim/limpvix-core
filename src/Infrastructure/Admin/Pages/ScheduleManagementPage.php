@@ -26,7 +26,7 @@ final class ScheduleManagementPage
     public static function init(): void
     {
         $instance = new self();
-        add_action('admin_menu', [$instance, 'registerMenu']);
+        // Menu registration centralized in AdminBootstrap::registerMenu()
         add_action('admin_enqueue_scripts', [$instance, 'enqueueAssets']);
     }
 

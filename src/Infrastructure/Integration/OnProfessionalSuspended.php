@@ -23,8 +23,8 @@
 
 namespace LimpVix\Infrastructure\Integration;
 
-use LimpVix\Application\UseCase\Contract\ReallocateProfessional;
-use LimpVix\Application\UseCase\Contract\GetReallocationOptions;
+use LimpVix\Application\UseCases\Contract\ReallocateProfessional;
+use LimpVix\Application\UseCases\Contract\GetReallocationOptions;
 use LimpVix\Application\Services\AdminNotificationService;
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 
