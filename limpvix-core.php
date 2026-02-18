@@ -2,11 +2,11 @@
 /**
  * Plugin Name: LimpVix Core
  * Plugin URI: https://limpvix.com.br
- * Description: Camada de governança soberana sobre Booknetic. Aplica regras de negócio da LimpVix sem modificar o Booknetic.
- * Version: 0.1.0
+ * Description: Motor de negócios da plataforma LimpVix — agendamentos, execuções, pagamentos EFI Bank e gestão de profissionais nativos.
+ * Version: 0.2.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
- * Requires Plugins: woocommerce, booknetic
+ * Requires Plugins: woocommerce
  * Author: LimpVix
  * Author URI: https://limpvix.com.br
  * License: Proprietary
@@ -16,18 +16,17 @@
  * @package LimpVix\Core
  *
  * PRINCÍPIOS FUNDAMENTAIS:
- * - Este plugin NÃO modifica código do Booknetic
- * - Interceptação apenas via WordPress hooks/filters
- * - Booknetic = Engine técnico, LimpVix-Core = Regras de negócio
+ * - Execuções nativas via wp_limpvix_executions
+ * - Profissionais nativos via wp_limpvix_professionals
+ * - Pagamentos via EFI Bank (PIX Cash-In e Cash-Out)
  * - Feature Flags controlam TUDO
  * - DDD leve + Clean Architecture
- * - Adapter Pattern para Booknetic
  */
 
 defined('ABSPATH') || exit;
 
 // Constantes do plugin
-define('LIMPVIX_VERSION', '0.1.0');
+define('LIMPVIX_VERSION', '0.2.0');
 define('LIMPVIX_PLUGIN_FILE', __FILE__);
 define('LIMPVIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('LIMPVIX_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -74,13 +73,11 @@ add_filter('cron_schedules', function($schedules) {
  * Inicializa o plugin quando WordPress estiver pronto
  *
  * RESPONSABILIDADE:
- * - Verificar dependências (Booknetic instalado)
  * - Inicializar Kernel
  * - Inicializar módulos (Admin, Communication, Adapters)
  * - Registrar hooks de ativação/desativação
  */
 function limpvix_core_init() {
-    // NOTA: NÃO bloqueamos inicialização se Booknetic ausente
     // Plugin deve carregar SEMPRE para mostrar menu admin
     // Alertas de dependências são mostrados em Configurações > Dependências
 
@@ -107,22 +104,7 @@ function limpvix_core_init() {
         $adapterBootstrap->boot();
     }
 }
-add_action('plugins_loaded', 'limpvix_core_init', 20); // Prioridade 20 = depois do Booknetic
-
-/**
- * Aviso se Booknetic não estiver instalado
- */
-function limpvix_core_missing_booknetic_notice() {
-    ?>
-    <div class="notice notice-error">
-        <p>
-            <strong>LimpVix Core:</strong>
-            O plugin <strong>Booknetic</strong> precisa estar instalado e ativo.
-            LimpVix Core atua como camada de governança sobre o Booknetic.
-        </p>
-    </div>
-    <?php
-}
+add_action('plugins_loaded', 'limpvix_core_init', 20);
 
 /**
  * Hook de ativação
@@ -143,12 +125,6 @@ register_activation_hook(__FILE__, function() {
     if (!is_plugin_active('woocommerce/woocommerce.php')) {
         deactivate_plugins(LIMPVIX_PLUGIN_BASENAME);
         wp_die('LimpVix Core requer que o WooCommerce esteja instalado e ativo. O WooCommerce gerencia o fluxo de pagamento dos clientes.');
-    }
-
-    // Verificar se Booknetic existe
-    if (!is_plugin_active('booknetic/init.php')) {
-        deactivate_plugins(LIMPVIX_PLUGIN_BASENAME);
-        wp_die('LimpVix Core requer que o Booknetic esteja instalado e ativo.');
     }
 
     // Executar migrations automaticamente via MigrationManager
