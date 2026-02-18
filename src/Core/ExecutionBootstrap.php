@@ -153,13 +153,144 @@ final class ExecutionBootstrap
      * @param array $eventData
      * @return void
      */
+    /**
+     * Handler: Execution Scheduled
+     *
+     * Quando uma ContractExecution é agendada, cria um Execution
+     * para rastreamento em tempo real (check-in GPS, evidências, SLA).
+     *
+     * ContractExecution (agendamento) → Execution (tempo real)
+     *
+     * @param array $eventData {execution_id, contract_id, professional_user_id, scheduled_date}
+     * @return void
+     */
     public static function onExecutionScheduled($eventData): void
     {
-        // @future: Enviar notificação ao profissional
-        // @future: Criar lembrete automático
+        try {
+            $contractId = $eventData['contract_id'] ?? null;
+            $professionalUserId = $eventData['professional_user_id'] ?? null;
+            $scheduledDate = $eventData['scheduled_date'] ?? null;
+            $contractExecutionId = $eventData['execution_id'] ?? null;
 
-        self::logInfo('Execution scheduled: ' . ($eventData['execution_id'] ?? 'unknown') .
-                     ' - Date: ' . ($eventData['scheduled_date'] ?? 'N/A'));
+            if (!$contractId || !$professionalUserId || !$scheduledDate) {
+                self::logError('Missing required data in execution_scheduled event');
+                return;
+            }
+
+            global $wpdb;
+
+            // 1. Buscar contrato para endereço do serviço
+            $contract = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, service_address FROM {$wpdb->prefix}limpvix_contracts WHERE id = %d",
+                $contractId
+            ), ARRAY_A);
+
+            if (!$contract) {
+                self::logError("Contract #{$contractId} not found for execution creation");
+                return;
+            }
+
+            // 2. Buscar order_uuid via ContractExecution → Briefing → Order
+            $orderUuid = null;
+
+            if ($contractExecutionId) {
+                $briefingUuid = $wpdb->get_var($wpdb->prepare(
+                    "SELECT briefing_uuid FROM {$wpdb->prefix}limpvix_contract_executions WHERE id = %d",
+                    $contractExecutionId
+                ));
+
+                if ($briefingUuid) {
+                    $orderId = $wpdb->get_var($wpdb->prepare(
+                        "SELECT order_id FROM {$wpdb->prefix}limpvix_briefings WHERE uuid = %s",
+                        $briefingUuid
+                    ));
+
+                    if ($orderId) {
+                        $orderUuid = $wpdb->get_var($wpdb->prepare(
+                            "SELECT uuid FROM {$wpdb->prefix}limpvix_orders WHERE id = %d",
+                            $orderId
+                        ));
+                    }
+                }
+            }
+
+            // Fallback: buscar última order do mesmo customer/professional
+            if (!$orderUuid) {
+                $clientId = $wpdb->get_var($wpdb->prepare(
+                    "SELECT client_user_id FROM {$wpdb->prefix}limpvix_contracts WHERE id = %d",
+                    $contractId
+                ));
+
+                if ($clientId) {
+                    $orderUuid = $wpdb->get_var($wpdb->prepare(
+                        "SELECT uuid FROM {$wpdb->prefix}limpvix_orders
+                         WHERE customer_id = %d
+                         ORDER BY created_at DESC LIMIT 1",
+                        $clientId
+                    ));
+                }
+            }
+
+            if (!$orderUuid) {
+                self::logError("No order found for contract #{$contractId} - generating placeholder");
+                $orderUuid = wp_generate_uuid4();
+            }
+
+            // 3. Verificar se Execution já existe para esta data/ordem
+            $existingExecution = $wpdb->get_var($wpdb->prepare(
+                "SELECT execution_uuid FROM {$wpdb->prefix}limpvix_executions
+                 WHERE order_uuid = %s AND DATE(scheduled_start_time) = DATE(%s)",
+                $orderUuid,
+                $scheduledDate
+            ));
+
+            if ($existingExecution) {
+                self::logInfo("Execution already exists for order {$orderUuid}: {$existingExecution}");
+                return;
+            }
+
+            // 4. Extrair coordenadas do service_address (JSON)
+            $serviceAddress = json_decode($contract['service_address'] ?? '{}', true);
+            $lat = (float) ($serviceAddress['coordinates']['latitude'] ?? 0);
+            $lon = (float) ($serviceAddress['coordinates']['longitude'] ?? 0);
+
+            // Validar coordenadas (0,0 = não disponível)
+            if ($lat == 0 && $lon == 0) {
+                self::logInfo("No coordinates available for contract #{$contractId} - using default");
+                $lat = -20.31;  // Default: Vitória/ES (sede LimpVix)
+                $lon = -40.315;
+            }
+
+            $serviceLocation = new \LimpVix\Domain\Execution\ValueObjects\GeoLocation($lat, $lon);
+
+            // 5. Criar Execution para rastreamento em tempo real
+            $executionUuid = wp_generate_uuid4();
+
+            $execution = \LimpVix\Domain\Execution\Execution::create(
+                $executionUuid,
+                $orderUuid,
+                $professionalUserId,
+                new \DateTimeImmutable($scheduledDate),
+                $serviceLocation
+            );
+
+            $repository = new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();
+            $repository->save($execution);
+
+            // 6. Vincular Execution à ContractExecution via schedule_uuid
+            if ($contractExecutionId) {
+                $wpdb->update(
+                    $wpdb->prefix . 'limpvix_contract_executions',
+                    ['schedule_uuid' => $executionUuid],
+                    ['id' => $contractExecutionId]
+                );
+            }
+
+            self::logInfo("Execution created: UUID={$executionUuid}, Order={$orderUuid}, Professional={$professionalUserId}, Date={$scheduledDate}");
+
+        } catch (\Exception $e) {
+            self::logError('Failed to create Execution from scheduled event: ' . $e->getMessage());
+        }
     }
 
     /**

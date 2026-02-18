@@ -21,6 +21,7 @@ use LimpVix\Infrastructure\Integration\OnProfessionalSuspended;
 use LimpVix\Infrastructure\Integration\OnContractExpiring;
 use LimpVix\Infrastructure\Integration\OfferNotificationListener;
 use LimpVix\Infrastructure\Integration\ExecutionCheckedInListener; // GAP #3
+use LimpVix\Infrastructure\Integration\ScheduleCreationListener;
 
 /**
  * Bootstrap: Scheduling Module
@@ -109,6 +110,14 @@ final class SchedulingBootstrap
         OnContractExpiring::init();          // Daily cron: recommends renewal with different prof if score <3.5
         OfferNotificationListener::init();          // Sends notifications when offers are sent
         ExecutionCheckedInListener::init();         // GAP #3: Sends check-in notification to customer
+
+        // Schedule creation from Briefing lock (Briefing → Schedule)
+        if (class_exists(ScheduleCreationListener::class)) {
+            $briefingRepository = $GLOBALS['limpvix_briefing_repository']
+                ?? new \LimpVix\Infrastructure\Persistence\WpBriefingRepository();
+            $scheduleCreationListener = new ScheduleCreationListener($briefingRepository);
+            $scheduleCreationListener->register();
+        }
     }
 
     /**

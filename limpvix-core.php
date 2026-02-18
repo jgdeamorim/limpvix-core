@@ -66,6 +66,10 @@ add_filter('cron_schedules', function($schedules) {
         'interval' => 300, // 5 minutos
         'display' => __('A cada 5 minutos (LimpVix)', 'limpvix'),
     ];
+    $schedules['every_15_minutes'] = [
+        'interval' => 900, // 15 minutos
+        'display' => __('A cada 15 minutos (LimpVix)', 'limpvix'),
+    ];
     return $schedules;
 });
 
@@ -166,10 +170,8 @@ register_activation_hook(__FILE__, function() {
         LimpVix\Infrastructure\Configuration\PlatformFeeConfig::initializeDefault();
     }
 
-    // Remover custom user roles
-    if (class_exists('LimpVix\\Core\\UserRoles')) {
-        LimpVix\Core\UserRoles::unregister();
-    }
+    // NOTA: UserRoles::unregister() removido do activation hook.
+    // Roles devem ser desregistradas apenas no deactivation hook.
 
     // flush_rewrite_rules();
 });

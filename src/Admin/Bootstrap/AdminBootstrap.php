@@ -364,6 +364,7 @@ class AdminBootstrap
         // Processar salvamento da aba Briefing
         if ($activeTab === 'briefing' && isset($_POST['limpvix_save_briefing_settings']) && check_admin_referer('limpvix_briefing_settings')) {
             $this->handleBriefingSave();
+        }
 
         // Processar salvamento Twilio OTP
         if ($activeTab === 'conexoes' && isset($_POST['limpvix_save_twilio_settings'])) {
@@ -377,7 +378,6 @@ class AdminBootstrap
             update_option('limpvix_exato_endpoint', esc_url_raw($_POST['exato_endpoint']         ?? 'https://api.exatodigital.com.br/v1'));
             wp_redirect(add_query_arg(['page' => 'limpvix-settings', 'tab' => 'conexoes', 'updated' => '1'], admin_url('admin.php')));
             exit;
-        }
         }
 
         // Processar ações da aba Equipe (deve ser ANTES do output HTML para permitir redirect)
@@ -517,11 +517,10 @@ class AdminBootstrap
         global $wpdb;
 
         // Verificar plugins requeridos
-        $isBookneticActive = false; // agendador externo não usado
         $isWooCommerceActive = is_plugin_active('woocommerce/woocommerce.php');
         $isMercadoPagoActive = is_plugin_active('woocommerce-mercadopago/woocommerce-mercadopago.php');
 
-        $allPluginsActive = $isBookneticActive && $isWooCommerceActive && $isMercadoPagoActive;
+        $allPluginsActive = $isWooCommerceActive && $isMercadoPagoActive;
 
         // Verificar tabelas críticas
         $tableName = $wpdb->prefix . 'limpvix_appointment_order_map';
@@ -1931,7 +1930,6 @@ class AdminBootstrap
                         'NVoip OTP' => NVoipSettings::isConnected(),
                         'Google Business' => GoogleBusinessSettings::isConnected(),
                         'Mercado Pago' => \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected(),
-                        'booknetic' => false, // Booknetic removido
                         'WooCommerce' => class_exists('WooCommerce'),
                     ];
                     ?>

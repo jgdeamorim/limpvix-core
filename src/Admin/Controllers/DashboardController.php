@@ -105,7 +105,7 @@ class DashboardController
                     </div>
                     <div class="card-content">
                         <div class="card-label">Appointments</div>
-                        <div class="card-value"><?php echo number_format($metrics['appointments']['total'], 0, ',', '.'); ?></div>
+                        <div class="card-value"><?php echo number_format($metrics['appointments']['total'] ?? 0, 0, ',', '.'); ?></div>
                         <div class="card-meta">
                             Integração LimpVix
                         </div>
@@ -421,11 +421,17 @@ class DashboardController
             ARRAY_A
         );
 
+        // 5. Appointments/Executions
+        $appointments = [
+            'total' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_executions"),
+        ];
+
         return [
             'orders' => $orders,
             'revenue' => $revenue,
             'payouts' => $payouts,
             'professionals' => $professionals,
+            'appointments' => $appointments,
             'health' => $health,
             'recent_orders' => $recent_orders ?: [],
         ];

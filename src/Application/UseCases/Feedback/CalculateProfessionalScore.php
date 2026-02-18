@@ -113,8 +113,10 @@ final class CalculateProfessionalScore
             // Exponential decay: older feedback has less weight
             $weight = pow(self::DECAY_RATE, $daysOld);
 
-            // Rating is already 1-5
-            $rating = (float) $feedback->getRating();
+            // Rating adjusted by severity penalty (if feedback was resolved with gravity classification)
+            // grave=−1.50, medio=−0.75, leve=0.00  (Migration 030)
+            $penalty = $feedback->getScorePenalty();
+            $rating  = max(0.0, (float) $feedback->getRating() - $penalty);
 
             $totalWeightedRating += $rating * $weight;
             $totalWeight += $weight;

@@ -55,9 +55,9 @@ class CommunicationBootstrap
         $eventDispatcher = new CommunicationEventDispatcher();
 
         // 4. Registrar Use Cases
-        // IMPORTANTE: communicationProvider será injetado quando criar os providers
-        // Por enquanto, usar null (será corrigido na próxima fase)
-        $communicationProvider = null; // TODO: Implementar WhatsApp360DialogProvider
+        // MultiChannelCommunicationProvider adapta TwilioSms + WhatsApp360Dialog
+        // para a CommunicationProviderInterface unificada
+        $communicationProvider = new \LimpVix\Infrastructure\Communication\Providers\MultiChannelCommunicationProvider();
 
         $sendTemplatedMessageUseCase = new SendTemplatedMessage(
             $templateRepository,

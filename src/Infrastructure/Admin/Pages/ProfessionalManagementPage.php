@@ -2555,15 +2555,14 @@ class ProfessionalManagementPage
         $search       = sanitize_text_field($_GET['payout_search'] ?? '');
 
         // ── Distribuição de métodos de payout entre profissionais ───────────────
-        // Arquitetura: profissionais conectam SEU PRÓPRIO MP via OAuth.
-        // Sem OAuth → payout é manual via PIX pelo admin.
-        // A plataforma NÃO precisa de credenciais MP próprias para os repasses.
+        // Arquitetura: payout automático via EFI Bank PIX se profissional tem chave PIX.
+        // Sem chave PIX → payout é processado manualmente pelo admin.
         $profTable = $wpdb->prefix . 'limpvix_professionals';
         $mpStats = $wpdb->get_row(
             "SELECT
                 COUNT(*) AS total,
-                SUM(mp_oauth_status = 'connected') AS mp_connected,
-                SUM(mp_oauth_status != 'connected' OR mp_oauth_status IS NULL) AS pix_only
+                SUM(pix_key IS NOT NULL AND pix_key != '') AS mp_connected,
+                SUM(pix_key IS NULL OR pix_key = '') AS pix_only
              FROM {$profTable}
              WHERE is_active = 1 AND is_permanently_banned = 0",
             ARRAY_A
@@ -2597,7 +2596,7 @@ class ProfessionalManagementPage
                     — Total: <strong>R$ <?php echo number_format($pixPendingTotal, 2, ',', '.'); ?></strong>
                 </p>
                 <p style="margin:4px 0 8px; color:#6b7280; font-size:13px;">
-                    Profissionais sem MercadoPago OAuth conectado recebem via PIX manual.
+                    Profissionais sem chave PIX cadastrada recebem via processamento manual.
                     Use o botão <strong>"🏦 Pagar PIX"</strong> em cada linha para ver os dados de pagamento e registrar o comprovante.
                     <?php if (!empty($_GET['payout_status']) && $_GET['payout_status'] === 'approved'): ?>
                         <span style="color:#059669;">✓ Exibindo payouts aprovados abaixo.</span>
@@ -2618,18 +2617,18 @@ class ProfessionalManagementPage
                 <div>
                     <h2 style="color:#fff; margin:0 0 8px; font-size:26px; font-weight:700; line-height:1.2;">💰 Payouts — Repasses Financeiros</h2>
                     <p style="color:rgba(255,255,255,0.80); margin:0; font-size:14px;">
-                        Gestão de repasses para profissionais · Dual mode: MP OAuth (auto) + PIX Manual (admin)
+                        Gestão de repasses para profissionais · EFI Bank PIX automático + PIX Manual (admin)
                     </p>
                 </div>
                 <!-- Distribuição de métodos -->
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                     <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:10px 14px; text-align:center; min-width:90px;">
                         <div style="font-size:20px; font-weight:700; color:#6ee7b7;"><?php echo (int)($mpStats['mp_connected'] ?? 0); ?></div>
-                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">MP OAuth ⚡</div>
+                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">Com PIX ⚡</div>
                     </div>
                     <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:10px 14px; text-align:center; min-width:90px;">
                         <div style="font-size:20px; font-weight:700; color:#fbbf24;"><?php echo (int)($mpStats['pix_only'] ?? 0); ?></div>
-                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">PIX Manual 🏦</div>
+                        <div style="font-size:10px; color:rgba(255,255,255,0.85); font-weight:600;">Sem PIX 🏦</div>
                     </div>
                 </div>
             </div>
@@ -2735,8 +2734,9 @@ class ProfessionalManagementPage
         string $search
     ): void {
         global $wpdb;
-        $ptable = $wpdb->prefix . 'limpvix_payouts';
+        $ptable   = $wpdb->prefix . 'limpvix_payouts';
         $prftable = $wpdb->prefix . 'limpvix_professionals';
+        $fbtable  = $wpdb->prefix . 'limpvix_feedback';
 
         // ── WHERE ──────────────────────────────────────────────────────────────
         $whereParts = ['1=1'];
@@ -2760,8 +2760,13 @@ class ProfessionalManagementPage
 
         $whereStr = 'WHERE ' . implode(' AND ', $whereParts);
 
+        // LEFT JOIN com feedback bloqueante (rating ≤ 2, ainda pendente de aprovação)
         $joinSql = "FROM {$ptable} py
-                    LEFT JOIN {$prftable} pr ON pr.id = py.professional_id";
+                    LEFT JOIN {$prftable} pr ON pr.id = py.professional_id
+                    LEFT JOIN {$fbtable} fb
+                        ON fb.order_id = py.order_id
+                       AND fb.validation_status = 'pending'
+                       AND fb.rating <= 2";
 
         $orderSql = 'ORDER BY py.created_at DESC';
 
@@ -2777,7 +2782,7 @@ class ProfessionalManagementPage
         $total      = (int) $wpdb->get_var($countSql);
         $totalPages = max(1, (int) ceil($total / $perPage));
 
-        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf, pr.mp_oauth_status AS prof_mp_status, pr.pix_key AS prof_pix_key, pr.pix_key_type AS prof_pix_key_type';
+        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf, pr.pix_key AS prof_pix_key, pr.pix_key_type AS prof_pix_key_type, fb.id AS blocking_feedback_id, fb.rating AS blocking_feedback_rating, fb.comment AS blocking_feedback_comment';
 
         $dataSql = empty($params)
             ? $wpdb->prepare(
@@ -2882,7 +2887,6 @@ class ProfessionalManagementPage
                                             <div style="color:#6b7280;"><?php echo match($py['recipient_type']) {
                                                 'pix'          => '💳 PIX',
                                                 'bank_account' => '🏦 Conta Bancária',
-                                                'mp_account'   => '💰 Saldo MP',
                                                 default        => esc_html($py['recipient_type']),
                                             }; ?></div>
                                         <?php endif; ?>
@@ -2902,26 +2906,32 @@ class ProfessionalManagementPage
                                     <td>
                                         <?php
                                         // Determinar método deste payout:
-                                        // mp_oauth → profissional tem MP conectado → botão "Processar" (auto)
-                                        // pix_manual / sem método → admin processa manualmente via PIX
-                                        $payoutMethod  = $py['payout_method'] ?? '';
-                                        $profMpStatus  = $py['prof_mp_status'] ?? '';
-                                        $isAutoMp      = ($payoutMethod === 'mp_oauth' && $profMpStatus === 'connected');
-                                        $isPixManual   = !$isAutoMp; // tudo que não é MP OAuth = PIX manual
+                                        // profissional com chave PIX → EFI Bank processa automaticamente
+                                        // sem chave PIX → admin processa manualmente via PIX
+                                        $profPixKey  = $py['prof_pix_key'] ?? $py['recipient_key'] ?? '';
+                                        $isPixManual = empty($profPixKey);
                                         ?>
-                                        <?php if ($py['status'] === 'approved' && $isAutoMp): ?>
-                                            <!-- Payout automático via MP OAuth do profissional -->
-                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
-                                                <input type="hidden" name="action" value="limpvix_process_payout">
-                                                <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
-                                                <?php wp_nonce_field('limpvix_process_payout_' . $py['id']); ?>
-                                                <button type="submit" class="button button-primary button-small"
-                                                        onclick="return confirm('Processar repasse MP OAuth #<?php echo (int) $py['id']; ?>?');">
-                                                    ⚡ Processar MP
-                                                </button>
-                                            </form>
+                                        <?php if ($py['status'] === 'approved' && !$isPixManual): ?>
+                                            <!-- Payout automático via EFI Bank PIX -->
+                                            <?php
+                                            $fbId      = (int)    ($py['blocking_feedback_id']      ?? 0);
+                                            $fbRating  = (int)    ($py['blocking_feedback_rating']  ?? 0);
+                                            $fbComment = (string) ($py['blocking_feedback_comment'] ?? '');
+                                            $fbNonce   = $fbId > 0 ? wp_create_nonce('limpvix_resolve_feedback_' . $fbId) : '';
+                                            $execNonce = wp_create_nonce('limpvix_process_payout_' . $py['id']);
+                                            ?>
+                                            <button type="button" class="button button-primary button-small lmpx-process-pix-btn"
+                                                    data-payout-id="<?php echo (int) $py['id']; ?>"
+                                                    data-feedback-id="<?php echo $fbId; ?>"
+                                                    data-feedback-rating="<?php echo $fbRating; ?>"
+                                                    data-feedback-comment="<?php echo esc_attr($fbComment); ?>"
+                                                    data-feedback-nonce="<?php echo esc_attr($fbNonce); ?>"
+                                                    data-exec-nonce="<?php echo esc_attr($execNonce); ?>"
+                                                    data-mode="execute">
+                                                ⚡ Processar PIX
+                                            </button>
                                         <?php elseif ($py['status'] === 'approved' && $isPixManual): ?>
-                                            <!-- Payout manual PIX — abre modal de pagamento com QR Code -->
+                                            <!-- Payout manual PIX — verifica feedback, depois abre modal de pagamento -->
                                             <?php
                                             $pixKey     = $py['prof_pix_key']      ?? $py['recipient_key'] ?? '';
                                             $pixKeyType = $py['prof_pix_key_type']  ?? $py['recipient_type'] ?? 'pix';
@@ -2936,11 +2946,40 @@ class ProfessionalManagementPage
                                                 'amount'  => $pixAmount,
                                                 'nonce'   => $nonce,
                                             ]);
+                                            $fbId      = (int)    ($py['blocking_feedback_id']      ?? 0);
+                                            $fbRating  = (int)    ($py['blocking_feedback_rating']  ?? 0);
+                                            $fbComment = (string) ($py['blocking_feedback_comment'] ?? '');
+                                            $fbNonce   = $fbId > 0 ? wp_create_nonce('limpvix_resolve_feedback_' . $fbId) : '';
                                             ?>
                                             <button type="button" class="button button-primary button-small limpvix-pix-pay-btn"
                                                     data-payout='<?php echo esc_attr($pixData); ?>'
+                                                    data-feedback-id="<?php echo $fbId; ?>"
+                                                    data-feedback-rating="<?php echo $fbRating; ?>"
+                                                    data-feedback-comment="<?php echo esc_attr($fbComment); ?>"
+                                                    data-feedback-nonce="<?php echo esc_attr($fbNonce); ?>"
+                                                    data-mode="resolve_only"
                                                     style="background:#2563eb; border-color:#1d4ed8; color:#fff;">
                                                 🏦 Pagar PIX
+                                            </button>
+                                        <?php elseif ($py['status'] === 'on_hold' && !empty($py['blocking_feedback_id'])): ?>
+                                            <!-- Payout retido por feedback bloqueante — exige resolução antes do repasse -->
+                                            <?php
+                                            $fbId      = (int)    $py['blocking_feedback_id'];
+                                            $fbRating  = (int)    ($py['blocking_feedback_rating']  ?? 0);
+                                            $fbComment = (string) ($py['blocking_feedback_comment'] ?? '');
+                                            $fbNonce   = wp_create_nonce('limpvix_resolve_feedback_' . $fbId);
+                                            $execNonce = wp_create_nonce('limpvix_process_payout_' . $py['id']);
+                                            ?>
+                                            <button type="button" class="button button-small lmpx-process-pix-btn"
+                                                    style="background:#d97706; border-color:#b45309; color:#fff;"
+                                                    data-payout-id="<?php echo (int) $py['id']; ?>"
+                                                    data-feedback-id="<?php echo $fbId; ?>"
+                                                    data-feedback-rating="<?php echo $fbRating; ?>"
+                                                    data-feedback-comment="<?php echo esc_attr($fbComment); ?>"
+                                                    data-feedback-nonce="<?php echo esc_attr($fbNonce); ?>"
+                                                    data-exec-nonce="<?php echo esc_attr($execNonce); ?>"
+                                                    data-mode="execute">
+                                                🔍 Resolver Feedback
                                             </button>
                                         <?php elseif ($py['status'] === 'failed' && (int) ($py['retry_count'] ?? 0) < (int) ($py['max_retries'] ?? 3)): ?>
                                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
@@ -3089,21 +3128,336 @@ class ProfessionalManagementPage
 
                 </div><!-- /body -->
             </div><!-- /modal inner -->
-        </div><!-- /modal overlay -->
+        </div><!-- /modal overlay PIX -->
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             MODAL: RESOLUÇÃO DE FEEDBACK — Registrar resolução antes do payout
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div id="lmpx-resolution-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.60); z-index:100001; align-items:center; justify-content:center;">
+            <div style="background:#fff; border-radius:16px; width:520px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.35); position:relative;">
+
+                <!-- Header laranja -->
+                <div style="background:linear-gradient(135deg,#d97706,#f59e0b); border-radius:16px 16px 0 0; padding:20px 24px; display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <h2 style="color:#fff; margin:0; font-size:17px; font-weight:700;">🔍 Resolução de Feedback</h2>
+                        <p style="color:rgba(255,255,255,0.85); margin:4px 0 0; font-size:13px;">Payout #<span id="lmpx-res-payout-id">—</span></p>
+                    </div>
+                    <button type="button" onclick="lmpxCloseResolution()" style="background:rgba(255,255,255,0.25); border:none; border-radius:8px; color:#fff; font-size:18px; cursor:pointer; padding:6px 10px; line-height:1;">✕</button>
+                </div>
+
+                <div style="padding:24px;">
+
+                    <!-- Card: Feedback do cliente -->
+                    <div id="lmpx-res-feedback-card" style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:16px; margin-bottom:20px;">
+                        <div style="font-size:12px; color:#991b1b; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px;">⭐ Feedback do Cliente</div>
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                            <span id="lmpx-res-stars" style="font-size:22px; color:#f59e0b;">★★</span>
+                            <span id="lmpx-res-rating-text" style="font-size:15px; font-weight:700; color:#991b1b;"></span>
+                        </div>
+                        <div id="lmpx-res-comment" style="font-size:13px; color:#7f1d1d; line-height:1.5; font-style:italic;"></div>
+                    </div>
+
+                    <!-- Campo: Responsável -->
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block; font-size:12px; color:#374151; font-weight:600; margin-bottom:6px;">
+                            Responsável pela resolução
+                        </label>
+                        <input type="text" id="lmpx-res-name"
+                               style="width:100%; box-sizing:border-box; border:1px solid #d1d5db; border-radius:8px; padding:10px 12px; font-size:13px;"
+                               placeholder="Nome do gerente / responsável">
+                    </div>
+
+                    <!-- Campo: Descrição -->
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block; font-size:12px; color:#374151; font-weight:600; margin-bottom:6px;">
+                            O que foi feito para resolver? <span style="color:#ef4444;">*</span>
+                        </label>
+                        <textarea id="lmpx-res-text" rows="4"
+                                  style="width:100%; box-sizing:border-box; border:1px solid #d1d5db; border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical;"
+                                  placeholder="Ex: Gerente ligou para o cliente e explicou que o profissional chegou 10min atrasado por trânsito…"></textarea>
+                    </div>
+
+                    <!-- Campo: Gravidade -->
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block; font-size:12px; color:#374151; font-weight:600; margin-bottom:10px;">
+                            Gravidade da ocorrência <span style="color:#ef4444;">*</span>
+                        </label>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+
+                            <label id="lmpx-sev-grave-lbl" style="display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:2px solid #e5e7eb; border-radius:10px; cursor:pointer; transition:all .15s;">
+                                <input type="radio" name="lmpx_severity" value="grave" style="margin-top:2px; accent-color:#ef4444;">
+                                <div>
+                                    <div style="font-weight:700; color:#991b1b; font-size:13px;">🔴 Grave <span style="color:#6b7280; font-weight:400; font-size:12px;">(penalidade −1.50 no rating)</span></div>
+                                    <div style="color:#6b7280; font-size:12px; margin-top:2px;">Falha grave — impacto significativo no score do profissional</div>
+                                </div>
+                            </label>
+
+                            <label id="lmpx-sev-medio-lbl" style="display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:2px solid #e5e7eb; border-radius:10px; cursor:pointer; transition:all .15s;">
+                                <input type="radio" name="lmpx_severity" value="medio" style="margin-top:2px; accent-color:#f59e0b;">
+                                <div>
+                                    <div style="font-weight:700; color:#92400e; font-size:13px;">🟡 Médio <span style="color:#6b7280; font-weight:400; font-size:12px;">(penalidade −0.75 no rating)</span></div>
+                                    <div style="color:#6b7280; font-size:12px; margin-top:2px;">Falha moderada — impacto médio no score</div>
+                                </div>
+                            </label>
+
+                            <label id="lmpx-sev-leve-lbl" style="display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:2px solid #e5e7eb; border-radius:10px; cursor:pointer; transition:all .15s;">
+                                <input type="radio" name="lmpx_severity" value="leve" style="margin-top:2px; accent-color:#10b981;">
+                                <div>
+                                    <div style="font-weight:700; color:#065f46; font-size:13px;">🟢 Leve <span style="color:#6b7280; font-weight:400; font-size:12px;">(sem penalidade)</span></div>
+                                    <div style="color:#6b7280; font-size:12px; margin-top:2px;">Falha menor ou mal-entendido — não impacta o score</div>
+                                </div>
+                            </label>
+
+                        </div>
+                    </div>
+
+                    <!-- Botões -->
+                    <div style="display:flex; gap:10px;">
+                        <button type="button" onclick="lmpxCloseResolution()"
+                                style="flex:1; padding:12px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; color:#475569; font-size:14px; font-weight:600; cursor:pointer;">
+                            Cancelar
+                        </button>
+                        <button type="button" onclick="lmpxConfirmResolution()"
+                                id="lmpx-res-confirm-btn"
+                                disabled
+                                style="flex:2; padding:12px; background:#d97706; border:none; border-radius:8px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; opacity:.5;">
+                            ✅ Confirmar Resolução e Processar
+                        </button>
+                    </div>
+
+                    <!-- Feedback de status -->
+                    <div id="lmpx-res-feedback" style="display:none; margin-top:12px; padding:10px 14px; border-radius:8px; font-size:13px; text-align:center;"></div>
+
+                </div><!-- /body -->
+            </div><!-- /modal inner -->
+        </div><!-- /resolution modal overlay -->
 
         <script>
         (function($) {
             'use strict';
 
-            var currentPayout = null;
+            var currentPayout   = null;  // dados do modal PIX (🏦)
+            var currentResData  = null;  // dados do modal de resolução
+
+            // ════════════════════════════════════════════════════════════════════
+            // MODAL PIX MANUAL (🏦 Pagar PIX) — com verificação de feedback
+            // ════════════════════════════════════════════════════════════════════
+            $(document).on('click', '.limpvix-pix-pay-btn', function() {
+                var btn    = $(this);
+                var pyData = btn.data('payout');
+                if (!pyData) return;
+
+                var fbId     = parseInt(btn.data('feedback-id')   || '0', 10);
+                var fbRating = parseInt(btn.data('feedback-rating') || '0', 10);
+                var fbNonce  = btn.data('feedback-nonce') || '';
+
+                if (fbId > 0) {
+                    // Há feedback bloqueante: resolve primeiro, depois abre PIX modal
+                    currentResData = {
+                        payoutId   : pyData.id,
+                        feedbackId : fbId,
+                        rating     : fbRating,
+                        comment    : btn.data('feedback-comment') || '',
+                        fbNonce    : fbNonce,
+                        mode       : 'resolve_only',
+                        pixData    : pyData,   // guarda para abrir modal PIX depois
+                    };
+                    lmpxOpenResolution(currentResData);
+                } else {
+                    // Sem feedback bloqueante: abre direto
+                    currentPayout = pyData;
+                    lmpxOpenPix(pyData);
+                }
+            });
+
+            // ════════════════════════════════════════════════════════════════════
+            // BOTÕES PROCESSAR PIX EFI / RESOLVER FEEDBACK (⚡ / 🔍)
+            // ════════════════════════════════════════════════════════════════════
+            $(document).on('click', '.lmpx-process-pix-btn', function() {
+                var btn      = $(this);
+                var payoutId = parseInt(btn.data('payout-id') || '0', 10);
+                var fbId     = parseInt(btn.data('feedback-id')   || '0', 10);
+                var fbRating = parseInt(btn.data('feedback-rating') || '0', 10);
+                var fbNonce  = btn.data('feedback-nonce') || '';
+                var execNonce = btn.data('exec-nonce') || '';
+                var mode     = btn.data('mode') || 'execute';
+
+                if (fbId > 0) {
+                    // Há feedback bloqueante: abrir modal de resolução
+                    currentResData = {
+                        payoutId   : payoutId,
+                        feedbackId : fbId,
+                        rating     : fbRating,
+                        comment    : btn.data('feedback-comment') || '',
+                        fbNonce    : fbNonce,
+                        execNonce  : execNonce,
+                        mode       : mode,
+                        pixData    : null,
+                    };
+                    lmpxOpenResolution(currentResData);
+                } else {
+                    // Sem feedback bloqueante: confirmar e processar direto
+                    if (!confirm('Processar repasse EFI Bank PIX #' + payoutId + '?')) return;
+                    lmpxExecutePayoutDirect(payoutId, execNonce, btn);
+                }
+            });
+
+            // ── Executar payout direto (sem feedback bloqueante) ─────────────
+            function lmpxExecutePayoutDirect(payoutId, execNonce, btn) {
+                if (btn) btn.prop('disabled', true).text('Processando…');
+
+                $.post(ajaxurl, {
+                    action   : 'limpvix_execute_payout',
+                    payout_id: payoutId,
+                    nonce    : execNonce
+                }, function(resp) {
+                    if (resp && resp.success) {
+                        alert('✅ Payout #' + payoutId + ' processado com sucesso!');
+                        location.reload();
+                    } else {
+                        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Erro desconhecido.';
+                        alert('❌ Erro: ' + msg);
+                        if (btn) btn.prop('disabled', false).text('⚡ Processar PIX');
+                    }
+                }).fail(function() {
+                    alert('❌ Falha na comunicação com o servidor.');
+                    if (btn) btn.prop('disabled', false).text('⚡ Processar PIX');
+                });
+            }
+
+            // ════════════════════════════════════════════════════════════════════
+            // MODAL DE RESOLUÇÃO DE FEEDBACK
+            // ════════════════════════════════════════════════════════════════════
+            window.lmpxOpenResolution = function(data) {
+                currentResData = data;
+
+                // Preencher dados
+                $('#lmpx-res-payout-id').text(data.payoutId);
+                var stars = '★'.repeat(data.rating) + '☆'.repeat(5 - data.rating);
+                $('#lmpx-res-stars').text(stars);
+                $('#lmpx-res-rating-text').text(data.rating + ' de 5 estrelas');
+                $('#lmpx-res-comment').text(data.comment || '(sem comentário do cliente)');
+
+                // Pré-preencher nome com usuário atual
+                if (!$('#lmpx-res-name').val()) {
+                    $('#lmpx-res-name').val(<?php echo json_encode(wp_get_current_user()->display_name); ?>);
+                }
+
+                // Reset formulário
+                $('input[name="lmpx_severity"]').prop('checked', false);
+                $('#lmpx-res-text').val('');
+                $('#lmpx-res-feedback').hide();
+                $('#lmpx-res-confirm-btn').prop('disabled', true).css('opacity', '.5');
+                lmpxUpdateSeverityLabels();
+
+                // Label do botão conforme modo
+                if (data.mode === 'resolve_only') {
+                    $('#lmpx-res-confirm-btn').text('✅ Confirmar Resolução e Prosseguir com PIX');
+                } else {
+                    $('#lmpx-res-confirm-btn').text('✅ Confirmar Resolução e Processar Repasse');
+                }
+
+                $('#lmpx-resolution-modal').css('display', 'flex');
+            };
+
+            window.lmpxCloseResolution = function() {
+                $('#lmpx-resolution-modal').hide();
+                currentResData = null;
+            };
+
+            // Habilitar botão quando campos obrigatórios estiverem preenchidos
+            $('#lmpx-res-text, input[name="lmpx_severity"]').on('input change', function() {
+                var text     = $('#lmpx-res-text').val().trim();
+                var severity = $('input[name="lmpx_severity"]:checked').val();
+                var ok       = text.length > 0 && !!severity;
+                $('#lmpx-res-confirm-btn').prop('disabled', !ok).css('opacity', ok ? '1' : '.5');
+            });
+
+            // Highlight visual do card de gravidade selecionado
+            $(document).on('change', 'input[name="lmpx_severity"]', function() {
+                lmpxUpdateSeverityLabels();
+            });
+
+            function lmpxUpdateSeverityLabels() {
+                var selected = $('input[name="lmpx_severity"]:checked').val();
+                var borders  = {grave:'#ef4444', medio:'#f59e0b', leve:'#10b981'};
+                ['grave','medio','leve'].forEach(function(s) {
+                    var lbl = $('#lmpx-sev-' + s + '-lbl');
+                    lbl.css('border-color', selected === s ? (borders[s] || '#e5e7eb') : '#e5e7eb');
+                    lbl.css('background',   selected === s ? (s === 'grave' ? '#fef2f2' : s === 'medio' ? '#fffbeb' : '#f0fdf4') : '#fff');
+                });
+            }
+
+            window.lmpxConfirmResolution = function() {
+                if (!currentResData) return;
+
+                var text     = $('#lmpx-res-text').val().trim();
+                var severity = $('input[name="lmpx_severity"]:checked').val();
+                var name     = $('#lmpx-res-name').val().trim();
+                var btn      = $('#lmpx-res-confirm-btn');
+
+                if (!text || !severity) {
+                    lmpxResShowFeedback('error', '❌ Preencha a descrição e selecione a gravidade.');
+                    return;
+                }
+
+                btn.prop('disabled', true).text('Processando…');
+
+                $.post(ajaxurl, {
+                    action         : 'limpvix_resolve_feedback_and_payout',
+                    feedback_id    : currentResData.feedbackId,
+                    payout_id      : currentResData.payoutId,
+                    resolution_text: text,
+                    severity       : severity,
+                    resolved_by_name: name,
+                    mode           : currentResData.mode,
+                    _wpnonce       : currentResData.fbNonce
+                }, function(resp) {
+                    if (resp && resp.success) {
+                        if (currentResData.mode === 'resolve_only' && currentResData.pixData) {
+                            // Fecha modal resolução e abre modal PIX manual
+                            lmpxCloseResolution();
+                            currentPayout = currentResData.pixData;
+                            lmpxOpenPix(currentResData.pixData);
+                        } else {
+                            lmpxResShowFeedback('success', '✅ ' + resp.data.message + ' Recarregando…');
+                            setTimeout(function() { location.reload(); }, 1800);
+                        }
+                    } else {
+                        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Erro desconhecido.';
+                        lmpxResShowFeedback('error', '❌ ' + msg);
+                        btn.prop('disabled', false);
+                        if (currentResData.mode === 'resolve_only') {
+                            btn.text('✅ Confirmar Resolução e Prosseguir com PIX');
+                        } else {
+                            btn.text('✅ Confirmar Resolução e Processar Repasse');
+                        }
+                    }
+                }).fail(function() {
+                    lmpxResShowFeedback('error', '❌ Falha na comunicação com o servidor.');
+                    btn.prop('disabled', false);
+                });
+            };
+
+            function lmpxResShowFeedback(type, msg) {
+                var colors = {
+                    success: {bg:'#d1fae5', color:'#065f46', border:'#6ee7b7'},
+                    error:   {bg:'#fee2e2', color:'#991b1b', border:'#fca5a5'},
+                };
+                var c = colors[type] || colors.error;
+                $('#lmpx-res-feedback')
+                    .css({background:c.bg, color:c.color, border:'1px solid '+c.border, 'border-radius':'8px'})
+                    .text(msg)
+                    .show();
+            }
+
+            // ════════════════════════════════════════════════════════════════════
+            // MODAL PIX (🏦) — lógica original preservada
+            // ════════════════════════════════════════════════════════════════════
 
             // ── Abrir modal ──────────────────────────────────────────────────────
-            $(document).on('click', '.limpvix-pix-pay-btn', function() {
-                var data = $(this).data('payout');
-                if (!data) return;
-                currentPayout = data;
-                lmpxOpenPix(data);
-            });
+            /* NOTA: o evento click do .limpvix-pix-pay-btn foi movido para cima
+               para verificar feedback bloqueante primeiro. */
 
             window.lmpxOpenPix = function(data) {
                 $('#lmpx-pix-id').text('#' + data.id);

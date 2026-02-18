@@ -260,14 +260,18 @@ class PayoutsPage
             wp_die('Sem permissão');
         }
 
-        // ✅ CORREÇÃO: Usar Use Case ao invés de chamar provider direto
+        // ✅ CORREÇÃO: Usar Use Case com todos os 5 parametros obrigatorios
         $executionRepository = new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();
         $payoutRepository = new \LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository();
+        $feedbackRepository = new \LimpVix\Infrastructure\Persistence\WpStructuredFeedbackRepository();
+        $professionalRepository = new \LimpVix\Infrastructure\Persistence\WpProfessionalRepository();
 
         $useCase = new \LimpVix\Application\UseCases\Financial\ExecutePayout(
             $executionRepository,
             $this->mpProvider,
-            $payoutRepository
+            $payoutRepository,
+            $feedbackRepository,
+            $professionalRepository
         );
 
         $result = $useCase->execute($payout_id);
@@ -331,15 +335,19 @@ class PayoutsPage
     /**
      * Formatar tipo de destinatário
      */
-    private function formatRecipientType(string $type): string
+    private function formatRecipientType(?string $type): string
     {
+        if ($type === null) {
+            return '— Não definido';
+        }
+
         $types = [
             'pix' => '💳 PIX',
             'bank_account' => '🏦 Conta Bancária',
             'mp_account' => '💰 Saldo MP',
         ];
 
-        return $types[$type] ?? $type;
+        return $types[$type] ?? esc_html($type);
     }
 
     /**
@@ -357,8 +365,12 @@ class PayoutsPage
      * @param string $type Type of key ('pix', 'bank_account', etc.)
      * @return string Masked key
      */
-    private function maskRecipientKey(string $key, string $type): string
+    private function maskRecipientKey(?string $key, ?string $type): string
     {
+        if ($key === null || $type === null) {
+            return '— Não definido';
+        }
+
         // Admin master (ID 1) can see full keys for auditing
         if ($this->isAdminMaster()) {
             return $key;

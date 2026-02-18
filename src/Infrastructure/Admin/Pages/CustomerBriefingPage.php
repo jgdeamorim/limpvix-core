@@ -477,6 +477,11 @@ class CustomerBriefingPage
      */
     public static function handleAcceptance(): void
     {
+        // Security: verify nonce to prevent CSRF
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'limpvix_briefing_nonce')) {
+            wp_send_json_error(['message' => 'Security check failed']);
+        }
+
         $order_id = absint($_POST['order_id'] ?? 0);
         $accepted = boolval($_POST['accepted'] ?? false);
 

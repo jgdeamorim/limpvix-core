@@ -270,7 +270,7 @@ class Contract
     }
 
     /**
-     * Transição: * → CANCELLED (por expiração)
+     * Transição: ACTIVE/PAUSED → EXPIRED (por expiração de end_date)
      */
     public function expire(): void
     {
@@ -278,7 +278,10 @@ class Contract
             return; // Já está em estado terminal
         }
 
-        $this->status = ContractStatus::cancelled();
+        $newStatus = ContractStatus::expired();
+        $this->status->ensureCanTransitionTo($newStatus);
+
+        $this->status = $newStatus;
         $this->nextExecutionDate = null;
         $this->updatedAt = new \DateTimeImmutable();
 
@@ -287,6 +290,8 @@ class Contract
 
     /**
      * Renovar contrato (se auto_renew = true)
+     *
+     * Transição: COMPLETED/EXPIRED → ACTIVE (via state machine)
      */
     public function renew(\DateTimeImmutable $newEndDate): void
     {
@@ -296,13 +301,10 @@ class Contract
             );
         }
 
-        if (!$this->status->isCompleted() && !$this->status->isCancelled()) {
-            throw new InvalidContractTransition(
-                'Contract can only be renewed if completed or cancelled'
-            );
-        }
+        $newStatus = ContractStatus::active();
+        $this->status->ensureCanTransitionTo($newStatus);
 
-        $this->status = ContractStatus::active();
+        $this->status = $newStatus;
         $this->endDate = $newEndDate;
         $this->nextExecutionDate = $this->calculateNextExecutionDate();
         $this->updatedAt = new \DateTimeImmutable();

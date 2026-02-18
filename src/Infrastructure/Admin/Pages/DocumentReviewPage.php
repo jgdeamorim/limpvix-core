@@ -276,7 +276,7 @@ final class DocumentReviewPage
                         // Get professional data
                         global $wpdb;
                         $professional = $wpdb->get_row($wpdb->prepare(
-                            "SELECT id, name FROM {$wpdb->prefix}limpvix_professionals WHERE id = %d",
+                            "SELECT id, full_name FROM {$wpdb->prefix}limpvix_professionals WHERE id = %d",
                             $doc->getProfessionalId()
                         ));
                         ?>

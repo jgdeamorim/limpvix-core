@@ -626,6 +626,11 @@ class CustomerFeedbackPage
      */
     public static function handleSubmit(): void
     {
+        // Security: verify nonce to prevent CSRF
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'limpvix_feedback_nonce')) {
+            wp_send_json_error(['message' => 'Security check failed']);
+        }
+
         $order_id = absint($_POST['order_id'] ?? 0);
         $rating = absint($_POST['rating'] ?? 0);
         $reasons = json_decode(stripslashes($_POST['reasons'] ?? '[]'), true);

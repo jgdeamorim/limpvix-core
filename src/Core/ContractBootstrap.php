@@ -454,11 +454,9 @@ final class ContractBootstrap
         // Registrar handler do cron
         add_action('limpvix_check_contract_expiration', [self::class, 'onCheckContractExpiration']);
 
-        // GAP #2: Cobrança recorrente automática DESATIVADA
-        // Modelo on-demand: cada visita = checkout separado pelo cliente.
-        // Contratos recorrentes definem frequência de agendamento, não cobrança automática.
-        // \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter::register();
-        // add_action('limpvix_charge_recurring_payments', [self::class, 'onChargeRecurringPayments']);
+        // GAP #2: Cobrança recorrente automática ATIVADA (Fase 1 - Go-Live)
+        \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter::register();
+        add_action('limpvix_charge_recurring_payments', [self::class, 'onChargeRecurringPayments']);
 
         // TIER 1: Register payout reconciliation cron (Payment critical fix)
         \LimpVix\Infrastructure\Cron\PayoutReconciliationCronAdapter::register();

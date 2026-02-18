@@ -8,13 +8,25 @@ defined("ABSPATH") || exit;
 
 /**
  * User Roles Management
- * 
+ *
  * Registra e gerencia custom user roles para LimpVix:
- * - limpvix_customer: Clientes que solicitam serviços
- * - limpvix_professional: Profissionais que executam serviços
+ * - limpvix_customer:          Clientes que solicitam serviços
+ * - limpvix_professional:      Profissionais que executam serviços
+ * - limpvix_gerente_nacional:  Equipe LimpVix — escopo Brasil todo
+ * - limpvix_gerente_estadual:  Equipe LimpVix — escopo UF
+ * - limpvix_gerente_regional:  Equipe LimpVix — escopo UF + Zona
+ * - limpvix_financeiro:        Equipe LimpVix — autorização e processamento de pagamentos
+ *
+ * Escopo geográfico armazenado em user meta:
+ * - limpvix_user_uf   (ex: "SP")
+ * - limpvix_user_zona (ex: "Zona Sul")
  */
 final class UserRoles
 {
+    /** Meta keys para escopo geográfico */
+    public const META_UF   = 'limpvix_user_uf';
+    public const META_ZONA = 'limpvix_user_zona';
+
     /**
      * Registrar custom roles no WordPress
      * Chamado no activation hook do plugin
@@ -23,6 +35,10 @@ final class UserRoles
     {
         self::registerCustomerRole();
         self::registerProfessionalRole();
+        self::registerGerenteNacionalRole();
+        self::registerGerenteEstadualRole();
+        self::registerGerenteRegionalRole();
+        self::registerFinanceiroRole();
     }
 
     /**
@@ -33,7 +49,15 @@ final class UserRoles
     {
         remove_role("limpvix_customer");
         remove_role("limpvix_professional");
+        remove_role("limpvix_gerente_nacional");
+        remove_role("limpvix_gerente_estadual");
+        remove_role("limpvix_gerente_regional");
+        remove_role("limpvix_financeiro");
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Role registration methods
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Registrar role de Cliente
@@ -110,6 +134,96 @@ final class UserRoles
     }
 
     /**
+     * Registrar role de Gerente Nacional
+     * Escopo: Brasil todo | Pode: tudo exceto processar pagamentos
+     */
+    private static function registerGerenteNacionalRole(): void
+    {
+        add_role(
+            "limpvix_gerente_nacional",
+            __("Gerente Nacional LimpVix", "limpvix-core"),
+            [
+                "read"                       => true,
+                "limpvix_finance_view"        => true,
+                "limpvix_finance_manage"      => true,
+                "limpvix_view_payouts"        => true,
+                "limpvix_authorize_payout"    => true,
+                "limpvix_view_feedback"       => true,
+                "limpvix_resolve_feedback"    => true,
+                "limpvix_review_evidence"     => true,
+                "limpvix_manage_settings"     => true,
+                "limpvix_manage_users"        => true,
+            ]
+        );
+    }
+
+    /**
+     * Registrar role de Gerente Estadual
+     * Escopo: UF (via meta limpvix_user_uf) | Pode: visualizar, resolver, autorizar pagamentos da UF
+     */
+    private static function registerGerenteEstadualRole(): void
+    {
+        add_role(
+            "limpvix_gerente_estadual",
+            __("Gerente Estadual LimpVix", "limpvix-core"),
+            [
+                "read"                       => true,
+                "limpvix_finance_view"        => true,
+                "limpvix_view_payouts"        => true,
+                "limpvix_authorize_payout"    => true,
+                "limpvix_view_feedback"       => true,
+                "limpvix_resolve_feedback"    => true,
+                "limpvix_review_evidence"     => true,
+            ]
+        );
+    }
+
+    /**
+     * Registrar role de Gerente Regional
+     * Escopo: UF + Zona (via meta) | Pode: visualizar, resolver feedbacks/evidências da zona
+     */
+    private static function registerGerenteRegionalRole(): void
+    {
+        add_role(
+            "limpvix_gerente_regional",
+            __("Gerente Regional LimpVix", "limpvix-core"),
+            [
+                "read"                       => true,
+                "limpvix_finance_view"        => true,
+                "limpvix_view_payouts"        => true,
+                "limpvix_view_feedback"       => true,
+                "limpvix_resolve_feedback"    => true,
+                "limpvix_review_evidence"     => true,
+            ]
+        );
+    }
+
+    /**
+     * Registrar role de Financeiro
+     * Escopo: configurável | Pode: autorizar e processar pagamentos
+     */
+    private static function registerFinanceiroRole(): void
+    {
+        add_role(
+            "limpvix_financeiro",
+            __("Financeiro LimpVix", "limpvix-core"),
+            [
+                "read"                       => true,
+                "limpvix_finance_view"        => true,
+                "limpvix_finance_manage"      => true,
+                "limpvix_finance_payout"      => true,
+                "limpvix_view_payouts"        => true,
+                "limpvix_authorize_payout"    => true,
+                "limpvix_process_payout"      => true,
+            ]
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Role check methods
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
      * Verificar se usuário é Cliente
      */
     public static function isCustomer(int $userId): bool
@@ -134,26 +248,6 @@ final class UserRoles
     {
         $user = get_user_by("id", $userId);
         return $user && user_can($user, "manage_options");
-    }
-
-    /**
-     * Obter role do usuário (limpvix específico)
-     */
-    public static function getUserRole(int $userId): ?string
-    {
-        if (self::isAdmin($userId)) {
-            return "admin";
-        }
-        
-        if (self::isCustomer($userId)) {
-            return "customer";
-        }
-        
-        if (self::isProfessional($userId)) {
-            return "professional";
-        }
-        
-        return null;
     }
 
     /**
@@ -182,5 +276,131 @@ final class UserRoles
 
         $user->set_role("limpvix_professional");
         return true;
+    }
+
+    /**
+     * Verificar se usuário é Gerente (qualquer nível)
+     */
+    public static function isManager(int $userId): bool
+    {
+        $user = get_user_by("id", $userId);
+        if (!$user) {
+            return false;
+        }
+        $managerRoles = ["limpvix_gerente_nacional", "limpvix_gerente_estadual", "limpvix_gerente_regional"];
+        return !empty(array_intersect($managerRoles, (array) $user->roles));
+    }
+
+    /**
+     * Verificar se usuário é Financeiro
+     */
+    public static function isFinanceiro(int $userId): bool
+    {
+        $user = get_user_by("id", $userId);
+        return $user && in_array("limpvix_financeiro", (array) $user->roles, true);
+    }
+
+    /**
+     * Verificar se usuário é equipe LimpVix (qualquer role interno)
+     */
+    public static function isStaff(int $userId): bool
+    {
+        return self::isAdmin($userId) || self::isManager($userId) || self::isFinanceiro($userId);
+    }
+
+    /**
+     * Obter role do usuário (limpvix específico) — atualizado com novos roles
+     */
+    public static function getUserRole(int $userId): ?string
+    {
+        if (self::isAdmin($userId)) {
+            return "admin";
+        }
+        if (in_array("limpvix_gerente_nacional", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return "gerente_nacional";
+        }
+        if (in_array("limpvix_gerente_estadual", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return "gerente_estadual";
+        }
+        if (in_array("limpvix_gerente_regional", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return "gerente_regional";
+        }
+        if (in_array("limpvix_financeiro", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return "financeiro";
+        }
+        if (self::isCustomer($userId)) {
+            return "customer";
+        }
+        if (self::isProfessional($userId)) {
+            return "professional";
+        }
+        return null;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Geographic scope helpers (UF + Zona via user meta)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Obter UF do usuário (escopo geográfico)
+     *
+     * @return string|null Ex: "SP", "RJ"
+     */
+    public static function getUserUf(int $userId): ?string
+    {
+        $uf = get_user_meta($userId, self::META_UF, true);
+        return !empty($uf) ? strtoupper(sanitize_text_field($uf)) : null;
+    }
+
+    /**
+     * Obter Zona do usuário dentro da UF
+     *
+     * @return string|null Ex: "Zona Sul", "Zona Norte"
+     */
+    public static function getUserZona(int $userId): ?string
+    {
+        $zona = get_user_meta($userId, self::META_ZONA, true);
+        return !empty($zona) ? sanitize_text_field($zona) : null;
+    }
+
+    /**
+     * Definir escopo geográfico do usuário
+     *
+     * @param string $uf   Ex: "SP"
+     * @param string $zona Ex: "Zona Sul" (vazio = toda a UF)
+     */
+    public static function setUserScope(int $userId, string $uf, string $zona = ''): void
+    {
+        update_user_meta($userId, self::META_UF, strtoupper(sanitize_text_field($uf)));
+        update_user_meta($userId, self::META_ZONA, sanitize_text_field($zona));
+    }
+
+    /**
+     * Verificar se usuário tem escopo no estado informado
+     * Admin e Gerente Nacional têm escopo universal
+     */
+    public static function hasAccessToUf(int $userId, string $uf): bool
+    {
+        if (self::isAdmin($userId)) {
+            return true;
+        }
+        if (in_array("limpvix_gerente_nacional", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return true;
+        }
+        $userUf = self::getUserUf($userId);
+        return $userUf === null || strtoupper($uf) === $userUf;
+    }
+
+    /**
+     * Labels legíveis para os roles da equipe LimpVix
+     */
+    public static function getStaffRoleLabels(): array
+    {
+        return [
+            'limpvix_gerente_nacional'  => 'Gerente Nacional',
+            'limpvix_gerente_estadual'  => 'Gerente Estadual',
+            'limpvix_gerente_regional'  => 'Gerente Regional',
+            'limpvix_financeiro'        => 'Financeiro',
+        ];
     }
 }

@@ -65,8 +65,8 @@ class FeedbackBootstrap
             self::registerAdminPages($feedbackRepository, $completenessValidator);
         }
 
-        // 6. Registrar REST API endpoints (futuro)
-        // self::registerRestAPI($submitFeedbackUseCase, $disputeFeedbackUseCase);
+        // 6. Registrar REST API endpoints
+        self::registerRestAPI($submitFeedbackUseCase, $disputeFeedbackUseCase, $feedbackRepository);
 
         error_log('[LimpVix] Feedback module initialized successfully');
     }
@@ -190,5 +190,97 @@ class FeedbackBootstrap
             .badge-draft { background: #ff9800; color: white; }
         </style>
         <?php
+    }
+
+    /**
+     * Registrar REST API endpoints para Feedback
+     *
+     * Endpoints:
+     * - POST /limpvix/v1/feedback          - Submeter feedback
+     * - POST /limpvix/v1/feedback/dispute   - Disputar feedback
+     * - GET  /limpvix/v1/feedback/{uuid}    - Consultar feedback
+     *
+     * @param SubmitStructuredFeedback $submitUseCase
+     * @param DisputeFeedback $disputeUseCase
+     * @param WpStructuredFeedbackRepository $repository
+     * @return void
+     */
+    private static function registerRestAPI(
+        SubmitStructuredFeedback $submitUseCase,
+        DisputeFeedback $disputeUseCase,
+        WpStructuredFeedbackRepository $repository
+    ): void {
+        add_action('rest_api_init', function () use ($submitUseCase, $disputeUseCase, $repository) {
+            // POST /limpvix/v1/feedback - Submeter feedback estruturado
+            register_rest_route('limpvix/v1', '/feedback', [
+                'methods' => 'POST',
+                'callback' => function (\WP_REST_Request $request) use ($submitUseCase) {
+                    try {
+                        $result = $submitUseCase->execute($request->get_json_params());
+                        return new \WP_REST_Response($result, 201);
+                    } catch (\InvalidArgumentException $e) {
+                        return new \WP_REST_Response([
+                            'error' => 'validation_error',
+                            'message' => $e->getMessage(),
+                        ], 400);
+                    } catch (\Exception $e) {
+                        error_log('[LimpVix] Feedback submit error: ' . $e->getMessage());
+                        return new \WP_REST_Response([
+                            'error' => 'internal_error',
+                            'message' => 'Erro ao submeter feedback',
+                        ], 500);
+                    }
+                },
+                'permission_callback' => function () {
+                    return is_user_logged_in();
+                },
+            ]);
+
+            // POST /limpvix/v1/feedback/dispute - Disputar feedback
+            register_rest_route('limpvix/v1', '/feedback/dispute', [
+                'methods' => 'POST',
+                'callback' => function (\WP_REST_Request $request) use ($disputeUseCase) {
+                    try {
+                        $result = $disputeUseCase->execute($request->get_json_params());
+                        return new \WP_REST_Response($result, 200);
+                    } catch (\InvalidArgumentException $e) {
+                        return new \WP_REST_Response([
+                            'error' => 'validation_error',
+                            'message' => $e->getMessage(),
+                        ], 400);
+                    } catch (\Exception $e) {
+                        error_log('[LimpVix] Feedback dispute error: ' . $e->getMessage());
+                        return new \WP_REST_Response([
+                            'error' => 'internal_error',
+                            'message' => 'Erro ao disputar feedback',
+                        ], 500);
+                    }
+                },
+                'permission_callback' => function () {
+                    return is_user_logged_in();
+                },
+            ]);
+
+            // GET /limpvix/v1/feedback/{uuid} - Consultar feedback
+            register_rest_route('limpvix/v1', '/feedback/(?P<uuid>[a-f0-9-]+)', [
+                'methods' => 'GET',
+                'callback' => function (\WP_REST_Request $request) use ($repository) {
+                    $uuid = $request->get_param('uuid');
+                    $feedback = $repository->findByUuid($uuid);
+
+                    if (!$feedback) {
+                        return new \WP_REST_Response([
+                            'error' => 'not_found',
+                            'message' => 'Feedback não encontrado',
+                        ], 404);
+                    }
+
+                    return new \WP_REST_Response($feedback, 200);
+                },
+                'permission_callback' => function () {
+                    return is_user_logged_in();
+                },
+            ]);
+        });
     }
 }

@@ -291,7 +291,6 @@ class EfiPaymentProvider implements PaymentProviderInterface
             CURLOPT_TIMEOUT        => 30,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_HTTPHEADER     => $headers,
         ];
 
         // Certificado mTLS (obrigatório pela API EFI Bank)
@@ -305,16 +304,21 @@ class EfiPaymentProvider implements PaymentProviderInterface
         if ($method === 'POST') {
             $opts[CURLOPT_POST]       = true;
             $opts[CURLOPT_POSTFIELDS] = $isFormData ? $body : json_encode($body);
+            if (!$isFormData) {
+                $headers[] = 'Content-Type: application/json';
+            }
         } elseif ($method === 'PUT') {
             $opts[CURLOPT_CUSTOMREQUEST] = 'PUT';
             $opts[CURLOPT_POSTFIELDS]    = $isFormData ? $body : json_encode($body);
             if (!$isFormData) {
-                $headers[]           = 'Content-Type: application/json';
-                $opts[CURLOPT_HTTPHEADER] = $headers;
+                $headers[] = 'Content-Type: application/json';
             }
         } elseif ($method === 'GET') {
             $opts[CURLOPT_HTTPGET] = true;
         }
+
+        // Set headers AFTER all modifications
+        $opts[CURLOPT_HTTPHEADER] = $headers;
 
         curl_setopt_array($ch, $opts);
 

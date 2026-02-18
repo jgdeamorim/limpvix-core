@@ -90,7 +90,7 @@ final class ProfessionalDocumentController extends WP_REST_Controller
             [
                 'methods' => 'GET',
                 'callback' => [$this, 'listPendingDocuments'],
-                'permission_callback' => 'manage_options',
+                'permission_callback' => function() { return current_user_can('manage_options'); },
                 'args' => [
                     'limit' => [
                         'default' => 50,
@@ -109,7 +109,7 @@ final class ProfessionalDocumentController extends WP_REST_Controller
             [
                 'methods' => 'POST',
                 'callback' => [$this, 'approveDocument'],
-                'permission_callback' => 'manage_options',
+                'permission_callback' => function() { return current_user_can('manage_options'); },
             ],
         ]);
 
@@ -118,7 +118,7 @@ final class ProfessionalDocumentController extends WP_REST_Controller
             [
                 'methods' => 'POST',
                 'callback' => [$this, 'rejectDocument'],
-                'permission_callback' => 'manage_options',
+                'permission_callback' => function() { return current_user_can('manage_options'); },
                 'args' => [
                     'reason' => [
                         'required' => true,

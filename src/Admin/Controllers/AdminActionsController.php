@@ -26,9 +26,9 @@ namespace LimpVix\Admin\Controllers;
 
 use LimpVix\Admin\Capabilities\FinanceCapabilities;
 use LimpVix\Application\UseCases\Financial\ExecutePayout;
+use LimpVix\Application\UseCases\Feedback\CalculateProfessionalScore;
 use LimpVix\Infrastructure\Persistence\WpFinancialLedgerRepository;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
-use LimpVix\Infrastructure\Finance\PaymentProviders\MercadoPagoPayoutProvider;
 use LimpVix\Infrastructure\Finance\Providers\EfiPayoutProvider;
 use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
 use LimpVix\Infrastructure\Feedback\Repositories\WpFeedbackRepository;
@@ -56,6 +56,12 @@ class AdminActionsController
 
         // PIX manual — admin marca payout como pago via PIX
         add_action('wp_ajax_limpvix_mark_pix_paid', [$this, 'handleMarkPixPaid']);
+
+        // Resolução de feedback bloqueante antes do payout
+        add_action('wp_ajax_limpvix_resolve_feedback_and_payout', [$this, 'handleResolveFeedbackAndPayout']);
+
+        // Pré-aprovação role-based: gerente autoriza, financeiro processa
+        add_action('wp_ajax_limpvix_authorize_payout', [$this, 'handleAuthorizePayout']);
     }
 
     /**
@@ -305,9 +311,6 @@ class AdminActionsController
             // Executar payout via Use Case (Golden Rule protegido)
             $executionRepo    = new WpExecutionRepository();
             $payoutProvider   = new EfiPayoutProvider();
-            if (!$payoutProvider->isAvailable()) {
-                $payoutProvider = new MercadoPagoPayoutProvider();
-            }
             $payoutRepo       = new WpPayoutRepository();
             $feedbackRepo     = new WpFeedbackRepository();
             $professionalRepo = new WpMarketplaceProfessionalRepository();
@@ -503,6 +506,235 @@ class AdminActionsController
             'admin'     => wp_get_current_user()->display_name,
             'paid_at'   => $now,
         ]);
+    }
+
+    /**
+     * Handler AJAX: Resolver feedback bloqueante e (opcionalmente) processar payout
+     *
+     * mode=execute   → resolve feedback + recalcula score + executa payout EFI Bank (auto PIX / on_hold)
+     * mode=resolve_only → resolve feedback + recalcula score apenas (PIX manual abre modal próprio depois)
+     *
+     * Nonce por feedback: limpvix_resolve_feedback_{feedbackId}
+     */
+    public function handleResolveFeedbackAndPayout(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permissão negada.'], 403);
+            return;
+        }
+
+        $feedbackId = (int) ($_POST['feedback_id'] ?? 0);
+        if ($feedbackId <= 0) {
+            wp_send_json_error(['message' => 'feedback_id inválido.'], 400);
+            return;
+        }
+
+        if (!check_ajax_referer('limpvix_resolve_feedback_' . $feedbackId, '_wpnonce', false)) {
+            wp_send_json_error(['message' => 'Nonce inválido ou expirado.'], 403);
+            return;
+        }
+
+        $payoutId       = (int)    ($_POST['payout_id']        ?? 0);
+        $resolutionText = sanitize_textarea_field($_POST['resolution_text']   ?? '');
+        $severity       = sanitize_key($_POST['severity']        ?? '');
+        $resolvedByName = sanitize_text_field($_POST['resolved_by_name']   ?? '');
+        $mode           = sanitize_key($_POST['mode']            ?? 'execute'); // execute | resolve_only
+
+        if (empty($resolutionText)) {
+            wp_send_json_error(['message' => 'O texto da resolução é obrigatório.'], 400);
+            return;
+        }
+
+        if (!in_array($severity, ['grave', 'medio', 'leve'], true)) {
+            wp_send_json_error(['message' => 'Gravidade inválida. Use: grave, medio, leve.'], 400);
+            return;
+        }
+
+        try {
+            $feedbackRepo     = new WpFeedbackRepository();
+            $professionalRepo = new WpMarketplaceProfessionalRepository();
+
+            // 1. Carregar feedback
+            $feedback = $feedbackRepo->findById($feedbackId);
+            if (!$feedback) {
+                wp_send_json_error(['message' => "Feedback #{$feedbackId} não encontrado."], 404);
+                return;
+            }
+
+            if ($feedback->isApproved()) {
+                wp_send_json_error(['message' => "Feedback #{$feedbackId} já foi aprovado/resolvido."], 400);
+                return;
+            }
+
+            // 2. Registrar resolução (chama approve() internamente → blocksPayout() = false)
+            $resolvedByName = $resolvedByName ?: wp_get_current_user()->display_name;
+            $feedback->resolve(get_current_user_id(), $resolvedByName, $resolutionText, $severity);
+            $feedbackRepo->save($feedback);
+
+            // 3. Recalcular score do profissional com a penalidade aplicada
+            $scoreUseCase = new CalculateProfessionalScore($feedbackRepo, $professionalRepo);
+            $scoreResult  = $scoreUseCase->execute($feedback->getProfessionalId());
+
+            $newScore = $scoreResult->isOk() ? $scoreResult->value() : null;
+
+            // 4. Executar payout (somente em modo auto)
+            if ($mode === 'execute') {
+                if ($payoutId <= 0) {
+                    wp_send_json_error(['message' => 'payout_id inválido para execução.'], 400);
+                    return;
+                }
+
+                $executionRepo  = new WpExecutionRepository();
+                $payoutProvider = new EfiPayoutProvider();
+                $payoutRepo     = new WpPayoutRepository();
+
+                $executeUseCase = new ExecutePayout(
+                    $executionRepo,
+                    $payoutProvider,
+                    $payoutRepo,
+                    $feedbackRepo,
+                    $professionalRepo
+                );
+
+                $payoutResult = $executeUseCase->execute($payoutId);
+
+                if (!$payoutResult->isOk()) {
+                    wp_send_json_error([
+                        'message'   => 'Feedback resolvido, mas falha ao processar payout: ' . $payoutResult->error(),
+                        'new_score' => $newScore,
+                    ], 400);
+                    return;
+                }
+
+                limpvix_log_event('feedback_resolved_payout_executed', [
+                    'feedback_id' => $feedbackId,
+                    'payout_id'   => $payoutId,
+                    'severity'    => $severity,
+                    'new_score'   => $newScore,
+                    'admin_id'    => get_current_user_id(),
+                ]);
+
+                wp_send_json_success([
+                    'message'   => 'Feedback resolvido e payout processado com sucesso.',
+                    'new_score' => $newScore,
+                    'severity'  => $severity,
+                ]);
+
+            } else {
+                // resolve_only: feedback resolvido, JS abre modal PIX manual
+                limpvix_log_event('feedback_resolved_pix_manual_pending', [
+                    'feedback_id' => $feedbackId,
+                    'payout_id'   => $payoutId,
+                    'severity'    => $severity,
+                    'new_score'   => $newScore,
+                    'admin_id'    => get_current_user_id(),
+                ]);
+
+                wp_send_json_success([
+                    'message'   => 'Feedback resolvido. Prossiga com o pagamento PIX manual.',
+                    'new_score' => $newScore,
+                    'severity'  => $severity,
+                    'open_pix_modal' => true,
+                ]);
+            }
+
+        } catch (\InvalidArgumentException $e) {
+            wp_send_json_error(['message' => $e->getMessage()], 400);
+        } catch (\Exception $e) {
+            error_log('AdminActionsController::handleResolveFeedbackAndPayout error: ' . $e->getMessage());
+            wp_send_json_error(['message' => 'Erro ao resolver feedback: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Handler: Pré-autorizar payout (step 1 do fluxo dual)
+     *
+     * Requer capability configurável em Settings > Profissionais > Resolução:
+     *   limpvix_payout_cap_authorize (padrão: limpvix_authorize_payout)
+     *
+     * Muda status: approved → authorized
+     * POST params: payout_id, nonce (limpvix_authorize_payout_{id})
+     */
+    public function handleAuthorizePayout(): void
+    {
+        $payoutId = (int) ($_POST['payout_id'] ?? 0);
+
+        if ($payoutId <= 0) {
+            wp_send_json_error(['message' => 'ID de payout inválido.'], 400);
+            return;
+        }
+
+        // Verificar nonce específico do payout
+        if (!check_ajax_referer('limpvix_authorize_payout_' . $payoutId, 'nonce', false)) {
+            wp_send_json_error(['message' => 'Nonce inválido.'], 403);
+            return;
+        }
+
+        // Capability configurável no Settings
+        $requiredCap = get_option('limpvix_payout_cap_authorize', 'limpvix_authorize_payout');
+        if (!current_user_can($requiredCap) && !current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Sem permissão para autorizar este payout.'], 403);
+            return;
+        }
+
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'limpvix_payouts';
+
+            // Verificar estado atual
+            $payout = $wpdb->get_row(
+                $wpdb->prepare("SELECT id, status FROM {$table} WHERE id = %d", $payoutId),
+                ARRAY_A
+            );
+
+            if (!$payout) {
+                wp_send_json_error(['message' => 'Payout não encontrado.'], 404);
+                return;
+            }
+
+            if (!in_array($payout['status'], ['approved', 'pending'], true)) {
+                wp_send_json_error([
+                    'message' => sprintf('Payout não pode ser autorizado no status atual (%s).', $payout['status']),
+                ], 400);
+                return;
+            }
+
+            // Atualizar para authorized
+            $updated = $wpdb->update(
+                $table,
+                [
+                    'status'        => 'authorized',
+                    'authorized_by' => get_current_user_id(),
+                    'authorized_at' => current_time('mysql'),
+                ],
+                ['id' => $payoutId],
+                ['%s', '%d', '%s'],
+                ['%d']
+            );
+
+            if ($updated === false) {
+                wp_send_json_error(['message' => 'Erro ao atualizar banco de dados.'], 500);
+                return;
+            }
+
+            // Log
+            if (function_exists('limpvix_log_event')) {
+                limpvix_log_event('payout_authorized', [
+                    'payout_id'     => $payoutId,
+                    'authorized_by' => get_current_user_id(),
+                ]);
+            }
+
+            wp_send_json_success([
+                'message'    => sprintf('Payout #%d autorizado com sucesso. Aguardando processamento pelo financeiro.', $payoutId),
+                'payout_id'  => $payoutId,
+                'new_status' => 'authorized',
+            ]);
+
+        } catch (\Exception $e) {
+            error_log('AdminActionsController::handleAuthorizePayout error: ' . $e->getMessage());
+            wp_send_json_error(['message' => 'Erro interno: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

@@ -249,15 +249,15 @@ class Professional
         $professional->documents = $data['documents'] ? json_decode($data['documents'], true) : null;
 
         $professional->hasEpi = (bool) $data['has_epi'];
-        $professional->epiLastCheck = $data['epi_last_check'] ? new \DateTimeImmutable($data['epi_last_check']) : null;
+        $professional->epiLastCheck = !empty($data['epi_last_check']) ? new \DateTimeImmutable($data['epi_last_check']) : null;
 
         // KYC fields
         $professional->kycStatus = $data['kyc_status'] ?? 'not_started';
-        $professional->kycStartedAt = $data['kyc_started_at'] ? new \DateTimeImmutable($data['kyc_started_at']) : null;
-        $professional->kycSubmittedAt = $data['kyc_submitted_at'] ? new \DateTimeImmutable($data['kyc_submitted_at']) : null;
-        $professional->kycApprovedAt = $data['kyc_approved_at'] ? new \DateTimeImmutable($data['kyc_approved_at']) : null;
-        $professional->kycRejectedAt = $data['kyc_rejected_at'] ? new \DateTimeImmutable($data['kyc_rejected_at']) : null;
-        $professional->kycExpiresAt = $data['kyc_expires_at'] ? new \DateTimeImmutable($data['kyc_expires_at']) : null;
+        $professional->kycStartedAt = !empty($data['kyc_started_at']) ? new \DateTimeImmutable($data['kyc_started_at']) : null;
+        $professional->kycSubmittedAt = !empty($data['kyc_submitted_at']) ? new \DateTimeImmutable($data['kyc_submitted_at']) : null;
+        $professional->kycApprovedAt = !empty($data['kyc_approved_at']) ? new \DateTimeImmutable($data['kyc_approved_at']) : null;
+        $professional->kycRejectedAt = !empty($data['kyc_rejected_at']) ? new \DateTimeImmutable($data['kyc_rejected_at']) : null;
+        $professional->kycExpiresAt = !empty($data['kyc_expires_at']) ? new \DateTimeImmutable($data['kyc_expires_at']) : null;
         $professional->kycDocumentUrl = $data['kyc_document_url'] ?? null;
         $professional->kycSelfieUrl = $data['kyc_selfie_url'] ?? null;
         $professional->kycOcrData = $data['kyc_ocr_data'] ? json_decode($data['kyc_ocr_data'], true) : null;
@@ -269,11 +269,11 @@ class Professional
         $professional->kycRejectedBy = $data['kyc_rejected_by'] ? (int) $data['kyc_rejected_by'] : null;
         $professional->kycDocumentType = $data['kyc_document_type'] ?? null;
         $professional->kycRetryCount = (int) ($data['kyc_retry_count'] ?? 0);
-        $professional->kycLastRetryAt = $data['kyc_last_retry_at'] ? new \DateTimeImmutable($data['kyc_last_retry_at']) : null;
+        $professional->kycLastRetryAt = !empty($data['kyc_last_retry_at']) ? new \DateTimeImmutable($data['kyc_last_retry_at']) : null;
 
-        $professional->createdAt = new \DateTimeImmutable($data['created_at']);
-        $professional->updatedAt = new \DateTimeImmutable($data['updated_at']);
-        $professional->lastActivityAt = $data['last_activity_at'] ? new \DateTimeImmutable($data['last_activity_at']) : null;
+        $professional->createdAt = !empty($data['created_at']) ? new \DateTimeImmutable($data['created_at']) : new \DateTimeImmutable();
+        $professional->updatedAt = !empty($data['updated_at']) ? new \DateTimeImmutable($data['updated_at']) : new \DateTimeImmutable();
+        $professional->lastActivityAt = !empty($data['last_activity_at']) ? new \DateTimeImmutable($data['last_activity_at']) : null;
 
         return $professional;
     }

@@ -1,11 +1,18 @@
 <?php
 /**
- * ExecutionStatus - Value Object para status de execução
+ * ExecutionStatus - Value Object para status de AGENDAMENTO de execução
  *
- * RESPONSABILIDADE:
- * - Representar estados possíveis de uma execução
- * - Validar transições de estado
- * - Encapsular regras de negócio de mudança de status
+ * Usado pelo aggregate ContractExecution para rastrear o ciclo de vida
+ * do AGENDAMENTO de uma execução dentro de um contrato recorrente.
+ *
+ * IMPORTANTE: NÃO confundir com ExecutionStatusEnum (Enum) que é usado
+ * pelo aggregate Execution para rastrear execução EM TEMPO REAL
+ * (check-in GPS, evidências, SLA, geofence).
+ *
+ * Esta classe rastreia: criação → agendamento → progresso → conclusão
+ * ExecutionStatusEnum rastreia: check-in → execução → check-out → validação
+ *
+ * Tabela: wp_limpvix_contract_executions (coluna status)
  *
  * ESTADOS:
  * - draft: Execução criada mas não agendada
@@ -14,15 +21,6 @@
  * - completed: Serviço finalizado com sucesso
  * - cancelled: Execução cancelada
  * - no_show: Profissional não compareceu
- *
- * TRANSIÇÕES VÁLIDAS:
- * - draft → scheduled
- * - scheduled → in_progress
- * - scheduled → no_show
- * - scheduled → cancelled
- * - in_progress → completed
- * - in_progress → cancelled
- * - * → cancelled (qualquer estado pode ser cancelado)
  *
  * @package LimpVix\Domain\Execution
  * @since 0.9.0

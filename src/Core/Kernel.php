@@ -348,6 +348,21 @@ class Kernel
     }
 
     /**
+     * Log de erro (sempre registra, independente de WP_DEBUG)
+     *
+     * @param string $message
+     * @return void
+     */
+    private function logError(string $message): void
+    {
+        error_log(sprintf(
+            '[LimpVix Core] [ERROR] [%s] %s',
+            date('Y-m-d H:i:s'),
+            $message
+        ));
+    }
+
+    /**
      * Retorna versão do plugin
      *
      * @return string

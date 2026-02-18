@@ -29,6 +29,7 @@ class ContractStatus
     public const PAUSED = 'paused';
     public const COMPLETED = 'completed';
     public const CANCELLED = 'cancelled';
+    public const EXPIRED = 'expired';
 
     /**
      * Transições permitidas
@@ -36,18 +37,20 @@ class ContractStatus
      * Regras:
      * - draft → pending_allocation, cancelled
      * - pending_allocation → active, cancelled
-     * - active → paused, completed, cancelled
-     * - paused → active, cancelled
-     * - completed → [terminal]
+     * - active → paused, completed, cancelled, expired
+     * - paused → active, cancelled, expired
+     * - completed → active (via renew)
+     * - expired → active (via renew)
      * - cancelled → [terminal]
      */
     private const ALLOWED_TRANSITIONS = [
         self::DRAFT => [self::PENDING_ALLOCATION, self::CANCELLED],
         self::PENDING_ALLOCATION => [self::ACTIVE, self::CANCELLED],
-        self::ACTIVE => [self::PAUSED, self::COMPLETED, self::CANCELLED],
-        self::PAUSED => [self::ACTIVE, self::CANCELLED],
-        self::COMPLETED => [], // Terminal
+        self::ACTIVE => [self::PAUSED, self::COMPLETED, self::CANCELLED, self::EXPIRED],
+        self::PAUSED => [self::ACTIVE, self::CANCELLED, self::EXPIRED],
+        self::COMPLETED => [self::ACTIVE], // Renewal allowed
         self::CANCELLED => [], // Terminal
+        self::EXPIRED => [self::ACTIVE], // Renewal allowed
     ];
 
     private string $value;
@@ -88,6 +91,11 @@ class ContractStatus
         return new self(self::CANCELLED);
     }
 
+    public static function expired(): self
+    {
+        return new self(self::EXPIRED);
+    }
+
     public static function fromString(string $value): self
     {
         return new self($value);
@@ -102,6 +110,7 @@ class ContractStatus
             self::PAUSED,
             self::COMPLETED,
             self::CANCELLED,
+            self::EXPIRED,
         ];
 
         if (!in_array($value, $validStatuses, true)) {
@@ -169,9 +178,14 @@ class ContractStatus
         return $this->value === self::CANCELLED;
     }
 
+    public function isExpired(): bool
+    {
+        return $this->value === self::EXPIRED;
+    }
+
     public function isTerminal(): bool
     {
-        return $this->isCompleted() || $this->isCancelled();
+        return $this->isCancelled();
     }
 
     public function toString(): string

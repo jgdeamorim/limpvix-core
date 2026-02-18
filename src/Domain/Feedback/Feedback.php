@@ -47,6 +47,14 @@ final class Feedback
     private \DateTimeImmutable $createdAt;
     private ?\DateTimeImmutable $validatedAt;
 
+    // Resolution fields (added in Migration 030)
+    private ?string $resolutionText = null;
+    private ?string $resolutionSeverity = null; // grave|medio|leve
+    private ?int $resolutionBy = null;
+    private ?string $resolutionByName = null;
+    private ?\DateTimeImmutable $resolutionAt = null;
+    private ?float $scorePenalty = null;
+
     /** @var array Domain events */
     private array $events = [];
 
@@ -189,6 +197,56 @@ final class Feedback
     }
 
     /**
+     * Resolve a blocking feedback (admin action before releasing payout).
+     *
+     * Records who resolved the issue, what was done, and the severity.
+     * Severity determines the score_penalty applied during score calculation:
+     *   - grave  → −1.50 pts on the individual rating
+     *   - medio  → −0.75 pts on the individual rating
+     *   - leve   → no penalty
+     *
+     * Internally calls approve() so blocksPayout() returns false afterwards.
+     */
+    public function resolve(
+        int $resolvedBy,
+        string $resolvedByName,
+        string $resolutionText,
+        string $severity
+    ): void {
+        if (!in_array($severity, ['grave', 'medio', 'leve'], true)) {
+            throw new \InvalidArgumentException(
+                "Gravidade inválida: '{$severity}'. Use: grave, medio, leve"
+            );
+        }
+
+        if (empty(trim($resolutionText))) {
+            throw new \InvalidArgumentException('O texto da resolução é obrigatório.');
+        }
+
+        $this->resolutionText     = $resolutionText;
+        $this->resolutionSeverity = $severity;
+        $this->resolutionBy       = $resolvedBy;
+        $this->resolutionByName   = $resolvedByName ?: 'Admin';
+        $this->resolutionAt       = new \DateTimeImmutable();
+        $this->scorePenalty       = match($severity) {
+            'grave' => 1.50,
+            'medio' => 0.75,
+            default => 0.00,
+        };
+
+        // Resolution implicitly approves the feedback → blocksPayout() returns false
+        $this->approve($resolvedBy);
+    }
+
+    // Resolution getters
+    public function getResolutionText(): ?string { return $this->resolutionText; }
+    public function getResolutionSeverity(): ?string { return $this->resolutionSeverity; }
+    public function getResolutionBy(): ?int { return $this->resolutionBy; }
+    public function getResolutionByName(): ?string { return $this->resolutionByName; }
+    public function getResolutionAt(): ?\DateTimeImmutable { return $this->resolutionAt; }
+    public function getScorePenalty(): float { return $this->scorePenalty ?? 0.0; }
+
+    /**
      * Check if feedback requires evidence validation
      */
     public function requiresEvidence(): bool
@@ -235,7 +293,7 @@ final class Feedback
      */
     public static function reconstitute(array $data): self
     {
-        return new self(
+        $feedback = new self(
             id: (int) $data['id'],
             orderId: (int) $data['order_id'],
             professionalId: (int) $data['professional_id'],
@@ -249,6 +307,16 @@ final class Feedback
             createdAt: new \DateTimeImmutable($data['created_at']),
             validatedAt: isset($data['validated_at']) ? new \DateTimeImmutable($data['validated_at']) : null
         );
+
+        // Restore resolution fields if present (Migration 030)
+        $feedback->resolutionText     = $data['resolution_text']     ?? null;
+        $feedback->resolutionSeverity = $data['resolution_severity'] ?? null;
+        $feedback->resolutionBy       = isset($data['resolution_by']) ? (int) $data['resolution_by'] : null;
+        $feedback->resolutionByName   = $data['resolution_by_name']  ?? null;
+        $feedback->resolutionAt       = isset($data['resolution_at']) ? new \DateTimeImmutable($data['resolution_at']) : null;
+        $feedback->scorePenalty       = isset($data['score_penalty'])  ? (float) $data['score_penalty'] : null;
+
+        return $feedback;
     }
 
     /**
@@ -257,18 +325,25 @@ final class Feedback
     public function toArray(): array
     {
         return [
-            'id' => $this->id,
-            'order_id' => $this->orderId,
-            'professional_id' => $this->professionalId,
-            'client_id' => $this->clientId,
-            'rating' => $this->rating,
-            'comment' => $this->comment,
-            'evidence_required' => $this->evidenceRequired,
-            'validated_by_admin' => $this->validatedByAdmin,
-            'validation_status' => $this->validationStatus,
-            'validated_by' => $this->validatedBy,
-            'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
-            'validated_at' => $this->validatedAt?->format('Y-m-d H:i:s'),
+            'id'                  => $this->id,
+            'order_id'            => $this->orderId,
+            'professional_id'     => $this->professionalId,
+            'client_id'           => $this->clientId,
+            'rating'              => $this->rating,
+            'comment'             => $this->comment,
+            'evidence_required'   => $this->evidenceRequired,
+            'validated_by_admin'  => $this->validatedByAdmin,
+            'validation_status'   => $this->validationStatus,
+            'validated_by'        => $this->validatedBy,
+            'created_at'          => $this->createdAt->format('Y-m-d H:i:s'),
+            'validated_at'        => $this->validatedAt?->format('Y-m-d H:i:s'),
+            // Resolution fields (Migration 030)
+            'resolution_text'     => $this->resolutionText,
+            'resolution_severity' => $this->resolutionSeverity,
+            'resolution_by'       => $this->resolutionBy,
+            'resolution_by_name'  => $this->resolutionByName,
+            'resolution_at'       => $this->resolutionAt?->format('Y-m-d H:i:s'),
+            'score_penalty'       => $this->scorePenalty,
         ];
     }
 

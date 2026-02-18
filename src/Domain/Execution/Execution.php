@@ -158,7 +158,7 @@ class Execution
         $this->checkInGeo = $geo;
 
         // GAP #3: Disparar evento de check-in para notificação ao cliente
-        do_action('limpvix_execution_checked_in', $this->executionUuid, $this->orderId, $this->professionalId);
+        do_action('limpvix_execution_checked_in', $this->executionUuid, $this->orderUuid, $this->professionalId);
     }
 
     /**

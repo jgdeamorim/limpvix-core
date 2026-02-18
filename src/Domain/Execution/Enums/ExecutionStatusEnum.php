@@ -6,15 +6,17 @@ namespace LimpVix\Domain\Execution\Enums;
 /**
  * Execution Status Enum (Sprint 1 - Dia 1)
  *
- * Estados válidos do ciclo de vida de uma Execution (State Machine).
- * Enum PHP 8.1+ - fonte única de verdade para estados de execução.
+ * Estados do RASTREAMENTO EM TEMPO REAL de uma execução de serviço.
+ * Usado pelo aggregate Execution (check-in GPS, evidências, SLA, geofence).
  *
- * PRINCÍPIOS:
- * - Execution é soberana (independente de agendadores externos)
- * - Check-in obrigatório para iniciar
- * - Check-out obrigatório para finalizar
- * - Evidência obrigatória
- * - Estados terminais imutáveis
+ * IMPORTANTE: NÃO confundir com ExecutionStatus (Value Object) que é usado
+ * pelo aggregate ContractExecution para rastrear o ciclo de AGENDAMENTO
+ * (draft → scheduled → in_progress → completed/cancelled/no_show).
+ *
+ * Esta enum rastreia: check-in → execução → check-out → validação → fechamento
+ * ExecutionStatus rastreia: criação → agendamento → progresso → conclusão
+ *
+ * Tabela: wp_limpvix_executions (coluna status)
  *
  * @package LimpVix\Domain\Execution\Enums
  */

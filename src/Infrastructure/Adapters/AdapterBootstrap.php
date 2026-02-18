@@ -129,6 +129,34 @@ class AdapterBootstrap
         // ✅ FLOW 4.6: Register event listener for professional score recalculation
         $calculateScore = new CalculateProfessionalScore($feedbackRepo, $professionalRepo);
         UpdateProfessionalScoreOnFeedbackApproved::register($calculateScore);
+
+        // ✅ Boot Payout Crons (register hooks + schedule jobs)
+        \LimpVix\Application\Services\PayoutReconciliationService::registerCronHooks();
+        \LimpVix\Application\Services\PayoutReconciliationService::scheduleCronJobs();
+
+        // ✅ Wire Feedback Submitted → Payout Authorization (FSM rules)
+        // When structured feedback is submitted, authorize payout based on rating:
+        // 5★ = immediate, 4★ = 24h delay, ≤3★ = on_hold for admin review
+        add_action('limpvix_feedback_submitted', function (array $eventData) {
+            $orderUuid = $eventData['order_uuid'] ?? '';
+            $finalScore = (int) round($eventData['final_score'] ?? 0);
+
+            if (empty($orderUuid) || $finalScore < 1) {
+                return;
+            }
+
+            // Resolve order_id from order_uuid
+            global $wpdb;
+            $orderId = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}limpvix_orders WHERE uuid = %s",
+                $orderUuid
+            ));
+
+            if ($orderId > 0) {
+                $reconciliation = new \LimpVix\Application\Services\PayoutReconciliationService();
+                $reconciliation->approvePayout($orderId, $finalScore);
+            }
+        });
     }
 
     public function getRegistry(): AdapterRegistry
