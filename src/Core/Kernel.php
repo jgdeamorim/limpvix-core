@@ -117,12 +117,13 @@ class Kernel
         $this->hooks = new Hooks($this->featureFlags);
         $this->hooks->register();
 
-        // Inicializar módulo Briefing
-        if (class_exists('LimpVix\\Core\\BriefingBootstrap')) {
+        // Inicializar Auth antes dos módulos (JWT, API Key, Rate Limit)
         if (class_exists('LimpVix\\Infrastructure\\API\\AuthBootstrap')) {
             \LimpVix\Infrastructure\API\AuthBootstrap::init();
         }
 
+        // Inicializar módulo Briefing
+        if (class_exists('LimpVix\\Core\\BriefingBootstrap')) {
             BriefingBootstrap::init();
         }
 
@@ -154,11 +155,6 @@ class Kernel
         // Inicializar módulo Execution (Contract Executions)
         if (class_exists('LimpVix\\Core\\ExecutionBootstrap')) {
             ExecutionBootstrap::init();
-
-        // Inicializar módulo Professional (KYC + Management)
-        if (class_exists('LimpVix\\Core\\ProfessionalBootstrap')) {
-            ProfessionalBootstrap::init();
-        }
         }
 
         // Inicializar automação de contratos

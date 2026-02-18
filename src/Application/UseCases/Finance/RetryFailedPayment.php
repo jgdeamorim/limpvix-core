@@ -41,7 +41,7 @@ namespace LimpVix\Application\UseCases\Finance;
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Contract\ContractId;
 use LimpVix\Domain\Finance\RecurringPaymentRepositoryInterface;
-use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPaymentProvider;
+use LimpVix\Domain\Finance\PaymentProviderInterface;
 use LimpVix\Common\Result;
 
 defined('ABSPATH') || exit;
@@ -50,12 +50,12 @@ class RetryFailedPayment
 {
     private RecurringPaymentRepositoryInterface $paymentRepository;
     private ContractRepositoryInterface $contractRepository;
-    private MercadoPagoPaymentProvider $paymentProvider;
+    private PaymentProviderInterface $paymentProvider;
 
     public function __construct(
         RecurringPaymentRepositoryInterface $paymentRepository,
         ContractRepositoryInterface $contractRepository,
-        MercadoPagoPaymentProvider $paymentProvider
+        PaymentProviderInterface $paymentProvider
     ) {
         $this->paymentRepository = $paymentRepository;
         $this->contractRepository = $contractRepository;

@@ -17,6 +17,7 @@ use LimpVix\Admin\Settings\GoogleBusinessSettings;
 use LimpVix\Admin\Settings\NVoipSettings;
 use LimpVix\Admin\Settings\FirebaseSettings;
 use LimpVix\Admin\Settings\TestVendorsManager;
+use LimpVix\Admin\Settings\EfiBankSettings;
 use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 // DEPRECATED (ONDA 2): Páginas movidas para tabs em Settings
 // use LimpVix\Infrastructure\Admin\Pages\CommunicationCenterPage;
@@ -51,6 +52,7 @@ class AdminBootstrap
         add_action("admin_post_limpvix_update_flows", [$this, "handleUpdateFlows"]);
 
         MercadoPagoSettings::registerHooks();
+        EfiBankSettings::registerHooks();
         GoogleBusinessSettings::registerHooks();
         NVoipSettings::registerHooks();
         FirebaseSettings::registerHooks();
@@ -5182,7 +5184,7 @@ class AdminBootstrap
                             💳 Sistema de Pagamentos & Payouts
                         </h1>
                         <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 16px;">
-                            Integração com MercadoPago para pagamentos de clientes e repasses aos profissionais
+                            EFI Bank (primário) + MercadoPago (fallback) — pagamentos via PIX e repasses automáticos aos profissionais
                         </p>
                     </div>
                     <div style="text-align: right;">
@@ -5247,23 +5249,24 @@ class AdminBootstrap
                     </div>
                 </div>
 
-                <!-- Status MercadoPago -->
+                <!-- Status EFI Bank -->
+                <?php $efiStatusForHero = \LimpVix\Admin\Settings\EfiBankSettings::getConfigStatus(); ?>
                 <div style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
-                            💎
+                            🏦
                         </div>
                         <div>
                             <div style="font-size: 14px; font-weight: 600; color: white; margin-bottom: 3px;">
-                                MercadoPago Integration
+                                EFI Bank — Gateway Primário (PIX)
                             </div>
                             <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8);">
-                                <span style="color: <?php echo esc_attr($mpStatus['status_color']); ?>;">
-                                    <?php echo esc_html($mpStatus['status_icon']); ?> <?php echo esc_html($mpStatus['status_text']); ?>
+                                <span style="color: <?php echo esc_attr($efiStatusForHero['status_color']); ?>;">
+                                    <?php echo esc_html($efiStatusForHero['status_icon']); ?> <?php echo esc_html($efiStatusForHero['status_text']); ?>
                                 </span>
-                                <?php if (!empty($mpStatus['missing'])): ?>
+                                <?php if (!empty($efiStatusForHero['missing'])): ?>
                                     <div style="margin-top: 5px; font-size: 11px; color: #fbbf24;">
-                                        Faltando: <?php echo esc_html(implode(', ', $mpStatus['missing'])); ?>
+                                        Faltando: <?php echo esc_html(implode(', ', $efiStatusForHero['missing'])); ?>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -5271,33 +5274,40 @@ class AdminBootstrap
                     </div>
                     <a href="<?php echo admin_url('admin.php?page=limpvix-professionals&tab=payouts'); ?>"
                        class="button button-primary"
-                       style="background: white; color: #667eea; border: none; box-shadow: none; padding: 8px 16px; font-weight: 600;">
+                       style="background: white; color: #00695c; border: none; box-shadow: none; padding: 8px 16px; font-weight: 600;">
                         Ver Todos os Payouts →
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Grid: MercadoPago Settings + Features -->
-        <div class="limpvix-grid limpvix-grid-2">
-            <!-- Mercado Pago Settings -->
-            <div class="limpvix-card">
-                <div class="limpvix-card-header" style="background: linear-gradient(135deg, #009ee3 0%, #0077cc 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
-                    <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
-                        💎 MercadoPago - Configuração
-                    </h3>
-                    <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
-                        Credenciais de acesso e configurações da API
-                    </p>
-                    <div style="margin-top: 12px; display: inline-block; padding: 6px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 20px; font-size: 12px; font-weight: 600;">
-                        <?php echo esc_html($mpStatus['status_icon']); ?> <?php echo esc_html($mpStatus['fully_configured'] ? 'Configurado' : ($mpStatus['platform_configured'] ? 'Parcial' : 'Não Configurado')); ?>
+        <!-- Card EFI Bank (Provider Primário) -->
+        <div class="limpvix-card" style="margin-bottom: 20px;">
+            <div class="limpvix-card-header" style="background: linear-gradient(135deg, #00897b 0%, #00695c 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="color: white; margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">
+                            🏦 EFI Bank — Configuração (Provider Primário)
+                        </h3>
+                        <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 14px;">
+                            PIX Cash-Out automático · OAuth2 + mTLS · Sandbox & Produção
+                        </p>
+                    </div>
+                    <?php
+                    $efiCardStatus = \LimpVix\Admin\Settings\EfiBankSettings::getConfigStatus();
+                    ?>
+                    <div style="padding: 6px 14px; background: rgba(255,255,255,0.2); border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap;">
+                        <?php echo esc_html($efiCardStatus['status_icon'] . ' ' . $efiCardStatus['status_text']); ?>
                     </div>
                 </div>
-                <div class="limpvix-card-body">
-                    <?php MercadoPagoSettings::render(); ?>
-                </div>
             </div>
+            <div class="limpvix-card-body">
+                <?php \LimpVix\Admin\Settings\EfiBankSettings::render(); ?>
+            </div>
+        </div>
 
+        <!-- Card: Payout Features (EFI Bank) -->
+        <div>
             <!-- Payout Features -->
             <div class="limpvix-card">
                 <div class="limpvix-card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px 8px 0 0; padding: 20px; border: none;">
@@ -5347,7 +5357,7 @@ class AdminBootstrap
                                     Reconciliação Automática
                                 </div>
                                 <div style="font-size: 13px; color: <?php echo $features['reconciliation']['cron_active'] ? '#047857' : '#b45309'; ?>;">
-                                    Cron job que sincroniza status de transferências com MercadoPago a cada 15 minutos
+                                    Cron job que sincroniza status de transferências com EFI Bank a cada 15 minutos
                                     <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['reconciliation']['status']); ?>)</span>
                                 </div>
                             </div>
@@ -5375,7 +5385,7 @@ class AdminBootstrap
                                     Auditoria Completa
                                 </div>
                                 <div style="font-size: 13px; color: <?php echo $features['audit_trail']['implemented'] ? '#047857' : '#b45309'; ?>;">
-                                    Logs detalhados de todas as transações com raw_response do MercadoPago
+                                    Logs detalhados de todas as transações com raw_response do EFI Bank
                                     <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['audit_trail']['status']); ?>)</span>
                                 </div>
                             </div>
@@ -5389,7 +5399,7 @@ class AdminBootstrap
                                     Suporte a PIX, Conta Bancária e MP Account
                                 </div>
                                 <div style="font-size: 13px; color: <?php echo $features['multi_recipient']['implemented'] ? '#047857' : '#b91c1c'; ?>;">
-                                    Profissional escolhe método preferido: PIX (instantâneo), Conta Bancária ou MercadoPago
+                                    Profissional escolhe método preferido: PIX (instantâneo) ou Conta Bancária via EFI Bank
                                     <span style="font-weight: 600; margin-left: 8px;">(<?php echo esc_html($features['multi_recipient']['status']); ?>)</span>
                                 </div>
                             </div>
@@ -5406,6 +5416,7 @@ class AdminBootstrap
                 </div>
             </div>
         </div>
+        <!-- /Card: Payout Features -->
 
         <!-- Informações Técnicas -->
         <div class="limpvix-card" style="margin-top: 20px;">

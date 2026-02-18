@@ -29,7 +29,10 @@ use LimpVix\Application\UseCases\Financial\ExecutePayout;
 use LimpVix\Infrastructure\Persistence\WpFinancialLedgerRepository;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
 use LimpVix\Infrastructure\Finance\PaymentProviders\MercadoPagoPayoutProvider;
+use LimpVix\Infrastructure\Finance\Providers\EfiPayoutProvider;
 use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
+use LimpVix\Infrastructure\Feedback\Repositories\WpFeedbackRepository;
+use LimpVix\Infrastructure\Persistence\WpMarketplaceProfessionalRepository;
 
 defined('ABSPATH') || exit;
 
@@ -50,6 +53,9 @@ class AdminActionsController
         // Ações que requerem limpvix_finance_payout
         add_action('wp_ajax_limpvix_execute_payout', [$this, 'handleExecutePayout']);
         add_action('wp_ajax_limpvix_refund_order', [$this, 'handleRefundOrder']);
+
+        // PIX manual — admin marca payout como pago via PIX
+        add_action('wp_ajax_limpvix_mark_pix_paid', [$this, 'handleMarkPixPaid']);
     }
 
     /**
@@ -297,14 +303,21 @@ class AdminActionsController
             }
 
             // Executar payout via Use Case (Golden Rule protegido)
-            $executionRepo = new WpExecutionRepository();
-            $payoutProvider = new MercadoPagoPayoutProvider();
-            $payoutRepo = new WpPayoutRepository();
+            $executionRepo    = new WpExecutionRepository();
+            $payoutProvider   = new EfiPayoutProvider();
+            if (!$payoutProvider->isAvailable()) {
+                $payoutProvider = new MercadoPagoPayoutProvider();
+            }
+            $payoutRepo       = new WpPayoutRepository();
+            $feedbackRepo     = new WpFeedbackRepository();
+            $professionalRepo = new WpMarketplaceProfessionalRepository();
 
             $useCase = new ExecutePayout(
                 $executionRepo,
                 $payoutProvider,
-                $payoutRepo
+                $payoutRepo,
+                $feedbackRepo,
+                $professionalRepo
             );
 
             $result = $useCase->execute($payoutId);
@@ -407,6 +420,89 @@ class AdminActionsController
                 'message' => 'Erro ao reembolsar order: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Handler AJAX: Marcar payout PIX como pago manualmente
+     *
+     * Chamado via $.post(ajaxurl, {action:'limpvix_mark_pix_paid', ...})
+     * O nonce é gerado por payout: limpvix_mark_pix_paid_{id}
+     */
+    public function handleMarkPixPaid(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permissão negada.'], 403);
+            return;
+        }
+
+        $payoutId = (int) ($_POST['payout_id'] ?? 0);
+        if ($payoutId <= 0) {
+            wp_send_json_error(['message' => 'payout_id inválido.'], 400);
+            return;
+        }
+
+        // Nonce por payout (gerado em renderPayoutsTable)
+        if (!check_ajax_referer('limpvix_mark_pix_paid_' . $payoutId, '_wpnonce', false)) {
+            wp_send_json_error(['message' => 'Nonce inválido ou expirado.'], 403);
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_payouts';
+
+        // Verificar que payout existe e está aprovado
+        $payout = $wpdb->get_row(
+            $wpdb->prepare("SELECT id, status, payout_method, net_amount, professional_id FROM {$table} WHERE id = %d", $payoutId),
+            ARRAY_A
+        );
+
+        if (!$payout) {
+            wp_send_json_error(['message' => "Payout #{$payoutId} não encontrado."], 404);
+            return;
+        }
+
+        if ($payout['status'] !== 'approved') {
+            wp_send_json_error(['message' => "Payout #{$payoutId} não está no status 'approved' (atual: {$payout['status']})."], 400);
+            return;
+        }
+
+        $proof   = sanitize_textarea_field($_POST['payment_proof'] ?? '');
+        $adminId = get_current_user_id();
+        $now     = current_time('mysql');
+
+        $updated = $wpdb->update(
+            $table,
+            [
+                'status'                  => 'completed',
+                'manually_marked_paid_by' => $adminId,
+                'manually_marked_paid_at' => $now,
+                'manual_payment_proof'    => $proof ?: null,
+                'completed_at'            => $now,
+            ],
+            ['id' => $payoutId],
+            ['%s', '%d', '%s', '%s', '%s'],
+            ['%d']
+        );
+
+        if ($updated === false) {
+            wp_send_json_error(['message' => 'Erro ao atualizar payout no banco de dados.'], 500);
+            return;
+        }
+
+        // Log de auditoria
+        limpvix_log_event('pix_manual_paid', [
+            'payout_id'   => $payoutId,
+            'admin_id'    => $adminId,
+            'net_amount'  => $payout['net_amount'],
+            'has_proof'   => !empty($proof),
+        ]);
+
+        wp_send_json_success([
+            'message'   => "Payout PIX #{$payoutId} marcado como pago com sucesso.",
+            'payout_id' => $payoutId,
+            'admin'     => wp_get_current_user()->display_name,
+            'paid_at'   => $now,
+        ]);
     }
 
     /**

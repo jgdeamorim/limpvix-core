@@ -63,6 +63,12 @@ class WooCommerceStatusSyncAdapter
      */
     public function handleStatusChanged(string $orderUuid, string $fromStatus, string $toStatus): void
     {
+        // Guard P1-1: WooCommerce deve estar ativo (pode ser desativado em runtime)
+        if (!function_exists('wc_get_order')) {
+            error_log("[WooCommerceStatusSyncAdapter] wc_get_order() não disponível — WooCommerce inativo. Sync ignorado.");
+            return;
+        }
+
         error_log("[WooCommerceStatusSyncAdapter] Financial status changed: {$fromStatus} → {$toStatus} (Order: {$orderUuid})");
 
         try {

@@ -2569,15 +2569,20 @@ class ProfessionalManagementPage
             ARRAY_A
         ) ?? ['total' => 0, 'mp_connected' => 0, 'pix_only' => 0];
 
-        // PIX com payout pendente (aprovados mas method = pix_manual)
+        // PIX com payout pendente (aprovados mas method = pix_manual) + valor total
         $payoutTable = $wpdb->prefix . 'limpvix_payouts';
-        $pixPending = 0;
+        $pixPending      = 0;
+        $pixPendingTotal = 0.0;
         if ($wpdb->get_var("SHOW TABLES LIKE '{$payoutTable}'") === $payoutTable) {
-            $pixPending = (int) $wpdb->get_var(
-                "SELECT COUNT(*) FROM {$payoutTable}
+            $pixRow = $wpdb->get_row(
+                "SELECT COUNT(*) AS cnt, COALESCE(SUM(net_amount), 0) AS total
+                 FROM {$payoutTable}
                  WHERE status = 'approved'
-                   AND (payout_method = 'pix_manual' OR payout_method IS NULL)"
+                   AND (payout_method = 'pix_manual' OR payout_method IS NULL)",
+                ARRAY_A
             );
+            $pixPending      = (int)   ($pixRow['cnt']   ?? 0);
+            $pixPendingTotal = (float)  ($pixRow['total'] ?? 0);
         }
 
         // ── Stats gerais de payouts ─────────────────────────────────────────────
@@ -2586,11 +2591,19 @@ class ProfessionalManagementPage
 
         // ── Notice: PIX manual pendente (ação necessária) ───────────────────────
         if ($pixPending > 0): ?>
-            <div class="notice notice-warning" style="margin:0 0 16px;">
-                <p>
-                    <strong>⏳ <?php echo $pixPending; ?> payout(s) PIX manual aguardando processamento.</strong>
-                    Profissionais sem MercadoPago OAuth conectado recebem via PIX manual — processe abaixo.
-                    <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=approved">Ver pendentes →</a>
+            <div class="notice notice-warning" style="margin:0 0 16px; border-left-color:#d97706;">
+                <p style="margin:8px 0;">
+                    <strong>🏦 <?php echo $pixPending; ?> payout(s) PIX manual aguardando processamento</strong>
+                    — Total: <strong>R$ <?php echo number_format($pixPendingTotal, 2, ',', '.'); ?></strong>
+                </p>
+                <p style="margin:4px 0 8px; color:#6b7280; font-size:13px;">
+                    Profissionais sem MercadoPago OAuth conectado recebem via PIX manual.
+                    Use o botão <strong>"🏦 Pagar PIX"</strong> em cada linha para ver os dados de pagamento e registrar o comprovante.
+                    <?php if (!empty($_GET['payout_status']) && $_GET['payout_status'] === 'approved'): ?>
+                        <span style="color:#059669;">✓ Exibindo payouts aprovados abaixo.</span>
+                    <?php else: ?>
+                        <a href="?page=<?php echo esc_attr($pSlug); ?>&tab=payouts&payout_status=approved" style="color:#d97706;">Ver todos pendentes →</a>
+                    <?php endif; ?>
                 </p>
             </div>
         <?php endif; ?>
@@ -2764,7 +2777,7 @@ class ProfessionalManagementPage
         $total      = (int) $wpdb->get_var($countSql);
         $totalPages = max(1, (int) ceil($total / $perPage));
 
-        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf, pr.mp_oauth_status AS prof_mp_status';
+        $selectSql = 'SELECT py.*, pr.full_name AS professional_name, pr.cpf AS professional_cpf, pr.mp_oauth_status AS prof_mp_status, pr.pix_key AS prof_pix_key, pr.pix_key_type AS prof_pix_key_type';
 
         $dataSql = empty($params)
             ? $wpdb->prepare(
@@ -2908,16 +2921,27 @@ class ProfessionalManagementPage
                                                 </button>
                                             </form>
                                         <?php elseif ($py['status'] === 'approved' && $isPixManual): ?>
-                                            <!-- Payout manual PIX — admin marca como pago -->
-                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
-                                                <input type="hidden" name="action" value="limpvix_mark_pix_paid">
-                                                <input type="hidden" name="payout_id" value="<?php echo (int) $py['id']; ?>">
-                                                <?php wp_nonce_field('limpvix_mark_pix_paid_' . $py['id']); ?>
-                                                <button type="submit" class="button button-secondary button-small"
-                                                        onclick="return confirm('Confirmar PIX pago para payout #<?php echo (int) $py['id']; ?>?');">
-                                                    🏦 Pago PIX
-                                                </button>
-                                            </form>
+                                            <!-- Payout manual PIX — abre modal de pagamento com QR Code -->
+                                            <?php
+                                            $pixKey     = $py['prof_pix_key']      ?? $py['recipient_key'] ?? '';
+                                            $pixKeyType = $py['prof_pix_key_type']  ?? $py['recipient_type'] ?? 'pix';
+                                            $pixName    = $py['professional_name']  ?? $py['recipient_name'] ?? '';
+                                            $pixAmount  = (float) ($py['net_amount'] ?? 0);
+                                            $nonce      = wp_create_nonce('limpvix_mark_pix_paid_' . $py['id']);
+                                            $pixData    = json_encode([
+                                                'id'      => (int) $py['id'],
+                                                'name'    => $pixName,
+                                                'key'     => $pixKey,
+                                                'keyType' => $pixKeyType,
+                                                'amount'  => $pixAmount,
+                                                'nonce'   => $nonce,
+                                            ]);
+                                            ?>
+                                            <button type="button" class="button button-primary button-small limpvix-pix-pay-btn"
+                                                    data-payout='<?php echo esc_attr($pixData); ?>'
+                                                    style="background:#2563eb; border-color:#1d4ed8; color:#fff;">
+                                                🏦 Pagar PIX
+                                            </button>
                                         <?php elseif ($py['status'] === 'failed' && (int) ($py['retry_count'] ?? 0) < (int) ($py['max_retries'] ?? 3)): ?>
                                             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
                                                 <input type="hidden" name="action" value="limpvix_process_payout">
@@ -2973,6 +2997,296 @@ class ProfessionalManagementPage
             </div>
 
         </div><!-- /card -->
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             MODAL: PIX PAYMENT — Dados de pagamento + QR Code + Confirmação
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div id="lmpx-pix-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:100000; align-items:center; justify-content:center;">
+            <div style="background:#fff; border-radius:16px; width:480px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;">
+
+                <!-- Header -->
+                <div style="background:linear-gradient(135deg,#1e40af,#2563eb); border-radius:16px 16px 0 0; padding:20px 24px; display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <h2 style="color:#fff; margin:0; font-size:18px; font-weight:700;">🏦 Pagamento PIX Manual</h2>
+                        <p style="color:rgba(255,255,255,0.80); margin:4px 0 0; font-size:13px;">Payout #<span id="lmpx-pix-id">—</span></p>
+                    </div>
+                    <button type="button" onclick="lmpxClosePix()" style="background:rgba(255,255,255,0.2); border:none; border-radius:8px; color:#fff; font-size:18px; cursor:pointer; padding:6px 10px; line-height:1;">✕</button>
+                </div>
+
+                <div style="padding:24px;">
+
+                    <!-- Profissional + Valor -->
+                    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:2px;">Profissional</div>
+                            <div style="font-size:15px; font-weight:700; color:#065f46;" id="lmpx-pix-name">—</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:2px;">Valor a pagar</div>
+                            <div style="font-size:22px; font-weight:800; color:#065f46;" id="lmpx-pix-amount">R$ —</div>
+                        </div>
+                    </div>
+
+                    <!-- Chave PIX -->
+                    <div style="margin-bottom:20px;">
+                        <div style="font-size:12px; color:#6b7280; font-weight:600; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">Chave PIX</div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <div style="flex:1; background:#f8fafc; border:2px solid #e2e8f0; border-radius:8px; padding:12px 14px; font-family:monospace; font-size:15px; font-weight:600; color:#1e293b; word-break:break-all;" id="lmpx-pix-key">—</div>
+                            <button type="button" onclick="lmpxCopyPix()" style="background:#2563eb; border:none; border-radius:8px; color:#fff; padding:12px 14px; cursor:pointer; font-size:13px; font-weight:600; white-space:nowrap; flex-shrink:0;" title="Copiar chave PIX">
+                                📋 Copiar
+                            </button>
+                        </div>
+                        <div style="margin-top:6px; font-size:12px; color:#6b7280;">
+                            Tipo: <strong id="lmpx-pix-type">—</strong>
+                        </div>
+                    </div>
+
+                    <!-- QR Code -->
+                    <div style="text-align:center; margin-bottom:20px;">
+                        <div style="font-size:12px; color:#6b7280; font-weight:600; margin-bottom:10px; text-transform:uppercase; letter-spacing:.5px;">QR Code PIX</div>
+                        <div id="lmpx-qr-container" style="display:inline-block; padding:12px; background:#fff; border:2px solid #e2e8f0; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                            <canvas id="lmpx-qr-canvas" width="180" height="180"></canvas>
+                        </div>
+                        <div style="margin-top:8px; font-size:12px; color:#6b7280;">Escaneie com qualquer app bancário</div>
+                        <div id="lmpx-qr-nokey" style="display:none; padding:20px; color:#9ca3af; font-size:13px;">
+                            ⚠️ Profissional sem chave PIX cadastrada.<br>Copie a chave manualmente ou entre em contato.
+                        </div>
+                    </div>
+
+                    <!-- Instruções -->
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 14px; margin-bottom:20px; font-size:13px; color:#1e40af; line-height:1.6;">
+                        <strong>Como pagar:</strong><br>
+                        1. Copie a chave PIX ou escaneie o QR Code<br>
+                        2. Faça o pagamento no seu app bancário<br>
+                        3. Cole o comprovante abaixo e confirme
+                    </div>
+
+                    <!-- Comprovante -->
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block; font-size:12px; color:#374151; font-weight:600; margin-bottom:6px;">
+                            Comprovante / Observação <span style="color:#9ca3af; font-weight:400;">(opcional)</span>
+                        </label>
+                        <textarea id="lmpx-pix-proof" rows="3"
+                                  style="width:100%; box-sizing:border-box; border:1px solid #d1d5db; border-radius:8px; padding:10px; font-size:13px; resize:vertical;"
+                                  placeholder="Ex: Transferência realizada às 14:30 — ID: E00000000..."></textarea>
+                    </div>
+
+                    <!-- Botões de ação -->
+                    <div style="display:flex; gap:10px;">
+                        <button type="button" onclick="lmpxClosePix()"
+                                style="flex:1; padding:12px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; color:#475569; font-size:14px; font-weight:600; cursor:pointer;">
+                            Cancelar
+                        </button>
+                        <button type="button" onclick="lmpxConfirmPix()"
+                                id="lmpx-confirm-btn"
+                                style="flex:2; padding:12px; background:#059669; border:none; border-radius:8px; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">
+                            ✅ Confirmar Pagamento PIX
+                        </button>
+                    </div>
+
+                    <!-- Status de feedback -->
+                    <div id="lmpx-pix-feedback" style="display:none; margin-top:12px; padding:10px 14px; border-radius:8px; font-size:13px; text-align:center;"></div>
+
+                </div><!-- /body -->
+            </div><!-- /modal inner -->
+        </div><!-- /modal overlay -->
+
+        <script>
+        (function($) {
+            'use strict';
+
+            var currentPayout = null;
+
+            // ── Abrir modal ──────────────────────────────────────────────────────
+            $(document).on('click', '.limpvix-pix-pay-btn', function() {
+                var data = $(this).data('payout');
+                if (!data) return;
+                currentPayout = data;
+                lmpxOpenPix(data);
+            });
+
+            window.lmpxOpenPix = function(data) {
+                $('#lmpx-pix-id').text('#' + data.id);
+                $('#lmpx-pix-name').text(data.name || '—');
+                $('#lmpx-pix-amount').text('R$ ' + parseFloat(data.amount || 0).toFixed(2).replace('.', ','));
+                $('#lmpx-pix-key').text(data.key || '(sem chave PIX)');
+                $('#lmpx-pix-type').text(lmpxPixTypeName(data.keyType));
+                $('#lmpx-pix-proof').val('');
+                $('#lmpx-pix-feedback').hide();
+                $('#lmpx-confirm-btn').prop('disabled', false).text('✅ Confirmar Pagamento PIX');
+
+                if (data.key) {
+                    $('#lmpx-qr-container').show();
+                    $('#lmpx-qr-nokey').hide();
+                    lmpxGenerateQR(data.key, data.amount, data.name);
+                } else {
+                    $('#lmpx-qr-container').hide();
+                    $('#lmpx-qr-nokey').show();
+                }
+
+                $('#lmpx-pix-modal').css('display', 'flex');
+            };
+
+            window.lmpxClosePix = function() {
+                $('#lmpx-pix-modal').hide();
+                currentPayout = null;
+            };
+
+            window.lmpxCopyPix = function() {
+                var key = $('#lmpx-pix-key').text().trim();
+                if (!key || key === '(sem chave PIX)') return;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(key).then(function() {
+                        lmpxShowFeedback('info', '📋 Chave PIX copiada!');
+                    });
+                } else {
+                    var ta = document.createElement('textarea');
+                    ta.value = key;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    lmpxShowFeedback('info', '📋 Chave PIX copiada!');
+                }
+            };
+
+            window.lmpxConfirmPix = function() {
+                if (!currentPayout) return;
+                var proof = $('#lmpx-pix-proof').val().trim();
+                var btn = $('#lmpx-confirm-btn');
+                btn.prop('disabled', true).text('Processando…');
+
+                $.post(ajaxurl, {
+                    action: 'limpvix_mark_pix_paid',
+                    payout_id: currentPayout.id,
+                    payment_proof: proof,
+                    _wpnonce: currentPayout.nonce
+                }, function(resp) {
+                    if (resp && resp.success) {
+                        lmpxShowFeedback('success', '✅ Pagamento PIX confirmado! Recarregando…');
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Erro desconhecido.';
+                        lmpxShowFeedback('error', '❌ Erro: ' + msg);
+                        btn.prop('disabled', false).text('✅ Confirmar Pagamento PIX');
+                    }
+                }).fail(function() {
+                    lmpxShowFeedback('error', '❌ Falha na comunicação com o servidor.');
+                    btn.prop('disabled', false).text('✅ Confirmar Pagamento PIX');
+                });
+            };
+
+            function lmpxShowFeedback(type, msg) {
+                var colors = {
+                    success: {bg:'#d1fae5', color:'#065f46', border:'#6ee7b7'},
+                    error:   {bg:'#fee2e2', color:'#991b1b', border:'#fca5a5'},
+                    info:    {bg:'#dbeafe', color:'#1e40af', border:'#93c5fd'},
+                };
+                var c = colors[type] || colors.info;
+                $('#lmpx-pix-feedback')
+                    .css({background:c.bg, color:c.color, border:'1px solid '+c.border, 'border-radius':'8px'})
+                    .text(msg)
+                    .show();
+            }
+
+            function lmpxPixTypeName(type) {
+                var names = {cpf:'CPF', cnpj:'CNPJ', email:'E-mail', phone:'Telefone', random:'Chave Aleatória', pix:'PIX'};
+                return names[type] || type || '—';
+            }
+
+            // ── Gerador de QR Code PIX (BR Code EMV) ────────────────────────────
+            // Formato padrão PIX Bacen - gera o payload EMV para QR estático
+            function lmpxBuildPixPayload(pixKey, amount, name) {
+                function tlv(tag, value) {
+                    var l = value.length.toString().padStart(2, '0');
+                    return tag + l + value;
+                }
+                var merchantName = (name || 'LimpVix').substring(0, 25).replace(/[^a-zA-Z0-9 ]/g, ' ').trim();
+                var city = 'SAO PAULO';
+                var pixKeyPayload = tlv('00', 'BR.GOV.BCB.PIX') + tlv('01', pixKey);
+                var merchantAccount = tlv('26', pixKeyPayload);
+                var amtStr = amount > 0 ? parseFloat(amount).toFixed(2) : '';
+                var txAmount = amtStr ? tlv('54', amtStr) : '';
+                var addData = tlv('62', tlv('05', '***'));
+
+                var payload =
+                    tlv('00', '01') +       // Payload Format
+                    merchantAccount +        // Merchant Account (PIX)
+                    tlv('52', '0000') +      // MCC
+                    tlv('53', '986') +       // BRL
+                    txAmount +               // Amount (opcional)
+                    tlv('58', 'BR') +        // Country
+                    tlv('59', merchantName) + // Name
+                    tlv('60', city) +        // City
+                    addData;                 // Additional data
+
+                // CRC-16 CCITT
+                payload += '6304';
+                var crc = 0xFFFF;
+                for (var i = 0; i < payload.length; i++) {
+                    crc ^= payload.charCodeAt(i) << 8;
+                    for (var j = 0; j < 8; j++) {
+                        crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
+                    }
+                }
+                return payload + (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+            }
+
+            function lmpxGenerateQR(pixKey, amount, name) {
+                var canvas = document.getElementById('lmpx-qr-canvas');
+                if (!canvas) return;
+                var ctx = canvas.getContext('2d');
+                var payload = lmpxBuildPixPayload(pixKey, amount, name);
+
+                // Usar QRCode.js se disponível (WP admin não tem por padrão)
+                // Fallback: mostrar o payload como texto monospace
+                if (typeof QRCode !== 'undefined') {
+                    canvas.style.display = 'block';
+                    var qr = new QRCode(canvas, {
+                        text: payload,
+                        width: 180, height: 180,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                } else {
+                    // Fallback: desenhar o payload como texto no canvas (scannable com app de câmera)
+                    // e adicionar link de download
+                    ctx.clearRect(0, 0, 180, 180);
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(0, 0, 180, 180);
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '11px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('QR Code PIX', 90, 20);
+                    ctx.font = '9px monospace';
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText('(Copie a chave abaixo)', 90, 40);
+
+                    // Tenta usar qrcode library via CDN dynamicamente
+                    lmpxLoadQRLib(function() {
+                        if (typeof QRCode !== 'undefined') {
+                            ctx.clearRect(0, 0, 180, 180);
+                            new QRCode(canvas, {text: payload, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M});
+                        }
+                    });
+                }
+            }
+
+            function lmpxLoadQRLib(callback) {
+                if (document.getElementById('lmpx-qrjs')) { callback(); return; }
+                var s = document.createElement('script');
+                s.id = 'lmpx-qrjs';
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+                s.onload = callback;
+                document.head.appendChild(s);
+            }
+
+            // Fechar modal ao clicar fora
+            $('#lmpx-pix-modal').on('click', function(e) {
+                if (e.target === this) lmpxClosePix();
+            });
+
+        })(jQuery);
+        </script>
         <?php
     }
 

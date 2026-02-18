@@ -25,10 +25,11 @@
 namespace LimpVix\Infrastructure\Finance\Providers;
 
 use LimpVix\Domain\Finance\RecurringPayment;
+use LimpVix\Domain\Finance\PaymentProviderInterface;
 
 defined('ABSPATH') || exit;
 
-class MercadoPagoPaymentProvider
+class MercadoPagoPaymentProvider implements PaymentProviderInterface
 {
     private ?string $accessToken;
     private string $apiUrl;
@@ -46,6 +47,19 @@ class MercadoPagoPaymentProvider
         // NÃO lançar exceção no construtor - validar apenas quando usar
         $this->accessToken = $accessToken;
         $this->apiUrl = 'https://api.mercadopago.com';
+    }
+
+    /**
+     * Verifica se o provider está disponível (credenciais configuradas)
+     * Implementa PaymentProviderInterface::isAvailable()
+     */
+    public function isAvailable(): bool
+    {
+        $token = get_option('limpvix_mercadopago_access_token', '');
+        if (empty($token)) {
+            $token = $this->accessToken ?? '';
+        }
+        return !empty($token);
     }
 
     /**

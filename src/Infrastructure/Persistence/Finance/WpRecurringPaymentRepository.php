@@ -45,20 +45,25 @@ final class WpRecurringPaymentRepository implements RecurringPaymentRepositoryIn
     public function save(RecurringPayment $payment): void
     {
         $data = [
-            'payment_uuid' => $payment->getPaymentUuid(),
-            'contract_id' => $payment->getContractId(),
-            'billing_cycle_number' => $payment->getBillingCycleNumber(),
-            'amount' => $payment->getAmount(),
-            'status' => $payment->getStatus()->getValue(),
-            'due_date' => $payment->getDueDate()->format('Y-m-d'),
-            'gateway_transaction_id' => $payment->getGatewayTransactionId(),
-            'attempt_count' => $payment->getAttemptCount(),
-            'paid_at' => $payment->getPaidAt()?->format('Y-m-d H:i:s'),
-            'failure_reason' => $payment->getFailureReason(),
-            'updated_at' => $payment->getUpdatedAt()->format('Y-m-d H:i:s'),
+            'payment_uuid'             => $payment->getPaymentUuid(),
+            'contract_id'              => $payment->getContractId(),
+            'billing_cycle_number'     => $payment->getBillingCycleNumber(),
+            'amount'                   => $payment->getAmount(),
+            'status'                   => $payment->getStatus()->getValue(),
+            'due_date'                 => $payment->getDueDate()->format('Y-m-d'),
+            'gateway_transaction_id'   => $payment->getGatewayTransactionId(),
+            'attempt_count'            => $payment->getAttemptCount(),
+            'paid_at'                  => $payment->getPaidAt()?->format('Y-m-d H:i:s'),
+            'failure_reason'           => $payment->getFailureReason(),
+            'updated_at'               => $payment->getUpdatedAt()->format('Y-m-d H:i:s'),
+            // Migration 029: on-demand execution fields
+            'execution_scheduled_date' => $payment->getExecutionScheduledDate()?->format('Y-m-d'),
+            'pix_qrcode'               => $payment->getPixQrCode(),
+            'pix_qrimage'              => $payment->getPixQrImage(),
+            'payment_provider'         => $payment->getPaymentProvider(),
         ];
 
-        $format = ['%s', '%d', '%d', '%f', '%s', '%s', '%s', '%d', '%s', '%s', '%s'];
+        $format = ['%s', '%d', '%d', '%f', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s'];
 
         if ($payment->getId() === null) {
             // Insert new payment
@@ -290,7 +295,12 @@ final class WpRecurringPaymentRepository implements RecurringPaymentRepositoryIn
             $row['paid_at'],
             $row['failure_reason'],
             $row['created_at'],
-            $row['updated_at']
+            $row['updated_at'],
+            // Migration 029: on-demand execution fields
+            $row['execution_scheduled_date'] ?? null,
+            $row['pix_qrcode'] ?? null,
+            $row['pix_qrimage'] ?? null,
+            $row['payment_provider'] ?? 'efipay'
         );
     }
 

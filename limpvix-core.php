@@ -6,6 +6,7 @@
  * Version: 0.1.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
+ * Requires Plugins: woocommerce, booknetic
  * Author: LimpVix
  * Author URI: https://limpvix.com.br
  * License: Proprietary
@@ -136,6 +137,12 @@ register_activation_hook(__FILE__, function() {
     if (version_compare(PHP_VERSION, '7.4', '<')) {
         deactivate_plugins(LIMPVIX_PLUGIN_BASENAME);
         wp_die('LimpVix Core requer PHP 7.4 ou superior.');
+    }
+
+    // Verificar se WooCommerce está ativo
+    if (!is_plugin_active('woocommerce/woocommerce.php')) {
+        deactivate_plugins(LIMPVIX_PLUGIN_BASENAME);
+        wp_die('LimpVix Core requer que o WooCommerce esteja instalado e ativo. O WooCommerce gerencia o fluxo de pagamento dos clientes.');
     }
 
     // Verificar se Booknetic existe

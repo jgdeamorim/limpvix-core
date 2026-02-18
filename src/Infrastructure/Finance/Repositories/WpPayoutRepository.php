@@ -348,6 +348,31 @@ class WpPayoutRepository implements PayoutRepositoryInterface
      * @param int $id
      * @return bool
      */
+    public function setRecipientInfo(
+        int $id,
+        string $recipientKey,
+        string $recipientType,
+        string $recipientName
+    ): bool {
+        $result = $this->wpdb->update(
+            $this->table,
+            [
+                'recipient_key'  => $recipientKey,
+                'recipient_type' => $recipientType,
+                'recipient_name' => $recipientName,
+            ],
+            ['id' => $id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+
+        return $result !== false;
+    }
+
+    /**
+     * @param int $id
+     * @return bool
+     */
     public function delete(int $id): bool
     {
         return (bool) $this->wpdb->delete(

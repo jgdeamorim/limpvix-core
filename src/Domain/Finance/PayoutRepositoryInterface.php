@@ -147,6 +147,25 @@ interface PayoutRepositoryInterface
     public function getStats(): array;
 
     /**
+     * Atualizar dados do destinatário do payout (chave PIX, nome)
+     *
+     * Usado por ExecutePayout para popular automaticamente os dados
+     * do profissional antes de enviar para o provider EFI Bank.
+     *
+     * @param int    $id            ID do payout
+     * @param string $recipientKey  Chave PIX do profissional
+     * @param string $recipientType Tipo da chave: pix | bank_account
+     * @param string $recipientName Nome completo do profissional
+     * @return bool
+     */
+    public function setRecipientInfo(
+        int $id,
+        string $recipientKey,
+        string $recipientType,
+        string $recipientName
+    ): bool;
+
+    /**
      * Deletar payout (uso interno apenas)
      *
      * @param int $id

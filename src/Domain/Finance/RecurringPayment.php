@@ -50,6 +50,12 @@ final class RecurringPayment
     private \DateTimeImmutable $createdAt;
     private \DateTimeImmutable $updatedAt;
 
+    // On-demand execution fields (Migration 029)
+    private ?\DateTimeImmutable $executionScheduledDate;
+    private ?string $pixQrCode;
+    private ?string $pixQrImage;
+    private string $paymentProvider;
+
     /** @var array<object> Domain events */
     private array $domainEvents = [];
 
@@ -74,7 +80,11 @@ final class RecurringPayment
         ?\DateTimeImmutable $paidAt,
         ?string $failureReason,
         \DateTimeImmutable $createdAt,
-        \DateTimeImmutable $updatedAt
+        \DateTimeImmutable $updatedAt,
+        ?\DateTimeImmutable $executionScheduledDate = null,
+        ?string $pixQrCode = null,
+        ?string $pixQrImage = null,
+        string $paymentProvider = 'efipay'
     ) {
         $this->id = $id;
         $this->paymentUuid = $paymentUuid;
@@ -89,6 +99,10 @@ final class RecurringPayment
         $this->failureReason = $failureReason;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->executionScheduledDate = $executionScheduledDate;
+        $this->pixQrCode = $pixQrCode;
+        $this->pixQrImage = $pixQrImage;
+        $this->paymentProvider = $paymentProvider;
     }
 
     /**
@@ -105,7 +119,9 @@ final class RecurringPayment
         int $contractId,
         int $billingCycleNumber,
         float $amount,
-        \DateTimeImmutable $dueDate
+        \DateTimeImmutable $dueDate,
+        ?\DateTimeImmutable $executionScheduledDate = null,
+        string $paymentProvider = 'efipay'
     ): self {
         // Validations
         self::ensureValidAmount($amount);
@@ -123,11 +139,15 @@ final class RecurringPayment
             RecurringPaymentStatus::pending(),
             $dueDate,
             null, // No gateway transaction yet
-            0, // No attempts yet
+            0,    // No attempts yet
             null, // Not paid yet
             null, // No failure reason
             $now,
-            $now
+            $now,
+            $executionScheduledDate,
+            null, // No PIX QR code yet
+            null, // No PIX QR image yet
+            $paymentProvider
         );
 
         return $payment;
@@ -149,7 +169,11 @@ final class RecurringPayment
         ?string $paidAt,
         ?string $failureReason,
         string $createdAt,
-        string $updatedAt
+        string $updatedAt,
+        ?string $executionScheduledDate = null,
+        ?string $pixQrCode = null,
+        ?string $pixQrImage = null,
+        string $paymentProvider = 'efipay'
     ): self {
         return new self(
             $id,
@@ -164,7 +188,11 @@ final class RecurringPayment
             $paidAt ? new \DateTimeImmutable($paidAt) : null,
             $failureReason,
             new \DateTimeImmutable($createdAt),
-            new \DateTimeImmutable($updatedAt)
+            new \DateTimeImmutable($updatedAt),
+            $executionScheduledDate ? new \DateTimeImmutable($executionScheduledDate) : null,
+            $pixQrCode,
+            $pixQrImage,
+            $paymentProvider
         );
     }
 
@@ -368,6 +396,59 @@ final class RecurringPayment
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getExecutionScheduledDate(): ?\DateTimeImmutable
+    {
+        return $this->executionScheduledDate;
+    }
+
+    public function getPixQrCode(): ?string
+    {
+        return $this->pixQrCode;
+    }
+
+    public function getPixQrImage(): ?string
+    {
+        return $this->pixQrImage;
+    }
+
+    public function getPaymentProvider(): string
+    {
+        return $this->paymentProvider;
+    }
+
+    public function setPixQrCode(string $qrCode): void
+    {
+        $this->pixQrCode = $qrCode;
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    public function setPixQrImage(string $qrImage): void
+    {
+        $this->pixQrImage = $qrImage;
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    /**
+     * Calculate charge amount per execution based on contract frequency.
+     *
+     * An on-demand marketplace charges per execution, not per calendar month:
+     *  - weekly:   R$600/month ÷ 4.33 = R$138.57/execution
+     *  - biweekly: R$600/month ÷ 2.16 = R$277.78/execution
+     *  - monthly:  R$600/month ÷ 1    = R$600.00/execution
+     *
+     * @param float  $monthlyValue  Base monthly value from contract
+     * @param string $contractType  'weekly' | 'biweekly' | 'monthly'
+     * @return float                Amount to charge for this execution
+     */
+    public static function calculateExecutionValue(float $monthlyValue, string $contractType): float
+    {
+        return match ($contractType) {
+            'weekly'   => round($monthlyValue / 4.33, 2),
+            'biweekly' => round($monthlyValue / 2.16, 2),
+            default    => round($monthlyValue, 2), // monthly or avulso
+        };
     }
 
     /**

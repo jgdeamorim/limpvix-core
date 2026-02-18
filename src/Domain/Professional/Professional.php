@@ -466,6 +466,31 @@ class Professional
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 
+    // ── PIX Key ──────────────────────────────────────────────────────────────
+    public function getPixKey(): ?string { return $this->pixKey; }
+    public function getPixKeyType(): ?string { return $this->pixKeyType; }
+    public function hasPixKey(): bool { return !empty($this->pixKey); }
+
+    /**
+     * Define a chave PIX do profissional para recebimento de payouts.
+     *
+     * @param string $key  Chave PIX (CPF, CNPJ, e-mail, telefone ou aleatória)
+     * @param string $type Tipo: cpf | cnpj | email | phone | random
+     * @throws \InvalidArgumentException se tipo inválido
+     */
+    public function setPixKey(string $key, string $type): void
+    {
+        $validTypes = ['cpf', 'cnpj', 'email', 'phone', 'random'];
+        if (!in_array($type, $validTypes, true)) {
+            throw new \InvalidArgumentException(
+                "Tipo de chave PIX inválido: '{$type}'. Use: cpf, cnpj, email, phone, random"
+            );
+        }
+        $this->pixKey     = trim($key);
+        $this->pixKeyType = $type;
+        $this->updatedAt  = new \DateTimeImmutable();
+    }
+
     /**
      * Verifica se profissional requer EPI (Equipamento de Proteção Individual)
      *

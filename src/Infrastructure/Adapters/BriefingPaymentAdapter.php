@@ -169,6 +169,15 @@ class BriefingPaymentAdapter
      */
     private function processPayment(int $orderId, string $source): void
     {
+        // P1-3: Lock de idempotência — previne duplo processamento por race condition
+        // entre woocommerce_payment_complete + woocommerce_order_status_completed
+        $lockKey = 'lmpx_bpa_lock_' . $orderId;
+        if (get_transient($lockKey)) {
+            $this->logInfo("Processamento já em curso para Order #{$orderId} (lock ativo) — fonte: {$source}");
+            return;
+        }
+        set_transient($lockKey, 1, 30); // lock por 30 segundos
+
         try {
             // 1. Buscar Briefing UUID pelo produto da order
             $briefingUuid = WooCommerceBriefingAdapter::getBriefingUuidFromOrder($orderId);
@@ -226,10 +235,12 @@ class BriefingPaymentAdapter
 
         } catch (\DomainException $e) {
             // Violação de regra de negócio (esperado em alguns casos)
+            delete_transient($lockKey); // P1-3: libera lock para permitir retry
             $this->logWarning("Regra de negócio violada: " . $e->getMessage());
 
         } catch (\Exception $e) {
             // Erro inesperado
+            delete_transient($lockKey); // P1-3: libera lock para permitir retry
             $this->logError("Erro ao processar pagamento: " . $e->getMessage());
         }
     }
@@ -357,24 +368,56 @@ class BriefingPaymentAdapter
     {
         global $wpdb;
 
-        // Buscar orders com status 'processing' ou 'completed' que tenham produto de Briefing
-        $sql = "
-            SELECT DISTINCT p.ID
-            FROM {$wpdb->posts} AS p
-            INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id
-            INNER JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON p.ID = oi.order_id
-            INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS oim ON oi.order_item_id = oim.order_item_id
-            INNER JOIN {$wpdb->postmeta} AS pm2 ON oim.meta_value = pm2.post_id
-            WHERE p.post_type = 'shop_order'
-            AND p.post_status IN ('wc-processing', 'wc-completed')
-            AND pm2.meta_key = '_limpvix_briefing_uuid'
-            AND pm2.meta_value IS NOT NULL
-            AND pm2.meta_value != ''
-            LIMIT 100
-        ";
+        // P1-2: Suporte dual HPOS (WooCommerce 8+) + sistema legado (postmeta/posts)
+        $hposEnabled = get_option('woocommerce_custom_orders_table_enabled', 'no') === 'yes';
+
+        if ($hposEnabled) {
+            // HPOS: orders ficam em wp_wc_orders / wp_wc_orders_meta
+            $sql = $wpdb->prepare(
+                "SELECT DISTINCT o.id
+                 FROM {$wpdb->prefix}wc_orders AS o
+                 INNER JOIN {$wpdb->prefix}wc_orders_meta AS om ON o.id = om.order_id
+                 INNER JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON o.id = oi.order_id
+                 INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS oim ON oi.order_item_id = oim.order_item_id
+                 INNER JOIN {$wpdb->postmeta} AS pm ON oim.meta_value = pm.post_id
+                 WHERE o.status IN (%s, %s)
+                 AND o.type = %s
+                 AND oim.meta_key = %s
+                 AND pm.meta_key = %s
+                 AND pm.meta_value IS NOT NULL
+                 AND pm.meta_value != ''
+                 LIMIT 100",
+                'wc-processing',
+                'wc-completed',
+                'shop_order',
+                '_product_id',
+                '_limpvix_briefing_uuid'
+            );
+        } else {
+            // Legado: orders ficam em wp_posts com post_type = 'shop_order'
+            $sql = $wpdb->prepare(
+                "SELECT DISTINCT p.ID
+                 FROM {$wpdb->posts} AS p
+                 INNER JOIN {$wpdb->prefix}woocommerce_order_items AS oi ON p.ID = oi.order_id
+                 INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS oim ON oi.order_item_id = oim.order_item_id
+                 INNER JOIN {$wpdb->postmeta} AS pm ON oim.meta_value = pm.post_id
+                 WHERE p.post_type = %s
+                 AND p.post_status IN (%s, %s)
+                 AND oim.meta_key = %s
+                 AND pm.meta_key = %s
+                 AND pm.meta_value IS NOT NULL
+                 AND pm.meta_value != ''
+                 LIMIT 100",
+                'shop_order',
+                'wc-processing',
+                'wc-completed',
+                '_product_id',
+                '_limpvix_briefing_uuid'
+            );
+        }
 
         $results = $wpdb->get_col($sql);
 
-        return array_map('intval', $results);
+        return array_map('intval', $results ?: []);
     }
 }

@@ -26,6 +26,8 @@ use PHPUnit\Framework\TestCase;
 use LimpVix\Application\UseCases\Financial\ExecutePayout;
 use LimpVix\Domain\Execution\ExecutionRepositoryInterface;
 use LimpVix\Domain\Finance\PayoutRepositoryInterface;
+use LimpVix\Domain\Feedback\FeedbackRepositoryInterface;
+use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;
 use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 use LimpVix\Domain\Execution\Enums\ExecutionStatusEnum;
 
@@ -34,18 +36,24 @@ class ExecutePayoutTest extends TestCase
     private $executionRepo;
     private $payoutProvider;
     private $payoutRepo;
+    private $feedbackRepo;
+    private $professionalRepo;
     private $useCase;
 
     protected function setUp(): void
     {
-        $this->executionRepo = $this->createMock(ExecutionRepositoryInterface::class);
-        $this->payoutProvider = $this->createMock(MercadoPagoPayoutProvider::class);
-        $this->payoutRepo = $this->createMock(PayoutRepositoryInterface::class);
+        $this->executionRepo    = $this->createMock(ExecutionRepositoryInterface::class);
+        $this->payoutProvider   = $this->createMock(MercadoPagoPayoutProvider::class);
+        $this->payoutRepo       = $this->createMock(PayoutRepositoryInterface::class);
+        $this->feedbackRepo     = $this->createMock(FeedbackRepositoryInterface::class);
+        $this->professionalRepo = $this->createMock(ProfessionalRepositoryInterface::class);
 
         $this->useCase = new ExecutePayout(
             $this->executionRepo,
             $this->payoutProvider,
-            $this->payoutRepo
+            $this->payoutRepo,
+            $this->feedbackRepo,
+            $this->professionalRepo
         );
     }
 

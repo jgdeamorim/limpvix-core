@@ -17,8 +17,9 @@ namespace LimpVix\Infrastructure\Finance\Providers;
 
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
 use LimpVix\Core\Environment;
+use LimpVix\Domain\Finance\PayoutProviderInterface;
 
-class MercadoPagoPayoutProvider
+class MercadoPagoPayoutProvider implements PayoutProviderInterface
 {
     private string $accessToken;
     private string $apiUrl = 'https://api.mercadopago.com/v1/payouts';

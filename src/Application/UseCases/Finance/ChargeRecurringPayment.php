@@ -37,7 +37,7 @@ use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Contract\ContractId;
 use LimpVix\Domain\Finance\RecurringPayment;
 use LimpVix\Domain\Finance\RecurringPaymentRepositoryInterface;
-use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPaymentProvider;
+use LimpVix\Domain\Finance\PaymentProviderInterface;
 use LimpVix\Common\Result;
 
 defined('ABSPATH') || exit;
@@ -46,12 +46,12 @@ class ChargeRecurringPayment
 {
     private ContractRepositoryInterface $contractRepository;
     private RecurringPaymentRepositoryInterface $paymentRepository;
-    private MercadoPagoPaymentProvider $paymentProvider;
+    private PaymentProviderInterface $paymentProvider;
 
     public function __construct(
         ContractRepositoryInterface $contractRepository,
         RecurringPaymentRepositoryInterface $paymentRepository,
-        MercadoPagoPaymentProvider $paymentProvider
+        PaymentProviderInterface $paymentProvider
     ) {
         $this->contractRepository = $contractRepository;
         $this->paymentRepository = $paymentRepository;
@@ -115,31 +115,47 @@ class ChargeRecurringPayment
             }
 
             // 5. Create RecurringPayment aggregate
-            $dueDate = $contract->getEndDate() ?? new \DateTimeImmutable();
+            // On-demand model: charge per execution, aligned with nextExecutionDate.
+            // Amount is proportional to frequency (weekly = monthly/4.33).
+            $executionDate = $contract->getNextExecutionDate() ?? new \DateTimeImmutable('+3 days');
+            $executionValue = RecurringPayment::calculateExecutionValue(
+                $contract->getMonthlyValue(),
+                $contract->getContractType()
+            );
 
             $payment = RecurringPayment::create(
                 $contractId,
                 $billingCycleNumber,
-                $contract->getMonthlyValue(),
-                $dueDate
+                $executionValue,
+                $executionDate,
+                $executionDate, // executionScheduledDate = nextExecutionDate
+                str_contains(get_class($this->paymentProvider), 'Efi') ? 'efipay' : 'mercadopago'
             );
 
             // 6. Get payment method from contract/customer
             $paymentMethodData = $this->getPaymentMethodData($contract);
 
-            // 7. Call MercadoPago API to create charge
-            $mpResponse = $this->paymentProvider->createPaymentCharge(
+            // 7. Call payment provider to create charge (EFI Bank PIX or fallback)
+            $gatewayResponse = $this->paymentProvider->createPaymentCharge(
                 $payment,
                 $paymentMethodData
             );
 
             // 8. Update payment with gateway response
-            if ($this->isSuccessResponse($mpResponse)) {
-                $payment->markAsProcessing($mpResponse['id']);
+            if ($this->isSuccessResponse($gatewayResponse)) {
+                $payment->markAsProcessing($gatewayResponse['id'] ?? $gatewayResponse['txid'] ?? 'pending');
+
+                // Store EFI Bank PIX QR code if available
+                if (!empty($gatewayResponse['pix_qrcode'])) {
+                    $payment->setPixQrCode($gatewayResponse['pix_qrcode']);
+                }
+                if (!empty($gatewayResponse['pix_qrimage'])) {
+                    $payment->setPixQrImage($gatewayResponse['pix_qrimage']);
+                }
             } else {
                 // Payment creation failed immediately
                 $failureReason = $this->paymentProvider->getFailureReason(
-                    $mpResponse['status_detail'] ?? 'unknown'
+                    $gatewayResponse['status_detail'] ?? 'unknown'
                 );
                 $payment->markAsFailed($failureReason);
             }
@@ -149,10 +165,13 @@ class ChargeRecurringPayment
 
             // 10. Return result
             return Result::ok([
-                'payment_uuid' => $payment->getPaymentUuid(),
+                'payment_uuid'           => $payment->getPaymentUuid(),
                 'gateway_transaction_id' => $payment->getGatewayTransactionId(),
-                'status' => $payment->getStatus()->getValue(),
-                'mp_status' => $mpResponse['status'] ?? null,
+                'status'                 => $payment->getStatus()->getValue(),
+                'gateway_status'         => $gatewayResponse['status'] ?? null,
+                'pix_qrcode'             => $payment->getPixQrCode(),
+                'execution_date'         => $executionDate->format('Y-m-d'),
+                'amount'                 => $executionValue,
             ]);
 
         } catch (\Exception $e) {
@@ -184,18 +203,18 @@ class ChargeRecurringPayment
 
             $paymentMethodData = $this->getPaymentMethodData($contract);
 
-            // Retry MercadoPago charge
-            $mpResponse = $this->paymentProvider->createPaymentCharge(
+            // Retry charge via payment provider
+            $gatewayResponse = $this->paymentProvider->createPaymentCharge(
                 $payment,
                 $paymentMethodData
             );
 
             // Update status based on response
-            if ($this->isSuccessResponse($mpResponse)) {
-                $payment->markAsProcessing($mpResponse['id']);
+            if ($this->isSuccessResponse($gatewayResponse)) {
+                $payment->markAsProcessing($gatewayResponse['id']);
             } else {
                 $failureReason = $this->paymentProvider->getFailureReason(
-                    $mpResponse['status_detail'] ?? 'unknown'
+                    $gatewayResponse['status_detail'] ?? 'unknown'
                 );
                 $payment->markAsFailed($failureReason);
             }

@@ -23,6 +23,7 @@ use LimpVix\Infrastructure\Persistence\WpLedgerRepository;
 use LimpVix\Infrastructure\Persistence\WpOrderRepository;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
 use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
+use LimpVix\Infrastructure\Finance\Providers\EfiPayoutProvider;
 use LimpVix\Infrastructure\Adapters\BookneticBridge;
 use LimpVix\Domain\Execution\ExecutionRepositoryInterface;
 use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
@@ -85,38 +86,52 @@ class AdapterBootstrap
         $professionalRepo = new WpMarketplaceProfessionalRepository(); // NEW: Flow 4.6
         $executionRepo = new WpExecutionRepository();
         $payoutRepo = new WpPayoutRepository();
-        $payoutProvider = new MercadoPagoPayoutProvider();
+        // Selecao de provider: EFI Bank (primario) -> MercadoPago (fallback)
+        $efiProvider    = new EfiPayoutProvider();
+        $mpProvider     = new MercadoPagoPayoutProvider();
+        $payoutProvider = $efiProvider->isAvailable() ? $efiProvider : $mpProvider;
+        error_log("[LimpVix][AdapterBootstrap] Payout provider: " . ($efiProvider->isAvailable() ? "EFI Bank" : "MercadoPago (fallback)"));
         $feedbackRepo = new WpFeedbackRepository(); // NEW: Flow 4.4
         
         $executePayout = new ExecutePayout(
             $executionRepo,
             $payoutProvider,
             $payoutRepo,
-            $feedbackRepo // NEW: Flow 4.4 - enables payout hold logic
+            $feedbackRepo,    // Flow 4.4 - enables payout hold logic
+            $professionalRepo // Flow 4.6 - PIX key lookup for automatic payout
         );
 
         // 4. Construir Adaptadores
-        $wooCommerceAdapter = new WooCommercePaymentAdapter($processPayment, $orderRepo);
-        $wooCommerceStatusSync = new WooCommerceStatusSyncAdapter();
         $bookneticAdapter = new BookneticServiceAdapter($processService);
         $feedbackAdapter = new FeedbackAdapter($processFeedback);
         $timerAdapter = new TimerCronAdapter($processTimer, $ledgerRepo);
-        
-        $automaticPayoutDispatcher = new AutomaticPayoutDispatcher($executePayout, $orderRepo);
 
         // 5. Registrar adaptadores
-        $this->registry->add($wooCommerceAdapter, 'woocommerce_payment');
-        $this->registry->add($wooCommerceStatusSync, 'woocommerce_status_sync');
         $this->registry->add($bookneticAdapter, 'booknetic_service');
         $this->registry->add($feedbackAdapter, 'customer_feedback');
         $this->registry->add($timerAdapter, 'review_timer');
-        $this->registry->add($automaticPayoutDispatcher, 'automatic_payout');
+
+        // Guard: WooCommerce deve estar ativo para os adapters de pagamento
+        if (!class_exists('WooCommerce')) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[LimpVix] WooCommerce não está ativo — adapters de pagamento WC não registrados.');
+            }
+            // Continua boot sem os adapters WC (features de payout de profissionais funcionam normalmente)
+        } else {
+            $wooCommerceAdapter = new WooCommercePaymentAdapter($processPayment, $orderRepo);
+            $wooCommerceStatusSync = new WooCommerceStatusSyncAdapter();
+            $automaticPayoutDispatcher = new AutomaticPayoutDispatcher($executePayout, $orderRepo);
+
+            $this->registry->add($wooCommerceAdapter, 'woocommerce_payment');
+            $this->registry->add($wooCommerceStatusSync, 'woocommerce_status_sync');
+            $this->registry->add($automaticPayoutDispatcher, 'automatic_payout');
+
+            // ✅ FLOW 4.4: Register event listener for payout hold release
+            ReleasePayoutHoldOnFeedbackApproved::register($payoutRepo, $executePayout);
+        }
 
         // 6. Registrar todos os hooks
         $this->registry->registerAll();
-
-        // ✅ FLOW 4.4: Register event listener for payout hold release
-        ReleasePayoutHoldOnFeedbackApproved::register($payoutRepo, $executePayout);
 
         // ✅ FLOW 4.6: Register event listener for professional score recalculation
         $calculateScore = new CalculateProfessionalScore($feedbackRepo, $professionalRepo);

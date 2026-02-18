@@ -219,8 +219,15 @@ final class ContractBootstrap
         // Register RecurringPaymentRepository
         $paymentRepository = new \LimpVix\Infrastructure\Persistence\Finance\WpRecurringPaymentRepository();
 
-        // Register MercadoPagoPaymentProvider
-        $paymentProvider = new \LimpVix\Infrastructure\Finance\Providers\MercadoPagoPaymentProvider();
+        // Payment provider: EFI Bank primário, MercadoPago como fallback
+        $efiPaymentProvider = new \LimpVix\Infrastructure\Finance\Providers\EfiPaymentProvider();
+        if ($efiPaymentProvider->isAvailable()) {
+            $paymentProvider = $efiPaymentProvider;
+            error_log('[LimpVix][Contract] PaymentProvider: EFI Bank (cash-in PIX)');
+        } else {
+            $paymentProvider = new \LimpVix\Infrastructure\Finance\Providers\MercadoPagoPaymentProvider();
+            error_log('[LimpVix][Contract] PaymentProvider: MercadoPago (fallback)');
+        }
 
         // Build Recurring Payment Use Cases array
         $recurringPaymentUseCases = [
@@ -447,11 +454,11 @@ final class ContractBootstrap
         // Registrar handler do cron
         add_action('limpvix_check_contract_expiration', [self::class, 'onCheckContractExpiration']);
 
-        // GAP #2: Register recurring payment cron
-        \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter::register();
-
-        // GAP #2: Register cron handler
-        add_action('limpvix_charge_recurring_payments', [self::class, 'onChargeRecurringPayments']);
+        // GAP #2: Cobrança recorrente automática DESATIVADA
+        // Modelo on-demand: cada visita = checkout separado pelo cliente.
+        // Contratos recorrentes definem frequência de agendamento, não cobrança automática.
+        // \LimpVix\Infrastructure\Cron\RecurringPaymentCronAdapter::register();
+        // add_action('limpvix_charge_recurring_payments', [self::class, 'onChargeRecurringPayments']);
 
         // TIER 1: Register payout reconciliation cron (Payment critical fix)
         \LimpVix\Infrastructure\Cron\PayoutReconciliationCronAdapter::register();

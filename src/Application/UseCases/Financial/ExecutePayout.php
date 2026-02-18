@@ -31,7 +31,8 @@ use LimpVix\Common\Result;
 use LimpVix\Domain\Execution\ExecutionRepositoryInterface;
 use LimpVix\Domain\Finance\PayoutRepositoryInterface;
 use LimpVix\Domain\Feedback\FeedbackRepositoryInterface;
-use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
+use LimpVix\Domain\Finance\PayoutProviderInterface;
+use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;
 
 defined('ABSPATH') || exit;
 
@@ -39,9 +40,10 @@ class ExecutePayout
 {
     public function __construct(
         private ExecutionRepositoryInterface $executionRepository,
-        private MercadoPagoPayoutProvider $payoutProvider,
+        private PayoutProviderInterface $payoutProvider,
         private PayoutRepositoryInterface $payoutRepository,
-        private FeedbackRepositoryInterface $feedbackRepository // NEW: Flow 4.4 integration
+        private FeedbackRepositoryInterface $feedbackRepository, // Flow 4.4 integration
+        private ProfessionalRepositoryInterface $professionalRepository
     ) {}
 
     /**
@@ -161,9 +163,47 @@ class ExecutePayout
                 }
             }
 
-            // 5. Executar payout no MercadoPago (IRREVERSÍVEL - fora de transação)
+            // 5a. Identificar chave PIX do profissional e atualizar payout se necessário
+            // On-demand model: payout via PIX automático usando chave PIX do profissional
+            $professionalId = $execution->getProfessionalId();
+            $professional   = $this->professionalRepository->findById($professionalId);
+
+            if ($professional === null) {
+                return Result::fail(sprintf(
+                    'Profissional #%d não encontrado para o payout #%d',
+                    $professionalId,
+                    $payoutId
+                ));
+            }
+
+            if (!$professional->hasPixKey()) {
+                return Result::fail(sprintf(
+                    'Profissional #%d não possui chave PIX cadastrada. ' .
+                    'Payout #%d não pode ser processado automaticamente.',
+                    $professionalId,
+                    $payoutId
+                ));
+            }
+
+            // Atualizar destinatário do payout com dados do profissional
+            $this->payoutRepository->setRecipientInfo(
+                $payoutId,
+                $professional->getPixKey(),
+                'pix',
+                $professional->getFullName()
+            );
+
+            error_log(sprintf(
+                '[ExecutePayout] Payout #%d: PIX do profissional #%d (chave=%s, tipo=%s) configurado.',
+                $payoutId,
+                $professionalId,
+                $professional->getPixKey(),
+                $professional->getPixKeyType()
+            ));
+
+            // 5b. Executar payout via EFI Bank PIX (IRREVERSÍVEL - fora de transação)
             // CRITICAL: Esta chamada é irreversível. Se suceder, o dinheiro foi transferido.
-            // Não podemos fazer rollback no MercadoPago, apenas no banco local.
+            // Não podemos fazer rollback no provider, apenas no banco local.
             $success = $this->payoutProvider->createPayout($payoutId);
 
             if (!$success) {
