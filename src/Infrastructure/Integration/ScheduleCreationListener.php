@@ -5,14 +5,14 @@
  * RESPONSABILIDADE:
  * - Escutar evento: limpvix_briefing_locked
  * - Criar agenda recorrente baseada em frequency
- * - Integração com Booknetic (agendamento)
+ * - Integração com LimpVix Scheduling
  * - Configurar recorrência (semanal, mensal, avulso)
  *
  * HOOK ESCUTADO:
  * - limpvix_briefing_locked (prioridade 20)
  *
  * AÇÕES EXECUTADAS:
- * - Criar primeiro agendamento no Booknetic
+ * - Criar primeiro agendamento via LimpVix
  * - Configurar recorrência (se frequency != avulso)
  * - Notificar equipe operacional
  *
@@ -96,15 +96,7 @@ class ScheduleCreationListener
         }
     }
 
-    /**
-     * Criar agendamento no Booknetic (placeholder)
-     *
-     * TODO: Implementar integração real com Booknetic quando disponível.
-     *
-     * @param \LimpVix\Domain\Briefing\Briefing $briefing
-     * @return int Appointment ID
-     */
-    private function createAppointment($briefing): int
+        private function createAppointment($briefing): int
     {
         // Placeholder: criar agendamento simulado
 
@@ -122,7 +114,7 @@ class ScheduleCreationListener
             'created_at' => current_time('mysql')
         ];
 
-        // TODO: Usar Booknetic API real
+        // TODO: Usar LimpVix Scheduling API
         // Por enquanto, apenas simular criação
         $appointmentId = rand(1000, 9999); // Mock
 
@@ -155,7 +147,7 @@ class ScheduleCreationListener
             'end_date' => null // Indeterminado (até cancelamento)
         ];
 
-        // TODO: Configurar recorrência no Booknetic
+        // TODO: Configurar recorrência no LimpVix
         $this->logInfo(sprintf(
             'Recorrência configurada: Tipo=%s, Execuções=%dx',
             $recurrenceData['type'],
@@ -192,7 +184,7 @@ class ScheduleCreationListener
             "Área: %.2f m²\n" .
             "Duração: %d minutos\n" .
             "Frequência: %s\n\n" .
-            "Acesse o Booknetic para mais detalhes.",
+            "Acesse o painel LimpVix para mais detalhes.",
             $appointmentId,
             $userName,
             $briefing->getPropertyType()->getValue(),

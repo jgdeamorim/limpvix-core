@@ -10,7 +10,7 @@ namespace LimpVix\Domain\Execution\Enums;
  * Enum PHP 8.1+ - fonte única de verdade para estados de execução.
  *
  * PRINCÍPIOS:
- * - Execution é soberana (não Booknetic)
+ * - Execution é soberana (independente de agendadores externos)
  * - Check-in obrigatório para iniciar
  * - Check-out obrigatório para finalizar
  * - Evidência obrigatória

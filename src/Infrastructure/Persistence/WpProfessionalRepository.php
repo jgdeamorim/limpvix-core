@@ -18,7 +18,7 @@ use LimpVix\Domain\Scheduling\Policies\AllocationPolicy;
  * Repository: WpProfessionalRepository
  *
  * Implementação WordPress do ProfessionalRepository.
- * Lê de wp_bkntc_staff + wp_limpvix_professional_availability
+ * Lê de wp_limpvix_professionals + wp_limpvix_professional_availability
  */
 final class WpProfessionalRepository implements ProfessionalRepositoryInterface
 {
@@ -31,14 +31,14 @@ final class WpProfessionalRepository implements ProfessionalRepositoryInterface
     {
         global $wpdb;
         $this->wpdb = $wpdb;
-        $this->staffTable = $wpdb->prefix . 'bkntc_staff';
+        $this->staffTable = $wpdb->prefix . 'limpvix_professionals';
         $this->availabilityTable = $wpdb->prefix . 'limpvix_professional_availability';
         $this->allocationsTable = $wpdb->prefix . 'limpvix_professional_allocations';
     }
 
     public function save(Professional $professional): void
     {
-        // Professional é read-only do Booknetic
+        // Professional lido de wp_limpvix_professionals
         // Apenas salvamos availability se mudou
         $this->saveAvailability($professional);
     }

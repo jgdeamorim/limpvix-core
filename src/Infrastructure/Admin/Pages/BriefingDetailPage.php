@@ -320,7 +320,7 @@ class BriefingDetailPage
                 <li>Busca profissionais disponíveis na data/hora escolhida</li>
                 <li>Calcula score de cada profissional (proximidade 40% + disponibilidade 30% + rating 20% + carga 10%)</li>
                 <li>Aloca automaticamente os melhores profissionais</li>
-                <li>Cria appointments no Booknetic</li>
+                <!-- Integração nativa LimpVix -->
             </ul>
         </div>
         <?php
@@ -547,7 +547,7 @@ class BriefingDetailPage
     {
         global $wpdb;
         $allocationsTable = $wpdb->prefix . 'limpvix_professional_allocations';
-        $staffTable = $wpdb->prefix . 'bkntc_staff';
+        $staffTable = $wpdb->prefix . 'limpvix_professionals';
 
         $results = $wpdb->get_results(
             $wpdb->prepare(

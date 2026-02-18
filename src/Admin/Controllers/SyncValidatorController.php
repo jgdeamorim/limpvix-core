@@ -1,9 +1,9 @@
 <?php
 /**
- * SyncValidatorController - Validador de Sincronização WC ↔ Booknetic (BLC-004)
+ * SyncValidatorController - Validador de Sincronização WC ↔ LimpVix (BLC-004)
  *
  * RESPONSABILIDADE:
- * - Verificar consistência entre WooCommerce e Booknetic
+ * - Verificar consistência entre WooCommerce e LimpVix
  * - Detectar divergências de price, status, mapeamento
  * - Gerar relatório de saúde da sincronização
  *
@@ -14,8 +14,8 @@
  *
  * VALIDAÇÕES:
  * - WC Order tem LimpVix Order UUID?
- * - LimpVix Order tem Booknetic Appointment?
- * - Price do Booknetic bate com LimpVix?
+ * - LimpVix Order tem LimpVix Appointment?
+ * - Price do LimpVix bate com LimpVix?
  * - Status sincronizados?
  *
  * @package LimpVix\Admin\Controllers
@@ -106,11 +106,11 @@ class SyncValidatorController
             ];
             $hasIssue = true;
         } else {
-            // 2. Verificar se appointment existe no Booknetic
+            // 2. Verificar se appointment existe no LimpVix
             $appointment = $wpdb->get_row($wpdb->prepare(
                 "SELECT a.id, a.price as appointment_price, s.price as service_price
-                 FROM {$wpdb->prefix}bkntc_appointments a
-                 LEFT JOIN {$wpdb->prefix}bkntc_services s ON a.service_id = s.id
+                 FROM {$wpdb->prefix}limpvix_appointments a
+                 LEFT JOIN {$wpdb->prefix}limpvix_services s ON a.service_id = s.id
                  WHERE a.id = %d",
                 $order['appointment_id']
             ), ARRAY_A);
@@ -119,21 +119,21 @@ class SyncValidatorController
                 $report['issues'][] = [
                     'severity' => 'error',
                     'order_uuid' => $orderUuid,
-                    'message' => "Appointment #{$order['appointment_id']} não existe no Booknetic"
+                    'message' => "Appointment #{$order['appointment_id']} não existe no LimpVix"
                 ];
                 $hasIssue = true;
             } else {
                 // 3. Verificar se price bate
-                $bookneticPrice = (float)$appointment['service_price'];
+                $externalPrice = (float)$appointment['service_price'];
                 $limpvixPrice = (float)$order['total_amount'];
 
-                if (abs($bookneticPrice - $limpvixPrice) > 0.01) {
+                if (abs($externalPrice - $limpvixPrice) > 0.01) {
                     $report['issues'][] = [
                         'severity' => 'error',
                         'order_uuid' => $orderUuid,
                         'message' => sprintf(
-                            'Divergência de price: Booknetic R$%.2f vs LimpVix R$%.2f',
-                            $bookneticPrice,
+                            'Divergência de price: LimpVix R$%.2f vs LimpVix R$%.2f',
+                            $externalPrice,
                             $limpvixPrice
                         )
                     ];
@@ -205,7 +205,7 @@ class SyncValidatorController
 
         ?>
         <div class="wrap limpvix-sync-validator">
-            <h1>Sync Validator WC ↔ Booknetic</h1>
+            <h1>Sync Validator WC ↔ LimpVix</h1>
 
             <!-- Health Score -->
             <div class="limpvix-health-card limpvix-health-<?php echo esc_attr($healthClass); ?>">

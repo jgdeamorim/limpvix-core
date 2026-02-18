@@ -33,8 +33,8 @@ final class MessageFlowTriggers
         // C3: Feedback 5 estrelas → Google Review
         add_action('limpvix_feedback_positive_received', [__CLASS__, 'onFeedback5Stars'], 10, 2);
 
-        // P1: Serviço concluído → Notificar staff
-        add_action('bkntc_appointment_completed', [__CLASS__, 'onServiceCompleted'], 20, 1);
+        // P1: Execução validada → Notificar profissional
+        add_action('limpvix_execution_validated', [__CLASS__, 'onExecutionValidated'], 10, 1);
 
         // P2: Pagamento autorizado → Notificar staff
         add_action('limpvix_payment_authorized', [__CLASS__, 'onPaymentAuthorized'], 10, 2);
@@ -175,7 +175,7 @@ final class MessageFlowTriggers
      *
      * Notifica profissional sobre conclusão e status financeiro
      *
-     * @param object $appointmentData Dados do Booknetic
+     * @param mixed $appointmentData Dados da execução
      */
     public static function onServiceCompleted($appointmentData): void
     {
@@ -194,7 +194,7 @@ final class MessageFlowTriggers
         // Buscar dados do staff
         global $wpdb;
         $staff = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}bkntc_staff WHERE id = %d",
+            "SELECT full_name AS name, phone FROM {$wpdb->prefix}limpvix_professionals WHERE id = %d",
             $staffId
         ), ARRAY_A);
 
@@ -204,7 +204,7 @@ final class MessageFlowTriggers
 
         // Buscar nome do serviço
         $service = $wpdb->get_row($wpdb->prepare(
-            "SELECT name FROM {$wpdb->prefix}bkntc_services WHERE id = %d",
+            "SELECT service_type AS name FROM {$wpdb->prefix}limpvix_contracts WHERE id = %d",
             $serviceId
         ), ARRAY_A);
 
@@ -266,7 +266,7 @@ final class MessageFlowTriggers
         // Buscar dados do staff
         global $wpdb;
         $staff = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}bkntc_staff WHERE id = %d",
+            "SELECT full_name AS name, phone FROM {$wpdb->prefix}limpvix_professionals WHERE id = %d",
             $staffId
         ), ARRAY_A);
 
@@ -332,7 +332,7 @@ final class MessageFlowTriggers
         // Buscar dados do staff
         global $wpdb;
         $staff = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}bkntc_staff WHERE id = %d",
+            "SELECT full_name AS name, phone FROM {$wpdb->prefix}limpvix_professionals WHERE id = %d",
             $staffId
         ), ARRAY_A);
 

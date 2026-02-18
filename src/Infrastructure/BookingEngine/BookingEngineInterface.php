@@ -4,7 +4,7 @@
  *
  * RESPONSABILIDADE:
  * - Definir interface para qualquer sistema de agendamento
- * - Abstrair Booknetic (ou qualquer outro)
+ * - Abstrair o motor de agendamento (provider-agnostic)
  * - Permitir troca de implementação
  *
  * PRINCÍPIOS:
@@ -14,8 +14,8 @@
  * - Não vazar detalhes de implementação
  *
  * BENEFÍCIOS:
- * - Trocar Booknetic por outro sistema = criar novo adapter
- * - Testar sem Booknetic (mock desta interface)
+ * - Trocar provider de agendamento = criar novo adapter
+ * - Testável via mocks desta interface
  * - Migração facilitada
  *
  * @package LimpVix\Infrastructure\BookingEngine

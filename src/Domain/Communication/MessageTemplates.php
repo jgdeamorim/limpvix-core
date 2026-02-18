@@ -6,7 +6,7 @@
  * - FSM financeira
  * - LGPD + CDC
  * - UX não invasivo
- * - Booknetic + Google Meu Negócio
+ * - LimpVix + Google Meu Negócio
  *
  * @package LimpVix\Domain\Communication
  */

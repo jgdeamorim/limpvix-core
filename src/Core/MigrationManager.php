@@ -169,7 +169,7 @@ final class MigrationManager
             $sql
         );
 
-        // Fix 3: Trocar professional_id BIGINT UNSIGNED por INT (compatível com Booknetic)
+        // Fix 3: Trocar professional_id BIGINT UNSIGNED por INT
         $sql = preg_replace(
             '/professional_id BIGINT UNSIGNED/',
             'professional_id INT',

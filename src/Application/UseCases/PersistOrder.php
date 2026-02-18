@@ -25,7 +25,7 @@
  * - Conhece Order (domínio)
  * - Conhece OrderRepositoryInterface (contrato)
  * - NÃO conhece wpdb
- * - NÃO conhece Booknetic
+ * - NÃO conhece agendadores externos
  * - NÃO conhece Hooks
  * - NÃO conhece FeatureFlags
  *

@@ -4,7 +4,7 @@
  *
  * RESPONSABILIDADE:
  * - Use Case específico para HELD → REVIEW
- * - Triggered quando serviço é marcado como completado (Booknetic)
+ * - Triggered quando execução é validada (limpvix_execution_validated)
  * - Façade sobre TransitionFinancialStatus
  *
  * PRINCÍPIOS:
@@ -13,7 +13,7 @@
  * - Conveniente (esconde complexidade)
  *
  * TRIGGER:
- * - Hook: booknetic_appointment_completed
+ * - Hook: limpvix_execution_validated
  * - Evento: Serviço foi executado
  *
  * USO:
@@ -74,7 +74,7 @@ class ProcessServiceCompleted
             orderUuid: $orderUuid,
             toStatus: FinancialStatus::REVIEW(),
             reason: 'service_completed',
-            actor: 'booknetic',
+            actor: 'limpvix',
             actorId: $professionalId,
             context: $context
         );

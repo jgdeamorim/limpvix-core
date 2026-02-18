@@ -23,7 +23,7 @@ interface ProfessionalRepositoryInterface
     public function save(Professional $professional): void;
 
     /**
-     * Busca Professional por Staff ID (Booknetic)
+     * Busca Professional por Staff ID (LimpVix)
      *
      * @return Professional|null
      */

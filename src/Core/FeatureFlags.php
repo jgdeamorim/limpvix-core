@@ -299,7 +299,7 @@ class FeatureFlags
             ],
             'intercept_appointment_creation' => [
                 'name' => 'Interceptar Criação de Appointments',
-                'description' => 'Valida appointments antes de criar no Booknetic (futuro)',
+                'description' => 'Valida appointments antes de criar (futuro)',
                 'default' => false,
                 'category' => 'interception'
             ],

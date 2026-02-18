@@ -17,7 +17,7 @@
  * ```php
  * $registry = new AdapterRegistry();
  * $registry->add($wooCommerceAdapter);
- * $registry->add($bookneticAdapter);
+ * $registry->add($someAdapter);
  * $registry->registerAll();
  * ```
  *

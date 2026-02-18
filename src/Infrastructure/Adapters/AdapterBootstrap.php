@@ -24,7 +24,6 @@ use LimpVix\Infrastructure\Persistence\WpOrderRepository;
 use LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository;
 use LimpVix\Infrastructure\Finance\Providers\MercadoPagoPayoutProvider;
 use LimpVix\Infrastructure\Finance\Providers\EfiPayoutProvider;
-use LimpVix\Infrastructure\Adapters\BookneticBridge;
 use LimpVix\Domain\Execution\ExecutionRepositoryInterface;
 use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
 use LimpVix\Domain\Feedback\FeedbackRepositoryInterface; // NEW: Flow 4.4
@@ -53,10 +52,6 @@ class AdapterBootstrap
      */
     public function boot(): void
     {
-        // 0. Registrar Booknetic Bridge (traduz hooks nativos)
-        $bookneticBridge = new BookneticBridge();
-        $bookneticBridge->register();
-
         // 1. Construir dependências compartilhadas
         $orderRepo = new WpOrderRepository();
         $ledgerRepo = new WpLedgerRepository();
@@ -102,12 +97,10 @@ class AdapterBootstrap
         );
 
         // 4. Construir Adaptadores
-        $bookneticAdapter = new BookneticServiceAdapter($processService);
         $feedbackAdapter = new FeedbackAdapter($processFeedback);
         $timerAdapter = new TimerCronAdapter($processTimer, $ledgerRepo);
 
         // 5. Registrar adaptadores
-        $this->registry->add($bookneticAdapter, 'booknetic_service');
         $this->registry->add($feedbackAdapter, 'customer_feedback');
         $this->registry->add($timerAdapter, 'review_timer');
 

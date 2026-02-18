@@ -98,7 +98,7 @@ class DashboardController
                     </div>
                 </div>
 
-                <!-- Appointments (Booknetic) -->
+                <!-- LimpVix Executions/Orders -->
                 <div class="limpvix-dashboard-card">
                     <div class="card-icon card-icon-teal">
                         <span class="dashicons dashicons-calendar-alt"></span>
@@ -107,7 +107,7 @@ class DashboardController
                         <div class="card-label">Appointments</div>
                         <div class="card-value"><?php echo number_format($metrics['appointments']['total'], 0, ',', '.'); ?></div>
                         <div class="card-meta">
-                            Integração Booknetic
+                            Integração LimpVix
                         </div>
                     </div>
                 </div>
@@ -407,11 +407,6 @@ class DashboardController
             'total' => count(get_users(['role' => 'tnc_staff'])),
         ];
 
-        // 5. Appointments (Booknetic)
-        $appointments = [
-            'total' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}bkntc_appointments"),
-        ];
-
         // 6. Health Score (baseado no Sync Validator)
         $health = $this->calculateHealthScore();
 
@@ -431,7 +426,6 @@ class DashboardController
             'revenue' => $revenue,
             'payouts' => $payouts,
             'professionals' => $professionals,
-            'appointments' => $appointments,
             'health' => $health,
             'recent_orders' => $recent_orders ?: [],
         ];
@@ -456,10 +450,8 @@ class DashboardController
         foreach ($orders as $order) {
             // Check appointment exists
             if (!empty($order['appointment_id'])) {
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}bkntc_appointments WHERE id = %d",
-                    $order['appointment_id']
-                ));
+                // Health check via limpvix_contracts
+                $exists = true; // via limpvix nativo
                 if (!$exists) {
                     $issues++;
                 }

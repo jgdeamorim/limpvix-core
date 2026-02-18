@@ -18,7 +18,7 @@ use LimpVix\Domain\Scheduling\ValueObjects\TimeSlot;
  */
 final class Professional
 {
-    private int $staffId; // ID do Booknetic
+    private int $staffId; // ID do profissional (wp_limpvix_professionals.id)
     private int $userId; // WordPress user ID
     private string $name;
 

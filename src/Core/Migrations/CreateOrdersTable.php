@@ -49,13 +49,6 @@ class CreateOrdersTable
      */
     public function up(): bool
     {
-        // AJUSTE A: Verificar se Booknetic está ativo
-        // A tabela depende semanticamente do Booknetic
-        if (!is_plugin_active('booknetic/init.php')) {
-            // Não criar tabela se Booknetic não estiver disponível
-            return false;
-        }
-
         // Verificar se migration já foi executada
         $currentVersion = get_option(self::VERSION_OPTION, '0.0.0');
 

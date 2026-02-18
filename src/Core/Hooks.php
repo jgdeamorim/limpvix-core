@@ -1,17 +1,17 @@
 <?php
 /**
- * Hooks - Gerenciador de Interceptações do Booknetic
+ * Hooks - Gerenciador de Eventos do LimpVix
  *
  * RESPONSABILIDADE:
  * - Registrar TODOS os hooks/filters do WordPress
- * - Interceptar ações do Booknetic
+ * - Interceptar eventos do ciclo de vida do serviço
  * - Delegar execução para componentes apropriados
  * - Respeitar Feature Flags
  *
  * PRINCÍPIO:
  * - Este é o ÚNICO ponto de contato com hooks do WordPress
  * - Cada hook verifica Feature Flag antes de executar
- * - NUNCA modificar comportamento do Booknetic diretamente
+ * - NUNCA quebrar fluxos de domínio já em andamento
  * - Apenas observar e validar
  *
  * @todo DÍVIDA TÉCNICA: Refatorar para Interceptors
@@ -52,9 +52,7 @@ class Hooks
     /**
      * Registra todos os hooks
      *
-     * ORGANIZAÇÃO:
-     * - PASSO 3: Primeira interceptação real (bkntc_appointment_created)
-     * - Lifecycle hooks (create, update, delete) - FUTURO
+     * ORGANIZAÇÃO:     * - Lifecycle hooks (create, update, delete) - FUTURO
      * - Status hooks (status changes) - FUTURO
      * - Validation hooks (before actions) - FUTURO
      * - Frontend hooks (booking panel) - FUTURO
@@ -63,9 +61,6 @@ class Hooks
      */
     public function register(): void
     {
-        // PASSO 3: Primeira interceptação real
-        $this->registerPasso3Hooks();
-
         // PASSO 5.4: Adapters do sistema financeiro
         $this->registerFinancialAdapters();
 
@@ -95,16 +90,13 @@ class Hooks
     /**
      * PASSO 3: Registra hook de interceptação controlada
      *
-     * Hook: bkntc_appointment_created
-     * Momento: DEPOIS de criar appointment no Booknetic
-     * Comportamento: Observador (log + Order em memória)
+             * Comportamento: Observador (log + Order em memória)
      *
      * @return void
      */
     private function registerPasso3Hooks(): void
     {
         add_action(
-            'bkntc_appointment_created',
             [$this, 'onAppointmentCreated'],
             10,
             1
@@ -116,13 +108,11 @@ class Hooks
      *
      * RESPONSABILIDADE:
      * - Inicializar AdapterBootstrap
-     * - Registrar hooks de WooCommerce, Booknetic, Feedback, Timer
-     * - Conectar eventos externos ao sistema financeiro
+         * - Conectar eventos externos ao sistema financeiro
      *
      * ADAPTERS:
      * - WooCommercePaymentAdapter (woocommerce_payment_complete)
-     * - BookneticServiceAdapter (limpvix_booknetic_appointment_completed)
-     * - FeedbackAdapter (limpvix_customer_feedback_submitted)
+         * - FeedbackAdapter (limpvix_customer_feedback_submitted)
      * - TimerCronAdapter (WP Cron hourly)
      *
      * @return void
@@ -206,92 +196,79 @@ class Hooks
      * Registra hooks de ciclo de vida
      *
      * HOOKS:
-     * - booknetic_before_appointment_add
-     * - booknetic_after_appointment_add
-     * - booknetic_before_appointment_update
-     * - booknetic_after_appointment_update
-     * - booknetic_before_appointment_delete
-     *
+                         *
      * @return void
      */
     private function registerLifecycleHooks(): void
     {
         // ANTES de criar appointment
-        add_action('booknetic_before_appointment_add', [$this, 'beforeAppointmentAdd'], 1, 1);
+        add_action('limpvix_before_appointment_add', [$this, 'beforeAppointmentAdd'], 1, 1);
 
         // DEPOIS de criar appointment
-        add_action('booknetic_after_appointment_add', [$this, 'afterAppointmentAdd'], 999, 2);
+        add_action('limpvix_after_appointment_add', [$this, 'afterAppointmentAdd'], 999, 2);
 
         // ANTES de atualizar appointment
-        add_action('booknetic_before_appointment_update', [$this, 'beforeAppointmentUpdate'], 1, 2);
+        add_action('limpvix_before_appointment_update', [$this, 'beforeAppointmentUpdate'], 1, 2);
 
         // DEPOIS de atualizar appointment
-        add_action('booknetic_after_appointment_update', [$this, 'afterAppointmentUpdate'], 999, 2);
+        add_action('limpvix_after_appointment_update', [$this, 'afterAppointmentUpdate'], 999, 2);
 
         // ANTES de deletar appointment
-        add_action('booknetic_before_appointment_delete', [$this, 'beforeAppointmentDelete'], 1, 1);
+        add_action('limpvix_before_appointment_delete', [$this, 'beforeAppointmentDelete'], 1, 1);
     }
 
     /**
      * Registra hooks de mudança de status
      *
      * HOOKS:
-     * - booknetic_before_status_change
-     * - booknetic_after_status_change
-     *
+             *
      * @return void
      */
     private function registerStatusHooks(): void
     {
         // ANTES de mudar status
-        add_action('booknetic_before_status_change', [$this, 'beforeStatusChange'], 1, 3);
+        add_action('limpvix_before_status_change', [$this, 'beforeStatusChange'], 1, 3);
 
         // DEPOIS de mudar status
-        add_action('booknetic_after_status_change', [$this, 'afterStatusChange'], 999, 2);
+        add_action('limpvix_after_status_change', [$this, 'afterStatusChange'], 999, 2);
     }
 
     /**
      * Registra hooks de validação
      *
      * FILTERS:
-     * - booknetic_validate_appointment
-     * - booknetic_validate_booking_data
-     *
+             *
      * @return void
      */
     private function registerValidationHooks(): void
     {
         // Validação de appointment
-        add_filter('booknetic_validate_appointment', [$this, 'validateAppointment'], 10, 2);
+        add_filter('limpvix_validate_appointment', [$this, 'validateAppointment'], 10, 2);
 
         // Validação de booking data
-        add_filter('booknetic_validate_booking_data', [$this, 'validateBookingData'], 10, 2);
+        add_filter('limpvix_validate_booking_data', [$this, 'validateBookingData'], 10, 2);
     }
 
     /**
      * Registra hooks do frontend (booking panel)
      *
      * FILTERS:
-     * - booknetic_available_services
-     * - booknetic_available_staff
-     * - booknetic_available_timeslots
-     * - booknetic_appointment_price
-     *
+                     *
      * @return void
      */
     private function registerFrontendHooks(): void
     {
         // Filtrar serviços disponíveis
-        add_filter('booknetic_available_services', [$this, 'filterAvailableServices'], 10, 2);
+        add_filter('limpvix_available_services', [$this, 'filterAvailableServices'], 10, 2);
 
         // Filtrar staff disponível
-        add_filter('booknetic_available_staff', [$this, 'filterAvailableStaff'], 10, 2);
+        add_filter('limpvix_available_staff', [$this, 'filterAvailableStaff'], 10, 2);
 
         // Filtrar timeslots disponíveis
-        add_filter('booknetic_available_timeslots', [$this, 'filterAvailableTimeslots'], 10, 3);
+        add_filter('limpvix_available_timeslots', [$this, 'filterAvailableTimeslots'], 10, 3);
 
         // Ajustar preço
-        add_filter('booknetic_appointment_price', [$this, 'calculatePrice'], 10, 2);
+        add_filter('limpvix_appointment_price', [$this, 'calculatePrice'], 10, 2);
     }
 
     // ========================================
@@ -299,13 +276,11 @@ class Hooks
     // ========================================
 
     /**
-     * Handler: Appointment criado no Booknetic
-     *
+         *
      * ⚠️ PRINCÍPIO FUNDAMENTAL:
      * - Este hook NÃO é dono da lógica
      * - Este hook apenas delega
-     * - Este hook NUNCA quebra fluxo do Booknetic
-     *
+         *
      * PASSO 3: Primeira interceptação
      * - Loga evento
      * - Cria Order em memória
@@ -315,12 +290,9 @@ class Hooks
      * - Loga resultado
      *
      * GARANTIAS:
-     * - NÃO bloqueia Booknetic
-     * - NÃO altera Booknetic
-     * - NÃO lança exceções
+             * - NÃO lança exceções
      *
-     * @param object $appointmentData AppointmentRequestData do Booknetic
-     * @return void
+         * @return void
      */
     public function onAppointmentCreated($appointmentData): void
     {
@@ -363,8 +335,7 @@ class Hooks
             }
 
         } catch (\Exception $e) {
-            // NÃO quebrar o fluxo do Booknetic
-            // Apenas logar erro
+                        // Apenas logar erro
             $this->log('ERROR_ON_INTERCEPT', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -585,8 +556,7 @@ class Hooks
     /**
      * Validar appointment
      *
-     * @param bool $isValid Validação do Booknetic
-     * @param array $data Dados do appointment
+         * @param array $data Dados do appointment
      * @return bool
      */
     public function validateAppointment(bool $isValid, array $data): bool
@@ -596,8 +566,7 @@ class Hooks
         }
 
         if (!$isValid) {
-            return false; // Já falhou no Booknetic
-        }
+            return false;         }
 
         // TODO: Aplicar validações LimpVix
 
@@ -607,8 +576,7 @@ class Hooks
     /**
      * Validar booking data
      *
-     * @param bool $isValid Validação do Booknetic
-     * @param array $bookingData Dados do booking
+         * @param array $bookingData Dados do booking
      * @return bool
      */
     public function validateBookingData(bool $isValid, array $bookingData): bool
@@ -618,8 +586,7 @@ class Hooks
         }
 
         if (!$isValid) {
-            return false; // Já falhou no Booknetic
-        }
+            return false;         }
 
         // TODO: Aplicar validações LimpVix
 
@@ -633,8 +600,7 @@ class Hooks
     /**
      * Filtrar serviços disponíveis
      *
-     * @param array $services Serviços do Booknetic
-     * @param int $locationId ID da localização
+         * @param int $locationId ID da localização
      * @return array
      */
     public function filterAvailableServices(array $services, int $locationId): array
@@ -669,8 +635,7 @@ class Hooks
     /**
      * Filtrar timeslots disponíveis
      *
-     * @param array $timeslots Timeslots do Booknetic
-     * @param string $date Data selecionada
+         * @param string $date Data selecionada
      * @param int $serviceId ID do serviço
      * @return array
      */
@@ -688,8 +653,7 @@ class Hooks
     /**
      * Calcular preço final
      *
-     * @param float $price Preço do Booknetic
-     * @param int $appointmentId ID do appointment
+         * @param int $appointmentId ID do appointment
      * @return float
      */
     public function calculatePrice(float $price, int $appointmentId): float

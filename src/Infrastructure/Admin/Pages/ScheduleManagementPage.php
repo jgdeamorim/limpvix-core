@@ -227,13 +227,13 @@ final class ScheduleManagementPage
     {
         global $wpdb;
         $allocationsTable = $wpdb->prefix . 'limpvix_professional_allocations';
-        $staffTable = $wpdb->prefix . 'bkntc_staff';
+        $profsTable       = $wpdb->prefix . 'limpvix_professionals';
 
         $results = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT s.name, a.allocation_score as score
+                "SELECT p.full_name AS name, a.allocation_score AS score
                 FROM {$allocationsTable} a
-                INNER JOIN {$staffTable} s ON a.professional_id = s.id
+                INNER JOIN {$profsTable} p ON a.professional_id = p.id
                 WHERE a.schedule_uuid = %s
                 AND a.status = 'allocated'",
                 $scheduleUuid

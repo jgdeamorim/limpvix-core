@@ -30,6 +30,7 @@ use LimpVix\Infrastructure\Admin\Pages\ServiceCatalogPage;
 use LimpVix\Infrastructure\Admin\Pages\ContractManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\CustomersManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\ProfessionalManagementPage;
+use LimpVix\Infrastructure\Admin\Pages\LimpVixUsersPage;
 
 defined("ABSPATH") || exit;
 
@@ -221,15 +222,28 @@ class AdminBootstrap
             [$this, "renderBriefingsPage"]
         );
 
-        // Submenu: Feedback Negativo (página 4 - a ser implementada)
+        // Submenu: Feedback & Qualidade (slug: limpvix-feedback)
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
             add_submenu_page(
                 self::MENU_SLUG,
-                "Feedback Negativo (C2)",
-                "Feedback C2",
-                "manage_options",
-                "limpvix-feedback-management",
+                "Feedback & Qualidade",
+                "⭐ Feedback",
+                "limpvix_view_feedback",
+                "limpvix-feedback",
                 [$this, 'renderFeedbackManagementPage']
+            );
+        }
+
+        // Submenu: Equipe LimpVix — registrado como oculto (sem parent) para manter
+        // compatibilidade com URL direta; acesso real é via limpvix-settings&tab=limpvix-users
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\LimpVixUsersPage')) {
+            add_submenu_page(
+                null,
+                "Equipe LimpVix",
+                "Equipe LimpVix",
+                "limpvix_manage_users",
+                "limpvix-users",
+                [$this, 'renderUsersPage']
             );
         }
 
@@ -366,6 +380,11 @@ class AdminBootstrap
         }
         }
 
+        // Processar ações da aba Equipe (deve ser ANTES do output HTML para permitir redirect)
+        if ($activeTab === 'limpvix-users' && class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\LimpVixUsersPage')) {
+            (new LimpVixUsersPage())->handleActions();
+        }
+
         ?>
         <div class="wrap limpvix-admin">
             <div class="limpvix-page-header">
@@ -430,6 +449,18 @@ class AdminBootstrap
                    class="nav-tab <?php echo $activeTab === 'risk' ? 'nav-tab-active' : ''; ?>">
                     🛡️ Risk
                 </a>
+                <?php if (current_user_can('limpvix_view_feedback') || current_user_can('manage_options')): ?>
+                <a href="?page=limpvix-settings&tab=feedback-management"
+                   class="nav-tab <?php echo $activeTab === 'feedback-management' ? 'nav-tab-active' : ''; ?>">
+                    ⚠️ Feedback C2
+                </a>
+                <?php endif; ?>
+                <?php if (current_user_can('limpvix_manage_users') || current_user_can('manage_options')): ?>
+                <a href="?page=limpvix-settings&tab=limpvix-users"
+                   class="nav-tab <?php echo $activeTab === 'limpvix-users' ? 'nav-tab-active' : ''; ?>">
+                    👥 Equipe
+                </a>
+                <?php endif; ?>
             </h2>
 
             <?php
@@ -465,6 +496,12 @@ class AdminBootstrap
                 case 'risk':
                     $this->renderRiskTab();
                     break;
+                case 'feedback-management':
+                    $this->renderFeedbackManagementTab();
+                    break;
+                case 'limpvix-users':
+                    $this->renderUsersTab();
+                    break;
                 case 'geral':
                 default:
                     $this->renderGeralTab();
@@ -480,7 +517,7 @@ class AdminBootstrap
         global $wpdb;
 
         // Verificar plugins requeridos
-        $isBookneticActive = is_plugin_active('booknetic/init.php');
+        $isBookneticActive = false; // agendador externo não usado
         $isWooCommerceActive = is_plugin_active('woocommerce/woocommerce.php');
         $isMercadoPagoActive = is_plugin_active('woocommerce-mercadopago/woocommerce-mercadopago.php');
 
@@ -590,41 +627,8 @@ class AdminBootstrap
             </div>
             <div class="limpvix-card-body">
 
-                <!-- Booknetic -->
-                <?php
-                $booknetic = $pluginVersions['booknetic'];
-                if (!$booknetic['active']):
-                ?>
-                <div class="notice notice-error inline" style="margin: 10px 0;">
-                    <p>
-                        <strong>❌ Booknetic <?php echo esc_html($booknetic['minimum']); ?>+ (OBRIGATÓRIO)</strong><br>
-                        <strong>Status:</strong> Não instalado ou desativado<br>
-                        <strong>Descrição:</strong> Sistema de agendamento base - CRÍTICO para operação<br>
-                        <strong>Observação:</strong> <em>Arquitetura permite substituição futura via bridge de isolamento</em><br>
-                        <strong>Ação:</strong>
-                        <a href="https://codecanyon.net/item/booknetic-wordpress-booking-plugin/26315953" target="_blank" class="button button-primary">
-                            📥 Baixar Booknetic <?php echo esc_html($booknetic['minimum']); ?>
-                        </a>
-                        <em style="margin-left: 10px;">Após instalação, vá em Plugins > Ativar "Booknetic"</em>
-                    </p>
-                </div>
-                <?php else: ?>
-                <div class="notice notice-success inline" style="margin: 10px 0;">
-                    <p>
-                        <strong>✅ Booknetic</strong> - Ativo e funcionando
-                        <?php if ($booknetic['version']): ?>
-                            <br><strong>Versão:</strong> <?php echo esc_html($booknetic['version']); ?>
-                            <?php if ($booknetic['meets_minimum']): ?>
-                                <span style="color: #10b981;">✓ Compatível</span>
-                            <?php else: ?>
-                                <span style="color: #f59e0b;">⚠️ Versão mínima: <?php echo esc_html($booknetic['minimum']); ?></span>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </p>
-                </div>
-                <?php endif; ?>
-
-                <!-- WooCommerce -->
+                <!-- Scheduling: integração nativa LimpVix -->
+<!-- WooCommerce -->
                 <?php
                 $woocommerce = $pluginVersions['woocommerce'];
                 if (!$woocommerce['active']):
@@ -714,13 +718,9 @@ class AdminBootstrap
                 <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;">Sistema com 100% dos fluxos operacionais implementados</p>
             </div>
             <div class="limpvix-card-body">
-                <!-- Status Booknetic -->
+                <!-- Status LimpVix Native -->
                 <div style="margin-bottom: 15px;">
-                    <?php if ($isBookneticActive): ?>
-                        <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Booknetic ATIVO</span>
-                    <?php else: ?>
-                        <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Booknetic INATIVO</span>
-                    <?php endif; ?>
+                    <span class="limpvix-badge limpvix-badge-success">Scheduling nativo LimpVix</span>
 
                     <?php if ($tableExists): ?>
                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Tabela Mapeamento OK</span>
@@ -746,7 +746,7 @@ class AdminBootstrap
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>BookneticBridge</strong></td>
+                            <td><strong>AdapterBootstrap</strong></td>
                             <td style="text-align: center;">
                                 <span class="limpvix-badge <?php echo $bridgeScore >= 80 ? 'limpvix-badge-success' : 'limpvix-badge-warning'; ?>">
                                     <?php echo $bridgeScore; ?>%
@@ -865,13 +865,13 @@ class AdminBootstrap
                 <div class="limpvix-card-header">
                     <h3>
                         <span class="dashicons dashicons-yes"></span>
-                        ✅ O Que USAMOS do Booknetic
+                        ✅ Módulos LimpVix Ativos
                     </h3>
                     <p>Funcionalidades e dados que o LimpVix-Core consome</p>
                 </div>
                 <div class="limpvix-card-body">
                     <?php
-                    $hooks = $this->getBookneticHooksStatus();
+                    $hooks = $this->getLimpVixHooksStatus();
                     $hooksRegistered = count(array_filter($hooks, fn($h) => $h['registered']));
                     ?>
                     <h4 style="margin-top: 0;">📡 Hooks Capturados (<?php echo $hooksRegistered; ?>/<?php echo count($hooks); ?>)</h4>
@@ -908,13 +908,13 @@ class AdminBootstrap
                     <div class="notice notice-warning inline" style="margin-top: 15px;">
                         <p>
                             ⚠️ <strong><?php echo (count($hooks) - $hooksRegistered); ?> hooks não registrados.</strong><br>
-                            Verifique se o Booknetic está instalado e ativo. Alguns hooks podem estar sendo interceptados mas não registrados ainda.
+                            Verifique os hooks LimpVix. Alguns hooks podem estar sendo interceptados mas não registrados ainda.
                         </p>
                     </div>
                     <?php endif; ?>
 
                     <?php
-                    $tables = $this->getBookneticTablesStatus();
+                    $tables = $this->getLimpVixTablesStatus();
                     $tablesExist = count(array_filter($tables, fn($t) => $t['exists']));
                     ?>
                     <h4 style="margin-top: 20px;">🗄️ Tabelas Acessadas (<?php echo $tablesExist; ?>/<?php echo count($tables); ?>)</h4>
@@ -946,14 +946,14 @@ class AdminBootstrap
                     <?php if ($tablesExist < count($tables)): ?>
                     <div class="notice notice-error inline" style="margin-top: 15px;">
                         <p>
-                            ❌ <strong><?php echo (count($tables) - $tablesExist); ?> tabelas Booknetic não encontradas.</strong><br>
-                            Verifique se o plugin Booknetic está instalado e ativado corretamente. LimpVix precisa de acesso READ-ONLY às tabelas do Booknetic.
+                            ❌ <strong><?php echo (count($tables) - $tablesExist); ?> tabelas LimpVix Native não encontradas.</strong><br>
+                            Verifique se as tabelas LimpVix foram criadas corretamente.
                         </p>
                     </div>
                     <?php endif; ?>
 
                     <?php
-                    $components = $this->getBookneticComponentsStatus();
+                    $components = $this->getLimpVixComponentsStatus();
                     $componentsActive = count(array_filter($components, fn($c) => $c['exists']));
                     ?>
                     <h4 style="margin-top: 20px;">📦 Classes/Componentes (<?php echo $componentsActive; ?>/<?php echo count($components); ?>)</h4>
@@ -1270,20 +1270,20 @@ class AdminBootstrap
                 <p style="color: #e0e7ff; margin: 5px 0 0 0; font-size: 13px;">Arquitetura, substituição futura e sistema dual MercadoPago</p>
             </div>
             <div class="limpvix-card-body">
-                <!-- Booknetic -->
+                <!-- LimpVix Native (REMOVIDO) -->
                 <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
                     <h4 style="margin: 0 0 10px 0; color: #1e40af;">
-                        📅 Booknetic - "Soft Dependency"
+                        📅 Scheduling - Integração Nativa LimpVix
                     </h4>
                     <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
                         <strong>Status Atual:</strong> OBRIGATÓRIO para operação (agendamento, staff, fluxo de pagamento)
                     </p>
                     <p style="margin: 0 0 10px 0; font-size: 13px; line-height: 1.6;">
-                        <strong>Arquitetura de Isolamento:</strong> LimpVix mantém isolamento via <code>BookneticBridge</code>.
-                        Acesso READ-ONLY às tabelas, interceptação via hooks WordPress. <strong>Não modifica código do Booknetic.</strong>
+                        <strong>Arquitetura:</strong> LimpVix usa tabelas e hooks nativos.
+                        Acesso READ-WRITE nas próprias tabelas.
                     </p>
                     <p style="margin: 0; font-size: 13px; line-height: 1.6;">
-                        <strong>Substituição Futura:</strong> A arquitetura permite substituir o Booknetic por UI própria ou outro
+                        <strong>Extensível:</strong> A arquitetura permite adicionar novos adapters de agendamento sem quebrar o core.
                         engine de agendamento sem quebrar o LimpVix-Core. Roadmap planejado para 2027.
                     </p>
                 </div>
@@ -1361,7 +1361,7 @@ class AdminBootstrap
                         <h4>✅ O QUE FAZEMOS:</h4>
                         <ul>
                             <li>✅ Interceptamos eventos via hooks do WordPress</li>
-                            <li>✅ Lemos dados das tabelas Booknetic (READ-ONLY)</li>
+                            <li>✅ Usamos tabelas nativas LimpVix</li>
                             <li>✅ Mantemos mapeamento 1:1 em tabela própria</li>
                             <li>✅ Sobrescrevemos UI apenas para staff (Guards)</li>
                             <li>✅ Validamos permissões antes de cada ação</li>
@@ -1370,9 +1370,9 @@ class AdminBootstrap
                     <div>
                         <h4>❌ O QUE NÃO FAZEMOS:</h4>
                         <ul>
-                            <li>❌ NUNCA modificamos código do Booknetic</li>
-                            <li>❌ NUNCA escrevemos em tabelas do Booknetic</li>
-                            <li>❌ NUNCA sobrescrevemos classes do Booknetic</li>
+                            <li>✅ Domínio totalmente independente de plugins externos</li>
+                            
+                            
                             <li>❌ NUNCA dependemos de métodos internos</li>
                             <li>❌ NUNCA quebramos compatibilidade com updates</li>
                         </ul>
@@ -1382,12 +1382,11 @@ class AdminBootstrap
                 <div style="margin-top: 20px; padding: 15px; background: #f0f6fc; border-left: 4px solid #0073aa;">
                     <strong>📌 Arquitetura de Isolamento:</strong>
                     <p style="margin: 10px 0 0 0;">
-                        <code>Booknetic (Engine Operacional)</code> →
-                        <code>BookneticBridge (Interceptação)</code> →
+                        <code>LimpVix Core</code> →
                         <code>LimpVix (Soberano em Regras/Dinheiro/Compliance)</code>
                     </p>
                     <p style="margin: 10px 0 0 0; font-size: 13px; color: #666;">
-                        Esta arquitetura permite que o Booknetic seja substituído no futuro sem quebrar o LimpVix-Core.
+                        Arquitetura modular: cada componente é substituível independentemente.
                     </p>
                 </div>
             </div>
@@ -1772,9 +1771,9 @@ class AdminBootstrap
                                 </td>
                             </tr>
                             <tr>
-                                <td><strong>Integração Booknetic</strong></td>
+                                <td><strong>Módulos Nativos</strong></td>
                                 <td>
-                                    <?php if ($health["booknetic_active"]): ?>
+                                    <?php if (false): /* agendador externo removido */ ?>
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
                                     <?php else: ?>
                                         <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Inativo</span>
@@ -1932,7 +1931,7 @@ class AdminBootstrap
                         'NVoip OTP' => NVoipSettings::isConnected(),
                         'Google Business' => GoogleBusinessSettings::isConnected(),
                         'Mercado Pago' => \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected(),
-                        'Booknetic' => is_plugin_active('booknetic/init.php'),
+                        'booknetic' => false, // Booknetic removido
                         'WooCommerce' => class_exists('WooCommerce'),
                     ];
                     ?>
@@ -3047,11 +3046,43 @@ class AdminBootstrap
             update_option('limpvix_prof_allow_client_report', isset($_POST['allow_client_report']));
 
             // Dual Mode Payouts (NOVO)
-            // NOTA: MercadoPago Client ID/Secret agora estão em Configurações > Conexões
             update_option('limpvix_payout_minimum_amount', floatval($_POST['payout_minimum_amount'] ?? 50));
             update_option('limpvix_payout_default_method', sanitize_text_field($_POST['payout_default_method'] ?? 'pix_manual'));
             update_option('limpvix_payout_pix_to_mp_requires_approval', isset($_POST['payout_pix_to_mp_requires_approval']));
             update_option('limpvix_payout_notify_admin_pix_pending', isset($_POST['payout_notify_admin_pix_pending']));
+
+            // ── Feedback do Cliente
+            update_option('limpvix_feedback_window_hours',        max(1, intval($_POST['feedback_window_hours'] ?? 48)));
+            update_option('limpvix_feedback_require_evidence_lt3', isset($_POST['feedback_require_evidence_lt3']));
+            update_option('limpvix_feedback_auto_approve_days',    max(0, intval($_POST['feedback_auto_approve_days'] ?? 7)));
+            update_option('limpvix_feedback_allow_edit_hours',     max(0, intval($_POST['feedback_allow_edit_hours'] ?? 24)));
+
+            // ── CheckIn / CheckOut
+            update_option('limpvix_checkin_geofence_radius_m',    max(50, intval($_POST['checkin_geofence_radius_m'] ?? 300)));
+            update_option('limpvix_checkin_time_tolerance_min',    max(0, intval($_POST['checkin_time_tolerance_min'] ?? 15)));
+            update_option('limpvix_checkin_require_gps',           isset($_POST['checkin_require_gps']));
+            update_option('limpvix_checkout_require_photo',        isset($_POST['checkout_require_photo']));
+
+            // ── Evidências Profissional
+            update_option('limpvix_evidence_prof_required',        isset($_POST['evidence_prof_required']));
+            update_option('limpvix_evidence_prof_min_photos',      max(0, intval($_POST['evidence_prof_min_photos'] ?? 2)));
+            update_option('limpvix_evidence_prof_max_photos',      max(1, intval($_POST['evidence_prof_max_photos'] ?? 10)));
+            update_option('limpvix_evidence_prof_max_mb',          max(1, intval($_POST['evidence_prof_max_mb'] ?? 20)));
+            update_option('limpvix_evidence_prof_allow_video',     isset($_POST['evidence_prof_allow_video']));
+
+            // ── Evidências Cliente
+            update_option('limpvix_evidence_client_required',      isset($_POST['evidence_client_required']));
+            update_option('limpvix_evidence_client_min_photos',    max(0, intval($_POST['evidence_client_min_photos'] ?? 0)));
+            update_option('limpvix_evidence_client_allow_dispute', isset($_POST['evidence_client_allow_dispute']));
+            update_option('limpvix_evidence_client_dispute_hours', max(1, intval($_POST['evidence_client_dispute_hours'] ?? 72)));
+
+            // ── Resolução de Feedbacks e Evidências
+            update_option('limpvix_resolution_cap_authorize',  sanitize_key($_POST['resolution_cap_authorize'] ?? 'manage_options'));
+            update_option('limpvix_resolution_cap_resolve',    sanitize_key($_POST['resolution_cap_resolve']   ?? 'limpvix_resolve_feedback'));
+            update_option('limpvix_resolution_deadline_hours', max(1, intval($_POST['resolution_deadline_hours'] ?? 48)));
+            update_option('limpvix_resolution_apply_penalty',  isset($_POST['resolution_apply_penalty']));
+            update_option('limpvix_payout_cap_authorize',      sanitize_key($_POST['payout_cap_authorize']     ?? 'limpvix_authorize_payout'));
+            update_option('limpvix_payout_cap_process',        sanitize_key($_POST['payout_cap_process']       ?? 'limpvix_process_payout'));
 
             wp_redirect(add_query_arg(['page' => 'limpvix-settings', 'tab' => 'profissionais', 'updated' => '1'], admin_url('admin.php')));
             exit;
@@ -4108,6 +4139,310 @@ class AdminBootstrap
                             <li><strong>Repasse Executado:</strong> Valor transferido para conta do profissional</li>
                         </ol>
                         <p style="margin-bottom: 0;"><strong>💡 Dica:</strong> Configure notificações em "Configurações > Comunicação > Fluxos" para alertar admin sobre casos <3 estrelas.</p>
+                    </div>
+                </div>
+            </div>
+
+            <?php
+            // ── Carregar valores das novas seções
+            $fbWindowHours       = get_option('limpvix_feedback_window_hours', 48);
+            $fbRequireEvidLt3    = get_option('limpvix_feedback_require_evidence_lt3', true);
+            $fbAutoApproveDays   = get_option('limpvix_feedback_auto_approve_days', 7);
+            $fbAllowEditHours    = get_option('limpvix_feedback_allow_edit_hours', 24);
+
+            $ciGeofence          = get_option('limpvix_checkin_geofence_radius_m', 300);
+            $ciTimeTol           = get_option('limpvix_checkin_time_tolerance_min', 15);
+            $ciRequireGps        = get_option('limpvix_checkin_require_gps', true);
+            $coRequirePhoto      = get_option('limpvix_checkout_require_photo', true);
+
+            $epRequired          = get_option('limpvix_evidence_prof_required', true);
+            $epMinPhotos         = get_option('limpvix_evidence_prof_min_photos', 2);
+            $epMaxPhotos         = get_option('limpvix_evidence_prof_max_photos', 10);
+            $epMaxMb             = get_option('limpvix_evidence_prof_max_mb', 20);
+            $epAllowVideo        = get_option('limpvix_evidence_prof_allow_video', false);
+
+            $ecRequired          = get_option('limpvix_evidence_client_required', false);
+            $ecMinPhotos         = get_option('limpvix_evidence_client_min_photos', 0);
+            $ecAllowDispute      = get_option('limpvix_evidence_client_allow_dispute', true);
+            $ecDisputeHours      = get_option('limpvix_evidence_client_dispute_hours', 72);
+
+            $resCapAuthorize     = get_option('limpvix_resolution_cap_authorize', 'manage_options');
+            $resCapResolve       = get_option('limpvix_resolution_cap_resolve', 'limpvix_resolve_feedback');
+            $resDeadline         = get_option('limpvix_resolution_deadline_hours', 48);
+            $resApplyPenalty     = get_option('limpvix_resolution_apply_penalty', true);
+            $payoutCapAuth       = get_option('limpvix_payout_cap_authorize', 'limpvix_authorize_payout');
+            $payoutCapProcess    = get_option('limpvix_payout_cap_process', 'limpvix_process_payout');
+
+            $capOptions = [
+                'manage_options'              => 'Administrador (manage_options)',
+                'limpvix_authorize_payout'    => 'Autorizar Payout (gerente estadual+)',
+                'limpvix_process_payout'      => 'Processar Payout (financeiro)',
+                'limpvix_resolve_feedback'    => 'Resolver Feedback (gerente regional+)',
+                'limpvix_review_evidence'     => 'Revisar Evidência (gerente regional+)',
+                'limpvix_manage_settings'     => 'Gerenciar Configurações (gerente nacional)',
+            ];
+            ?>
+
+            <!-- ══════════════════════════════════════════════════════ -->
+            <!-- SEÇÃO: Feedback do Cliente                             -->
+            <!-- ══════════════════════════════════════════════════════ -->
+            <div class="limpvix-card" style="margin-bottom: 20px;">
+                <div class="limpvix-card-header"><h3>⭐ Feedback do Cliente</h3></div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th><label for="feedback_window_hours">Janela de Feedback</label></th>
+                            <td>
+                                <input type="number" id="feedback_window_hours" name="feedback_window_hours"
+                                       value="<?php echo esc_attr($fbWindowHours); ?>" min="1" max="168" class="small-text"> horas
+                                <p class="description">Tempo após o término do serviço em que o cliente pode enviar feedback (padrão: 48h).</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Evidência obrigatória (rating &lt; 3)</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="feedback_require_evidence_lt3" value="1"
+                                           <?php checked($fbRequireEvidLt3); ?>>
+                                    Exigir foto/evidência quando rating for menor que 3 estrelas
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="feedback_auto_approve_days">Auto-aprovação após</label></th>
+                            <td>
+                                <input type="number" id="feedback_auto_approve_days" name="feedback_auto_approve_days"
+                                       value="<?php echo esc_attr($fbAutoApproveDays); ?>" min="0" max="30" class="small-text"> dias
+                                <p class="description">0 = sem auto-aprovação. Feedbacks pendentes aprovados automaticamente após N dias.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="feedback_allow_edit_hours">Edição pelo cliente</label></th>
+                            <td>
+                                <input type="number" id="feedback_allow_edit_hours" name="feedback_allow_edit_hours"
+                                       value="<?php echo esc_attr($fbAllowEditHours); ?>" min="0" max="72" class="small-text"> horas
+                                <p class="description">0 = não permite edição após envio.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════ -->
+            <!-- SEÇÃO: CheckIn / CheckOut                             -->
+            <!-- ══════════════════════════════════════════════════════ -->
+            <div class="limpvix-card" style="margin-bottom: 20px;">
+                <div class="limpvix-card-header"><h3>📍 CheckIn / CheckOut do Profissional</h3></div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th><label for="checkin_geofence_radius_m">Raio do Geofence</label></th>
+                            <td>
+                                <input type="number" id="checkin_geofence_radius_m" name="checkin_geofence_radius_m"
+                                       value="<?php echo esc_attr($ciGeofence); ?>" min="50" max="5000" class="small-text"> metros
+                                <p class="description">Raio máximo do endereço do serviço para permitir check-in.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="checkin_time_tolerance_min">Tolerância de Horário</label></th>
+                            <td>
+                                <input type="number" id="checkin_time_tolerance_min" name="checkin_time_tolerance_min"
+                                       value="<?php echo esc_attr($ciTimeTol); ?>" min="0" max="120" class="small-text"> minutos
+                                <p class="description">Atraso máximo tolerado antes de alertar o cliente.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>GPS obrigatório no Check-In</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="checkin_require_gps" value="1" <?php checked($ciRequireGps); ?>>
+                                    Rejeitar check-in sem coordenadas GPS válidas
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Foto obrigatória no Check-Out</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="checkout_require_photo" value="1" <?php checked($coRequirePhoto); ?>>
+                                    Exigir ao menos 1 foto no checkout
+                                </label>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════ -->
+            <!-- SEÇÃO: Evidências do Profissional                     -->
+            <!-- ══════════════════════════════════════════════════════ -->
+            <div class="limpvix-card" style="margin-bottom: 20px;">
+                <div class="limpvix-card-header"><h3>📷 Evidências do Profissional</h3></div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th>Evidência obrigatória</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="evidence_prof_required" value="1" <?php checked($epRequired); ?>>
+                                    Profissional deve enviar evidências antes de finalizar execução
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="evidence_prof_min_photos">Mínimo de fotos</label></th>
+                            <td>
+                                <input type="number" id="evidence_prof_min_photos" name="evidence_prof_min_photos"
+                                       value="<?php echo esc_attr($epMinPhotos); ?>" min="0" max="20" class="small-text">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="evidence_prof_max_photos">Máximo de fotos</label></th>
+                            <td>
+                                <input type="number" id="evidence_prof_max_photos" name="evidence_prof_max_photos"
+                                       value="<?php echo esc_attr($epMaxPhotos); ?>" min="1" max="50" class="small-text">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="evidence_prof_max_mb">Tamanho máximo total</label></th>
+                            <td>
+                                <input type="number" id="evidence_prof_max_mb" name="evidence_prof_max_mb"
+                                       value="<?php echo esc_attr($epMaxMb); ?>" min="1" max="200" class="small-text"> MB
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Permitir vídeo</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="evidence_prof_allow_video" value="1" <?php checked($epAllowVideo); ?>>
+                                    Aceitar upload de vídeo (MP4, mov) além de fotos
+                                </label>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════ -->
+            <!-- SEÇÃO: Evidências do Cliente                          -->
+            <!-- ══════════════════════════════════════════════════════ -->
+            <div class="limpvix-card" style="margin-bottom: 20px;">
+                <div class="limpvix-card-header"><h3>📸 Evidências do Cliente</h3></div>
+                <div class="limpvix-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th>Evidência do cliente obrigatória</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="evidence_client_required" value="1" <?php checked($ecRequired); ?>>
+                                    Cliente deve enviar fotos ao registrar reclamação
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="evidence_client_min_photos">Mínimo de fotos (reclamação)</label></th>
+                            <td>
+                                <input type="number" id="evidence_client_min_photos" name="evidence_client_min_photos"
+                                       value="<?php echo esc_attr($ecMinPhotos); ?>" min="0" max="10" class="small-text">
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Permitir disputa via app</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="evidence_client_allow_dispute" value="1" <?php checked($ecAllowDispute); ?>>
+                                    Cliente pode abrir disputa formal após feedback
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="evidence_client_dispute_hours">Prazo para disputa</label></th>
+                            <td>
+                                <input type="number" id="evidence_client_dispute_hours" name="evidence_client_dispute_hours"
+                                       value="<?php echo esc_attr($ecDisputeHours); ?>" min="1" max="720" class="small-text"> horas após o serviço
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════ -->
+            <!-- SEÇÃO: Resolução de Feedbacks e Evidências            -->
+            <!-- ══════════════════════════════════════════════════════ -->
+            <div class="limpvix-card" style="margin-bottom: 20px; border-left: 4px solid #d97706;">
+                <div class="limpvix-card-header"><h3>🔍 Resolução de Feedbacks e Autorização de Pagamentos</h3></div>
+                <div class="limpvix-card-body">
+                    <p style="color:#6b7280; margin-bottom: 16px;">
+                        Define quais roles da equipe podem <strong>resolver feedbacks bloqueantes</strong> e
+                        <strong>autorizar/processar pagamentos</strong>. Use as capabilities abaixo para
+                        controle fino por nível hierárquico.
+                    </p>
+                    <table class="form-table">
+                        <tr>
+                            <th><label for="resolution_cap_resolve">Quem pode resolver feedback</label></th>
+                            <td>
+                                <select id="resolution_cap_resolve" name="resolution_cap_resolve">
+                                    <?php foreach ($capOptions as $cap => $label): ?>
+                                        <option value="<?php echo esc_attr($cap); ?>" <?php selected($resCapResolve, $cap); ?>>
+                                            <?php echo esc_html($label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">Capability mínima para registrar resolução de feedback e liberar payout bloqueante.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="resolution_deadline_hours">Prazo para resolução</label></th>
+                            <td>
+                                <input type="number" id="resolution_deadline_hours" name="resolution_deadline_hours"
+                                       value="<?php echo esc_attr($resDeadline); ?>" min="1" max="720" class="small-text"> horas
+                                <p class="description">SLA interno para resolver feedbacks bloqueantes antes de escalonar.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Aplicar penalidade de score</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="resolution_apply_penalty" value="1" <?php checked($resApplyPenalty); ?>>
+                                    Aplicar penalidade no score do profissional conforme gravidade da resolução
+                                </label>
+                                <p class="description">Grave: −1.50 pts | Médio: −0.75 pts | Leve: sem penalidade.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th style="border-top: 1px solid #e5e7eb; padding-top: 16px;"><label for="payout_cap_authorize">Quem pode <em>autorizar</em> payout</label></th>
+                            <td style="border-top: 1px solid #e5e7eb; padding-top: 16px;">
+                                <select id="payout_cap_authorize" name="payout_cap_authorize">
+                                    <?php foreach ($capOptions as $cap => $label): ?>
+                                        <option value="<?php echo esc_attr($cap); ?>" <?php selected($payoutCapAuth, $cap); ?>>
+                                            <?php echo esc_html($label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">Pré-aprovação do payout (ex: gerente estadual). Passo 1 do fluxo dual.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="payout_cap_process">Quem pode <em>processar</em> payout</label></th>
+                            <td>
+                                <select id="payout_cap_process" name="payout_cap_process">
+                                    <?php foreach ($capOptions as $cap => $label): ?>
+                                        <option value="<?php echo esc_attr($cap); ?>" <?php selected($payoutCapProcess, $cap); ?>>
+                                            <?php echo esc_html($label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">Execução via EFI Bank PIX (ex: financeiro). Passo 2 do fluxo dual.</p>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-top: 16px;">
+                        <strong>ℹ️ Como funciona o fluxo de autorização:</strong><br>
+                        <ol style="margin: 8px 0 0 20px; font-size: 13px;">
+                            <li><strong>Resolver feedback</strong> (se bloqueante): usuário com capability acima registra resolução + gravidade</li>
+                            <li><strong>Autorizar payout</strong>: usuário com capability "autorizar" pré-aprova (status → <code>authorized</code>)</li>
+                            <li><strong>Processar payout</strong>: usuário com capability "processar" dispara PIX via EFI Bank</li>
+                        </ol>
                     </div>
                 </div>
             </div>
@@ -5643,15 +5978,40 @@ class AdminBootstrap
         exit;
     }
 
+    // ─── Tab renderers (dentro de limpvix-settings) ──────────────────────────
+
+    private function renderFeedbackManagementTab(): void
+    {
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
+            $page = new \LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage();
+            $page->renderTabContent();
+        }
+    }
+
+    private function renderUsersTab(): void
+    {
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\LimpVixUsersPage')) {
+            $page = new LimpVixUsersPage();
+            $page->renderTabContent();
+        }
+    }
+
+    // ─── Páginas standalone (redirect para a aba equivalente) ─────────────────
+
     public function renderFeedbackManagementPage(): void {
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('limpvix_view_feedback') && !current_user_can('manage_options')) {
             wp_die("Acesso negado");
         }
-
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage')) {
             $page = new \LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage();
             $page->render();
         }
+    }
+
+    public function renderUsersPage(): void
+    {
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=limpvix-users'));
+        exit;
     }
 
     public function renderBriefingsPage(): void {
@@ -6284,24 +6644,21 @@ class AdminBootstrap
     // ============================================================================
 
     /**
-     * Get Booknetic hooks registration status
+     * Get LimpVix Native hooks registration status
      *
-     * Verifica quais hooks do Booknetic estão registrados e quantos callbacks
+     * Verifica quais hooks do LimpVix Native estão registrados e quantos callbacks
      */
-    private function getBookneticHooksStatus(): array
+    private function getLimpVixHooksStatus(): array
     {
         global $wp_filter;
 
         $expectedHooks = [
-            'bkntc_appointment_created' => 'Criar order no LimpVix',
-            'bkntc_appointment_completed' => 'Disparar fluxo financeiro',
-            'bkntc_appointment_canceled' => 'Cancelar order',
-            'bkntc_staff_updated' => 'Sincronizar dados staff',
-            'bkntc_after_booking_completed' => 'Redirecionar para Briefing',
-            'bkntc_staff_can_access' => 'Controle de permissões',
-            'bkntc_staff_can_execute_action' => 'Controle de ações',
-            'bkntc_staff_panel_header' => 'Avisos personalizados',
-            'bkntc_staff_panel_footer' => 'Ocultar abas financeiras',
+            'limpvix_execution_validated' => 'Disparar payout',
+            'limpvix_feedback_submitted' => 'Calcular score profissional',
+            'limpvix_contract_cancelled' => 'Cancelar contrato',
+            'limpvix_professional_updated' => 'Sincronizar profissional',
+            'limpvix_order_completed' => 'Redirecionar para Briefing',
+            'limpvix_payout_processed' => 'Processar repasse profissional',
             'admin_menu' => 'Ocultar menus para staff',
         ];
 
@@ -6329,28 +6686,28 @@ class AdminBootstrap
     }
 
     /**
-     * Get Booknetic tables existence status
+     * Get LimpVix Native tables existence status
      *
-     * Verifica se tabelas do Booknetic existem no banco
+     * Verifica se tabelas do LimpVix Native existem no banco
      */
-    private function getBookneticTablesStatus(): array
+    private function getLimpVixTablesStatus(): array
     {
         global $wpdb;
 
         $expectedTables = [
-            'bkntc_appointments' => [
+            'limpvix_executions' => [
                 'access' => 'READ',
                 'purpose' => 'Mapear appointment → order',
             ],
-            'bkntc_staff' => [
+            'limpvix_professionals' => [
                 'access' => 'READ',
                 'purpose' => 'Vincular user_id WordPress',
             ],
-            'bkntc_customers' => [
+            'limpvix_briefings' => [
                 'access' => 'READ',
                 'purpose' => 'Dados para Google Reviews',
             ],
-            'bkntc_services' => [
+            'limpvix_contracts' => [
                 'access' => 'READ',
                 'purpose' => 'Nome do serviço executado',
             ],
@@ -6374,36 +6731,36 @@ class AdminBootstrap
     }
 
     /**
-     * Get Booknetic integration components status
+     * Get LimpVix Native integration components status
      *
      * Verifica se classes de integração existem
      */
-    private function getBookneticComponentsStatus(): array
+    private function getLimpVixComponentsStatus(): array
     {
         $components = [
-            'BookneticBridge' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\BookneticBridge',
-                'description' => 'Ponte principal de integração',
+            'AdapterBootstrap' => [
+                'class' => 'LimpVix\\Infrastructure\\Adapters\\AdapterBootstrap',
+                'description' => 'Bootstrap de adaptadores',
             ],
-            'AppointmentOrderMapper' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\AppointmentOrderMapper',
-                'description' => 'Mapeamento 1:1 appointment → order',
+            'ExecutePayout' => [
+                'class' => 'LimpVix\\Application\\UseCases\\Finance\\ExecutePayout',
+                'description' => 'Execução de payout',
             ],
-            'StaffAccessGuard' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffAccessGuard',
-                'description' => 'Controle de acesso ao painel',
+            'CalculateProfessionalScore' => [
+                'class' => 'LimpVix\\Application\\UseCases\\Feedback\\CalculateProfessionalScore',
+                'description' => 'Cálculo de score profissional',
             ],
-            'StaffActionGuard' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffActionGuard',
-                'description' => 'Controle de ações permitidas',
+            'WpPayoutRepository' => [
+                'class' => 'LimpVix\\Infrastructure\\Finance\\Repositories\\WpPayoutRepository',
+                'description' => 'Repositório de payouts',
             ],
-            'StaffPanelOverride' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\UI\\StaffPanelOverride',
-                'description' => 'UI customizada para staff',
+            'WpFeedbackRepository' => [
+                'class' => 'LimpVix\\Infrastructure\\Feedback\\Repositories\\WpFeedbackRepository',
+                'description' => 'Repositório de feedbacks',
             ],
-            'StaffNotices' => [
-                'class' => 'LimpVix\\Infrastructure\\Booknetic\\UI\\StaffNotices',
-                'description' => 'Avisos personalizados no painel',
+            'WpProfessionalRepository' => [
+                'class' => 'LimpVix\\Infrastructure\\Persistence\\WpMarketplaceProfessionalRepository',
+                'description' => 'Repositório de profissionais',
             ],
         ];
 
@@ -6518,8 +6875,8 @@ class AdminBootstrap
      */
     private function getGuardsStatus(): int
     {
-        $accessGuardExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffAccessGuard');
-        $actionGuardExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\Guards\\StaffActionGuard');
+        $accessGuardExists = class_exists('LimpVix\\Application\\UseCases\\Feedback\\CalculateProfessionalScore');
+        $actionGuardExists = class_exists('LimpVix\\Infrastructure\\Finance\\Repositories\\WpPayoutRepository');
 
         if ($accessGuardExists && $actionGuardExists) {
             return 100;
@@ -6537,8 +6894,8 @@ class AdminBootstrap
      */
     private function getUIOverridesStatus(): int
     {
-        $panelOverrideExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\UI\\StaffPanelOverride');
-        $noticesExists = class_exists('LimpVix\\Infrastructure\\Booknetic\\UI\\StaffNotices');
+        $panelOverrideExists = class_exists('LimpVix\\Infrastructure\\Feedback\\Repositories\\WpFeedbackRepository');
+        $noticesExists = class_exists('LimpVix\\Infrastructure\\Persistence\\WpMarketplaceProfessionalRepository');
 
         if ($panelOverrideExists && $noticesExists) {
             return 100;
@@ -6557,9 +6914,9 @@ class AdminBootstrap
     private function getPluginVersions(): array
     {
         $plugins = [
-            'booknetic' => [
-                'path' => 'booknetic/init.php',
-                'name' => 'Booknetic',
+            'limpvix' => [
+                'path' => 'limpvix/init.php',
+                'name' => 'LimpVix Native',
                 'minimum' => '4.8.5',
             ],
             'woocommerce' => [

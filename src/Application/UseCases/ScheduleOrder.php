@@ -5,7 +5,7 @@
  * RESPONSABILIDADE:
  * - Orquestrar criação de OS no LimpVix
  * - Validar regras de negócio
- * - Criar appointment no Booknetic (via adapter)
+ * - Criar agendamento via LimpVix Scheduling
  * - Persistir OS
  * - Disparar eventos
  *
@@ -19,7 +19,7 @@
  * 1. Validar dados de entrada
  * 2. Aplicar políticas de negócio
  * 3. Criar entidade Order
- * 4. Criar appointment no Booknetic
+ * 4. Criar agendamento LimpVix
  * 5. Vincular appointment à OS
  * 6. Persistir OS
  * 7. Disparar evento OrderScheduled
@@ -40,7 +40,7 @@ class ScheduleOrder
     /**
      * TODO: Dependências a serem injetadas via construtor:
      * - OrderRepository
-     * - BookneticAdapter
+     * - SchedulingAdapter
      * - EventDispatcher
      * - Logger
      *
@@ -65,9 +65,9 @@ class ScheduleOrder
         // 3. CRIAR entidade Order (ainda em memória)
         $order = $this->createOrder($data);
 
-        // 4. CRIAR appointment no Booknetic (via adapter)
+        // 4. CRIAR agendamento LimpVix (via scheduling adapter)
         // TODO: Implementar quando Adapter estiver pronto
-        // $appointmentId = $this->bookneticAdapter->createAppointment($data);
+        // $appointmentId = $this->schedulingAdapter->createAppointment($data);
         // $order->schedule($appointmentId);
 
         // 5. PERSISTIR OS

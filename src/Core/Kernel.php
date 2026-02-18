@@ -80,7 +80,7 @@ class Kernel
      * 2. Verificar Feature Flag "core_enabled"
      * 3. Inicializar FeatureFlags
      * 4. Inicializar Hooks
-     * 5. Registrar interceptações do Booknetic
+     * 5. Registrar adaptadores de integração
      *
      * @return void
      */
@@ -368,7 +368,6 @@ class Kernel
             'version' => $this->getVersion(),
             'booted' => $this->booted,
             'core_enabled' => $this->featureFlags ? $this->featureFlags->isEnabled('core_enabled') : false,
-            'booknetic_active' => is_plugin_active('booknetic/init.php'),
             'autoloader' => class_exists('LimpVix\\Core\\Kernel'),
             'feature_flags_loaded' => $this->featureFlags !== null,
             'hooks_registered' => $this->hooks !== null,

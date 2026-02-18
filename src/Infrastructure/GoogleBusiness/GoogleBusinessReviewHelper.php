@@ -148,7 +148,7 @@ final class GoogleBusinessReviewHelper
         // Buscar dados do cliente
         global $wpdb;
         $customer = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}bkntc_customers WHERE id = %d",
+            "SELECT name, phone FROM {$wpdb->prefix}limpvix_customers WHERE id = %d",
             $customerId
         ), ARRAY_A);
 
