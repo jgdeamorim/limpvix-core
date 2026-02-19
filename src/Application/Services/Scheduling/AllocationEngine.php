@@ -46,7 +46,7 @@ final class AllocationEngine
         $this->scheduleRepository = $scheduleRepository;
         $this->proximityScorer = $proximityScorer;
         $this->availabilityCalculator = $availabilityCalculator;
-        $this->matcher = $matcher ?? new ProfessionalMatcher();
+        $this->matcher = $matcher ?? ProfessionalMatcher::fromConfig();
     }
 
     /**

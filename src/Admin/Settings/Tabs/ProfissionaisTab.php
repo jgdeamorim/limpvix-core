@@ -24,8 +24,6 @@ class ProfissionaisTab implements SettingsTabInterface
         $requireBackgroundCheck = get_option('limpvix_prof_require_background_check', false);
         $autoVerifyAfterServices = get_option('limpvix_prof_auto_verify_after_services', 10);
         $verificationExpiryDays = get_option('limpvix_prof_verification_expiry_days', 365);
-        $bgCheckValidityDays = get_option('limpvix_prof_background_check_validity_days', 365);
-        $bgCheckUseMock = get_option('limpvix_prof_background_check_use_mock', true);
 
         $initialScore = get_option('limpvix_prof_initial_score', 80); // NOVO: Score inicial neutro
         $minScoreThreshold = get_option('limpvix_prof_min_score_threshold', 70);
@@ -41,8 +39,16 @@ class ProfissionaisTab implements SettingsTabInterface
 
         $maxServiceRadius = get_option('limpvix_prof_max_service_radius', 20);
         $enableGpsTracking = get_option('limpvix_prof_enable_gps_tracking', false);
-        $proximityScoringWeight = get_option('limpvix_prof_proximity_scoring_weight', 40);
         $useZipCodeForMatching = get_option('limpvix_prof_use_zipcode_matching', true);
+
+        // Matching weights (lidos de limpvix_scheduling_config — SSOT para ProfessionalMatcher)
+        $schedulingConfig = get_option('limpvix_scheduling_config', []);
+        $matchWeights = array_merge([
+            'score_proximity_weight' => 40,
+            'score_availability_weight' => 30,
+            'score_rating_weight' => 20,
+            'score_load_weight' => 10,
+        ], $schedulingConfig);
 
         $minPayoutAmount = get_option('limpvix_prof_min_payout_amount', 50.00);
         $platformFeePercentage = \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::getFeePercentage();
@@ -63,10 +69,6 @@ class ProfissionaisTab implements SettingsTabInterface
             update_option('limpvix_prof_auto_verify_after_services', intval($_POST['auto_verify_after_services']));
             update_option('limpvix_prof_verification_expiry_days', intval($_POST['verification_expiry_days']));
 
-            // Background Check
-            update_option('limpvix_prof_background_check_validity_days', max(30, intval($_POST['background_check_validity_days'] ?? 365)));
-            update_option('limpvix_prof_background_check_use_mock', isset($_POST['background_check_use_mock']));
-
             // Score
             update_option('limpvix_prof_initial_score', intval($_POST['initial_score']));
             update_option('limpvix_prof_min_score_threshold', intval($_POST['min_score_threshold']));
@@ -84,8 +86,22 @@ class ProfissionaisTab implements SettingsTabInterface
             // Geolocalização
             update_option('limpvix_prof_max_service_radius', intval($_POST['max_service_radius']));
             update_option('limpvix_prof_enable_gps_tracking', isset($_POST['enable_gps_tracking']));
-            update_option('limpvix_prof_proximity_scoring_weight', intval($_POST['proximity_scoring_weight']));
             update_option('limpvix_prof_use_zipcode_matching', isset($_POST['use_zipcode_matching']));
+
+            // Matching weights → limpvix_scheduling_config (SSOT para ProfessionalMatcher)
+            $wProx  = max(0, min(100, intval($_POST['match_weight_proximity'] ?? 40)));
+            $wAvail = max(0, min(100, intval($_POST['match_weight_availability'] ?? 30)));
+            $wRate  = max(0, min(100, intval($_POST['match_weight_rating'] ?? 20)));
+            $wLoad  = max(0, min(100, intval($_POST['match_weight_load'] ?? 10)));
+            $wTotal = $wProx + $wAvail + $wRate + $wLoad;
+            if ($wTotal === 100) {
+                $existingConfig = get_option('limpvix_scheduling_config', []);
+                $existingConfig['score_proximity_weight'] = $wProx;
+                $existingConfig['score_availability_weight'] = $wAvail;
+                $existingConfig['score_rating_weight'] = $wRate;
+                $existingConfig['score_load_weight'] = $wLoad;
+                update_option('limpvix_scheduling_config', $existingConfig);
+            }
 
             // Payouts Gerais
             update_option('limpvix_prof_min_payout_amount', floatval($_POST['min_payout_amount']));
@@ -194,51 +210,6 @@ class ProfissionaisTab implements SettingsTabInterface
                 </div>
             </div>
 
-            <!-- Card: KYC Biométrico -->
-            <div class="limpvix-card" style="background: #f0f9ff; border-left: 4px solid #3b82f6; margin-bottom: 20px;">
-                <div class="limpvix-card-header">
-                    <h3><span class="dashicons dashicons-shield-alt"></span> 🔐 KYC Biométrico - Verificação de Identidade</h3>
-                    <p>Verificação biométrica obrigatória com OCR + Liveness + Face Match</p>
-                </div>
-                <div class="limpvix-card-body">
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">Status do KYC:</th>
-                            <td>
-                                <?php
-                                $ppidEnabled = get_option('limpvix_ppid_enabled', false);
-                                $ppidEmail = get_option('limpvix_ppid_email', '');
-                                if ($ppidEnabled && !empty($ppidEmail)) {
-                                    echo '<span class="limpvix-badge limpvix-badge-success">✅ Ativo</span>';
-                                } else {
-                                    echo '<span class="limpvix-badge limpvix-badge-warning">⚠️ Não Configurado</span>';
-                                }
-                                ?>
-                                <p class="description">
-                                    <strong>Configure KYC em:</strong> <a href="?page=limpvix-settings&tab=conexoes">Configurações > Conexões > PPID KYC</a><br>
-                                    <strong>Gerencie verificações em:</strong> <a href="?page=limpvix-kyc">Profissionais > KYC Biométrico</a>
-                                </p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Funcionalidades:</th>
-                            <td>
-                                <ul style="margin: 5px 0; padding-left: 20px;">
-                                    <li>📄 <strong>OCR de Documentos:</strong> Extração automática de dados de RG/CNH</li>
-                                    <li>🧑 <strong>Liveness Detection:</strong> Prova de vida (não aceita fotos)</li>
-                                    <li>👤 <strong>Face Match:</strong> Comparação entre foto do documento e selfie</li>
-                                    <li>⚡ <strong>Aprovação Automática:</strong> Baseada em scores PPID</li>
-                                    <li>🔄 <strong>Modo Mock:</strong> Teste sem consumir créditos</li>
-                                </ul>
-                            </td>
-                        </tr>
-                    </table>
-                    <div style="background: #fff3cd; padding: 12px; border-left: 3px solid #f0ad4e; margin-top: 15px;">
-                        <strong>⚠️ Importante:</strong> Profissionais SEM KYC aprovado NÃO podem aceitar ofertas de trabalho (compliance e segurança).
-                    </div>
-                </div>
-            </div>
-
             <!-- Seção 1: Verificação de Profissionais -->
             <div class="limpvix-card">
                 <div class="limpvix-card-header">
@@ -279,89 +250,6 @@ class ProfissionaisTab implements SettingsTabInterface
                 </div>
             </div>
 
-            <!-- Card: Background Check -->
-            <div class="limpvix-card" style="background: #faf5ff; border-left: 4px solid #7c3aed; margin-bottom: 20px; margin-top: 20px;">
-                <div class="limpvix-card-header">
-                    <h3><span class="dashicons dashicons-search"></span> 🔍 Background Check — Antecedentes Criminais</h3>
-                    <p>Verificação de antecedentes via Exato Digital. Gerencie nas abas <a href="?page=limpvix-professionals&tab=risk_score">Risk Score</a> e <a href="?page=limpvix-settings&tab=conexoes">Conexões</a>.</p>
-                </div>
-                <div class="limpvix-card-body">
-                    <?php
-                    $exatoApiKey = get_option('limpvix_exato_api_key', '');
-                    $exatoEnabled = !empty($exatoApiKey);
-                    $bgMockActive = $bgCheckUseMock || !$exatoEnabled;
-                    global $wpdb;
-                    $bgTable = $wpdb->prefix . 'limpvix_professional_verification';
-                    $bgStats = [];
-                    if ($wpdb->get_var("SHOW TABLES LIKE '{$bgTable}'") === $bgTable) {
-                        $bgStats = $wpdb->get_row("SELECT COUNT(*) AS total, SUM(background_status = 'CLEAR') AS cleared, SUM(background_status = 'CONSIDER') AS consider, SUM(background_status = 'ADVERSE') AS adverse, SUM(background_status = 'PENDING') AS pending, SUM(background_expires_at IS NOT NULL AND background_expires_at < NOW() AND final_status IN ('ACTIVE','ACTIVE_MONITORED')) AS expired FROM {$bgTable}", ARRAY_A) ?? [];
-                    }
-                    ?>
-                    <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 160px; background: <?php echo $exatoEnabled ? '#d1fae5' : '#fef3c7'; ?>; border: 1px solid <?php echo $exatoEnabled ? '#10b981' : '#f59e0b'; ?>; border-radius: 8px; padding: 14px; text-align: center;">
-                            <div style="font-size: 22px;"><?php echo $exatoEnabled ? '✅' : '⚠️'; ?></div>
-                            <strong>Exato Digital</strong><br>
-                            <span style="font-size: 12px; color: <?php echo $exatoEnabled ? '#065f46' : '#92400e'; ?>;"><?php echo $exatoEnabled ? 'Configurado' : 'Não configurado'; ?></span>
-                            <?php if (!$exatoEnabled): ?><br><a href="?page=limpvix-settings&tab=conexoes" style="font-size: 11px;">Configurar →</a><?php endif; ?>
-                        </div>
-                        <div style="flex: 1; min-width: 160px; background: <?php echo $bgMockActive ? '#fef3c7' : '#f0fdf4'; ?>; border: 1px solid <?php echo $bgMockActive ? '#f59e0b' : '#22c55e'; ?>; border-radius: 8px; padding: 14px; text-align: center;">
-                            <div style="font-size: 22px;"><?php echo $bgMockActive ? '🧪' : '🚀'; ?></div>
-                            <strong>Modo Ativo</strong><br>
-                            <span style="font-size: 12px; color: <?php echo $bgMockActive ? '#92400e' : '#15803d'; ?>;"><?php echo $bgMockActive ? 'Mock (Teste)' : 'Real (Produção)'; ?></span>
-                        </div>
-                        <?php if (!empty($bgStats)): ?>
-                        <div style="flex: 1; min-width: 160px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 14px; text-align: center;">
-                            <div style="font-size: 22px;">📊</div>
-                            <strong>Verificações</strong><br>
-                            <span style="font-size: 12px; color: #1e40af;"><?php echo (int)($bgStats['cleared'] ?? 0); ?> aprovadas / <?php echo (int)($bgStats['total'] ?? 0); ?> total</span>
-                        </div>
-                        <?php if ((int)($bgStats['expired'] ?? 0) > 0): ?>
-                        <div style="flex: 1; min-width: 160px; background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 14px; text-align: center;">
-                            <div style="font-size: 22px;">⚠️</div>
-                            <strong>Expirados</strong><br>
-                            <span style="font-size: 12px; color: #991b1b;"><?php echo (int)$bgStats['expired']; ?> checks expirados</span>
-                            <br><a href="?page=limpvix-professionals&tab=risk_score&filter_risk=bg_expired" style="font-size: 11px;">Ver →</a>
-                        </div>
-                        <?php endif; ?>
-                        <?php endif; ?>
-                    </div>
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">Usar Provider Mock (Teste):</th>
-                            <td>
-                                <label><input type="checkbox" name="background_check_use_mock" value="1" <?php checked($bgCheckUseMock); ?>> Ativar modo mock (simula aprovação automática, não consume créditos)</label>
-                                <p class="description"><?php if (!$exatoEnabled): ?><strong>⚠️ Exato Digital não configurado.</strong> Mock é obrigatório enquanto as credenciais não estiverem configuradas em <a href="?page=limpvix-settings&tab=conexoes">Conexões</a>.<?php else: ?>Desmarque para usar a API real do Exato Digital em produção.<?php endif; ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Validade do Background Check:</th>
-                            <td>
-                                <input type="number" name="background_check_validity_days" value="<?php echo esc_attr($bgCheckValidityDays); ?>" min="30" max="730" class="small-text"> dias
-                                <p class="description">Após este período, o profissional precisa renovar o background check.<br>Recomendado: <strong>365 dias</strong> (anual). Mínimo: 30 dias.</p>
-                            </td>
-                        </tr>
-                    </table>
-                    <?php if (!empty($bgStats) && (int)($bgStats['total'] ?? 0) > 0): ?>
-                    <div style="margin-top: 15px; padding: 12px; background: #f8fafc; border-radius: 6px;">
-                        <strong style="display: block; margin-bottom: 8px; font-size: 13px;">📈 Distribuição de Status:</strong>
-                        <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;">
-                            <span>✅ Clear: <strong><?php echo (int)($bgStats['cleared'] ?? 0); ?></strong></span>
-                            <span>⚠️ Consider: <strong><?php echo (int)($bgStats['consider'] ?? 0); ?></strong></span>
-                            <span>❌ Adverse: <strong><?php echo (int)($bgStats['adverse'] ?? 0); ?></strong></span>
-                            <span>⏳ Pending: <strong><?php echo (int)($bgStats['pending'] ?? 0); ?></strong></span>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    <div style="background: #ede9fe; padding: 12px; border-left: 3px solid #7c3aed; margin-top: 15px;">
-                        <strong>🔍 Gerencie verificações em:</strong>
-                        <ul style="margin: 5px 0 0 20px;">
-                            <li><a href="?page=limpvix-professionals&tab=risk_score">Profissionais → Aba Risk Score</a> — Ver todos os checks e renovar manualmente</li>
-                            <li><a href="?page=limpvix-professionals&tab=kyc">Profissionais → Aba KYC</a> — Pipeline completo de verificação</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
             <!-- Seção 2: Score & Ratings -->
             <div class="limpvix-card" style="margin-top: 20px;">
                 <div class="limpvix-card-header"><h3><span class="dashicons dashicons-star-filled"></span> ⭐ Score & Avaliações</h3><p>Configurações de pontuação e avaliação de profissionais</p></div>
@@ -399,23 +287,70 @@ class ProfissionaisTab implements SettingsTabInterface
                         <h4 style="margin-top: 0;">🇧🇷 Marketplace Nacional - Como Funciona o Matching</h4>
                         <p><strong>LimpVix opera em TODO O TERRITÓRIO BRASILEIRO</strong> - não há "localização padrão" fixa!</p>
                     </div>
-                    <div style="background: #f0fdf4; padding: 12px; border-left: 3px solid #22c55e; margin-bottom: 15px;">
-                        <strong>Algoritmo de Matching (ProfessionalMatcher):</strong>
-                        <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap; font-size: 13px;">
-                            <span style="background: #dcfce7; padding: 4px 10px; border-radius: 4px;">Proximidade <strong>40%</strong></span>
-                            <span style="background: #dbeafe; padding: 4px 10px; border-radius: 4px;">Disponibilidade <strong>30%</strong></span>
-                            <span style="background: #fef9c3; padding: 4px 10px; border-radius: 4px;">Rating <strong>20%</strong></span>
-                            <span style="background: #f3e8ff; padding: 4px 10px; border-radius: 4px;">Carga <strong>10%</strong></span>
-                        </div>
-                        <p style="font-size: 12px; color: #6b7280; margin: 8px 0 0;">Proximidade: Haversine linear decay (max <?php echo esc_html($maxServiceRadius); ?>km) | Carga max: 480min/dia | Alocação: 1-5 profissionais</p>
-                    </div>
                     <table class="form-table">
                         <tr><th scope="row">Matching por CEP:</th><td><label><input type="checkbox" name="use_zipcode_matching" value="1" <?php checked($useZipCodeForMatching); ?>> <strong>Habilitar matching automático por proximidade de CEP</strong></label><p class="description"><strong>✅ RECOMENDADO: Sempre habilitado para marketplace nacional</strong></p></td></tr>
                         <tr><th scope="row">Geocodificação:</th><td><span class="limpvix-badge limpvix-badge-success">BrasilAPI CEP v2</span><p class="description">Geocoding via BrasilAPI CEP v2 + cache 24h + fallback mapa local IBGE. Serviço fixo do sistema.</p></td></tr>
                         <tr><th scope="row">Raio Máximo de Atendimento:</th><td><input type="number" name="max_service_radius" value="<?php echo esc_attr($maxServiceRadius); ?>" min="1" max="100" class="small-text"> km<p class="description"><strong>Distância máxima (Haversine) entre profissional e cliente</strong><br>Padrão do sistema: <strong>20 km</strong> | Scoring: <=5km=40pts, <=10km=30pts, <=15km=20pts, <=20km=10pts</p></td></tr>
-                        <tr><th scope="row">Peso da Proximidade no Matching:</th><td><input type="number" name="proximity_scoring_weight" value="<?php echo esc_attr($proximityScoringWeight); ?>" min="0" max="100" class="small-text"> %<p class="description"><strong>Quanto a proximidade influencia na seleção do profissional</strong><br>Padrão do sistema: <strong>40%</strong> (AllocationPolicy + ProfessionalMatcher)</p></td></tr>
                         <tr><th scope="row">Rastreamento GPS em Tempo Real:</th><td><label><input type="checkbox" name="enable_gps_tracking" value="1" <?php checked($enableGpsTracking); ?>> Habilitar rastreamento GPS durante execução do serviço</label></td></tr>
                     </table>
+
+                    <!-- Pesos do Algoritmo de Matching -->
+                    <?php
+                    $wP = (int) $matchWeights['score_proximity_weight'];
+                    $wA = (int) $matchWeights['score_availability_weight'];
+                    $wR = (int) $matchWeights['score_rating_weight'];
+                    $wL = (int) $matchWeights['score_load_weight'];
+                    $wSum = $wP + $wA + $wR + $wL;
+                    ?>
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                        <h4 style="margin: 0 0 4px;">Pesos do Algoritmo de Matching <small style="font-weight:normal;color:#6b7280;">(devem somar 100%)</small></h4>
+                        <p style="margin:0 0 16px;font-size:12px;color:#6b7280;">Usado pelo ProfessionalMatcher (AllocationEngine + SendOffers) para ranquear profissionais.</p>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                            <div style="text-align:center;">
+                                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#15803d;">Proximidade</label>
+                                <input type="number" name="match_weight_proximity" value="<?php echo esc_attr($wP); ?>" min="0" max="100" step="5" class="small-text lvx-match-weight" style="width:70px;text-align:center;font-size:16px;"> %
+                                <div style="font-size:11px;color:#6b7280;margin-top:2px;">Haversine decay</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#2563eb;">Disponibilidade</label>
+                                <input type="number" name="match_weight_availability" value="<?php echo esc_attr($wA); ?>" min="0" max="100" step="5" class="small-text lvx-match-weight" style="width:70px;text-align:center;font-size:16px;"> %
+                                <div style="font-size:11px;color:#6b7280;margin-top:2px;">Score + acceptance</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#ca8a04;">Rating</label>
+                                <input type="number" name="match_weight_rating" value="<?php echo esc_attr($wR); ?>" min="0" max="100" step="5" class="small-text lvx-match-weight" style="width:70px;text-align:center;font-size:16px;"> %
+                                <div style="font-size:11px;color:#6b7280;margin-top:2px;">Media + experiencia</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#7c3aed;">Carga</label>
+                                <input type="number" name="match_weight_load" value="<?php echo esc_attr($wL); ?>" min="0" max="100" step="5" class="small-text lvx-match-weight" style="width:70px;text-align:center;font-size:16px;"> %
+                                <div style="font-size:11px;color:#6b7280;margin-top:2px;">Menos = melhor</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:12px;text-align:center;">
+                            <span id="lvx-weight-total" style="font-size:14px;font-weight:bold;padding:4px 16px;border-radius:4px;<?php echo $wSum === 100 ? 'background:#dcfce7;color:#15803d;' : 'background:#fee2e2;color:#dc2626;'; ?>">
+                                Total: <?php echo $wSum; ?>%<?php echo $wSum === 100 ? ' ✅' : ' ❌ (deve ser 100%)'; ?>
+                            </span>
+                        </div>
+                    </div>
+                    <script>
+                    (function(){
+                        var inputs = document.querySelectorAll('.lvx-match-weight');
+                        var badge = document.getElementById('lvx-weight-total');
+                        function update(){
+                            var sum = 0;
+                            inputs.forEach(function(i){ sum += parseInt(i.value)||0; });
+                            if(sum===100){
+                                badge.style.background='#dcfce7'; badge.style.color='#15803d';
+                                badge.textContent='Total: '+sum+'% ✅';
+                            } else {
+                                badge.style.background='#fee2e2'; badge.style.color='#dc2626';
+                                badge.textContent='Total: '+sum+'% ❌ (deve ser 100%)';
+                            }
+                        }
+                        inputs.forEach(function(i){ i.addEventListener('input',update); });
+                    })();
+                    </script>
                 </div>
             </div>
 
@@ -438,7 +373,7 @@ class ProfissionaisTab implements SettingsTabInterface
                         </div>
                         <table class="form-table">
                             <tr><th scope="row">Valor Mínimo para Payout:</th><td>R$ <input type="number" name="payout_minimum_amount" value="<?php echo esc_attr(get_option('limpvix_payout_minimum_amount', 50)); ?>" min="1" step="0.01" class="small-text" style="width: 100px;"><p class="description">Payouts abaixo deste valor ficam acumulados até atingir o mínimo.</p></td></tr>
-                            <tr><th scope="row">Notificar Admin sobre PIX Pendentes:</th><td><label><input type="checkbox" name="payout_notify_admin_pix_pending" value="1" <?php checked(get_option('limpvix_payout_notify_admin_pix_pending', 1)); ?>> Enviar email diário se houver PIX pendentes</label></td></tr>
+                            <tr><th scope="row">Notificar Admin sobre PIX Pendentes:</th><td><label><input type="checkbox" name="payout_notify_admin_pix_pending" value="1" <?php checked(get_option('limpvix_payout_notify_admin_pix_pending', 1)); ?>> Notificar via WhatsApp (fallback SMS) se houver PIX pendentes</label></td></tr>
                         </table>
                     </div>
 

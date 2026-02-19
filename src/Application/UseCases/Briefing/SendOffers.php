@@ -31,7 +31,7 @@ final class SendOffers
         global $wpdb;
         $this->professionalRepo = $professionalRepo;
         $this->contractRepo = $contractRepo;
-        $this->matcher = $matcher ?? new ProfessionalMatcher();
+        $this->matcher = $matcher ?? ProfessionalMatcher::fromConfig();
         $this->wpdb = $wpdb;
     }
 
