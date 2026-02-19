@@ -149,8 +149,34 @@ class UpdateBriefingStep
                 $briefing->updateFrequency($frequency);
                 break;
 
-            // Outros steps podem ser adicionados aqui
-            // Por enquanto, apenas structure e frequency são críticos
+            case 'location':
+                // P0.4: Trigger IBGE geo index lookup when zip_code is provided
+                $zipCode = $stepData['zip_code'] ?? $stepData['cep'] ?? null;
+                if ($zipCode !== null) {
+                    $ibgeService = new \LimpVix\Infrastructure\Services\IBGEAreaIndexService();
+                    $geoResult = $ibgeService->calculate($zipCode);
+
+                    if ($geoResult !== null) {
+                        // Save geo data to briefing via wpdb (direct update)
+                        // GAP: Briefing aggregate doesn't have geo fields yet (domain model)
+                        global $wpdb;
+                        $briefingId = $briefing->getId();
+                        if ($briefingId) {
+                            $wpdb->update(
+                                $wpdb->prefix . 'limpvix_briefings',
+                                [
+                                    'geo_index' => $geoResult['indice'],
+                                    'geo_classification' => $geoResult['classificacao'],
+                                    'geo_multiplier' => $geoResult['multiplicador'],
+                                ],
+                                ['id' => $briefingId],
+                                ['%f', '%s', '%f'],
+                                ['%d']
+                            );
+                        }
+                    }
+                }
+                break;
         }
     }
 

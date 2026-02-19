@@ -117,11 +117,16 @@ final class PricingEngine
             $commercialAdjustment = $subtotalBeforeCommercial * (self::COMMERCIAL_MULTIPLIER - 1.0);
         }
 
-        // 7. Geographic adjustment (P0.4 - nullable)
+        // 7. Geographic adjustment (P0.4 - uses GeoIndex multiplier)
         $geoAdjustment = 0.0;
         $effectiveGeoMultiplier = 1.0;
         if ($geoMultiplier !== null) {
             $effectiveGeoMultiplier = (float) $geoMultiplier;
+            $subtotalBeforeGeo = $subtotalBeforeCommercial + $commercialAdjustment;
+            $geoAdjustment = $subtotalBeforeGeo * ($effectiveGeoMultiplier - 1.0);
+        } elseif ($geoIndex !== null) {
+            // If multiplier not provided but index is, derive from GeoIndex VO
+            $effectiveGeoMultiplier = GeoIndex::getMultiplierForIndex((float) $geoIndex);
             $subtotalBeforeGeo = $subtotalBeforeCommercial + $commercialAdjustment;
             $geoAdjustment = $subtotalBeforeGeo * ($effectiveGeoMultiplier - 1.0);
         }
@@ -131,8 +136,8 @@ final class PricingEngine
         $totalPrice = max($totalPrice, self::MINIMUM_PRICE);
         $totalPrice = round($totalPrice, 2);
 
-        // 9. Platform fee (static for now, dynamic with geo in P0.4)
-        $platformFeePct = PlatformFeeConfig::getFeePercentage();
+        // 9. Platform fee - dynamic based on geo index (P0.4)
+        $platformFeePct = PlatformFeeConfig::getFeeByGeoIndex($geoIndex !== null ? (float) $geoIndex : null);
         $platformFee = round($totalPrice * ($platformFeePct / 100), 2);
         $professionalNet = round($totalPrice - $platformFee, 2);
 

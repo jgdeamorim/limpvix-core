@@ -101,6 +101,30 @@ final class PlatformFeeConfig
     }
 
     /**
+     * Retorna a taxa dinâmica baseada no índice geográfico (P0.4)
+     *
+     * Se geoIndex for null, retorna a taxa padrão configurada.
+     * Se presente, retorna taxa escalonada baseada na classificação:
+     * - Vulnerável (<0.30): 15%
+     * - Popular (0.30-0.50): 15%
+     * - Médio (0.50-0.70): 18%
+     * - Alto (0.70-0.85): 20%
+     * - Premium (>=0.85): 25%
+     *
+     * @param float|null $geoIndex Índice geográfico 0-1 (from IBGE)
+     * @return float Taxa entre 0 e 100
+     * @since P0.4
+     */
+    public static function getFeeByGeoIndex(?float $geoIndex): float
+    {
+        if ($geoIndex === null) {
+            return self::getFeePercentage();
+        }
+
+        return \LimpVix\Domain\Pricing\GeoIndex::getFeeForIndex($geoIndex);
+    }
+
+    /**
      * Inicializa a opção com o valor padrão se ainda não existir.
      * Deve ser chamado no activation hook do plugin.
      *
