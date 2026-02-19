@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace LimpVix\Domain\Scheduling\ValueObjects;
 
 /**
- * Value Object: ProfessionalSkills
+ * Value Object: ProfessionalSkills (Scheduling Domain)
  *
  * Representa skills/habilidades de um profissional.
  * Ex: limpeza_basica, pos_obra, teto, esquadrias, vidros
  *
  * IMUTÁVEL.
+ *
+ * @deprecated Since Service Domain Refactor (FASE 6).
+ *             Duplicata de \LimpVix\Domain\Professional\ValueObjects\ProfessionalSkills.
+ *             A versao Professional possui capability bridge (hasAllCapabilities, mapCapabilityToSkills).
+ *             Esta versao tem interface diferente (create/fromArray vs construtor publico) e
+ *             skill slugs diferentes (tapetes/moveis/jardinagem vs carpete/estofados/areas_externas).
+ *             Quando Scheduling domain for unificado com Professional domain, remover esta classe.
  */
 final class ProfessionalSkills
 {

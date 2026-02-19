@@ -11,6 +11,13 @@
  * - GET  /limpvix/v1/packages (lista pacotes ativos)
  * - POST /limpvix/v1/briefing/{uuid}/package (seleciona pacote)
  *
+ * @deprecated Since Service Domain Refactor (FASE 6).
+ *             Use \LimpVix\Infrastructure\API\ExecutionLevelController instead.
+ *             Novos endpoints:
+ *               GET  /limpvix/v1/execution-levels
+ *               POST /limpvix/v1/briefing/{uuid}/execution-level
+ *             Este controller e mantido como alias temporario para backward compat.
+ *
  * @package LimpVix\Infrastructure\API
  * @since 0.1.10
  */

@@ -18,6 +18,11 @@
  * - Package pode ser alterado até lock
  * - Recalcular profissionais necessários após seleção
  *
+ * @deprecated Since Service Domain Refactor (FASE 6).
+ *             ExecutionLevelController delega para este use case via legacy bridge
+ *             (basic_execution → basic, etc). Quando Briefing.php migrar de
+ *             selectPackage() para selectExecutionLevel(), este use case sera substituido.
+ *
  * @package LimpVix\Application\UseCases\Briefing
  * @since 0.4.0
  */

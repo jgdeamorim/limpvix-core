@@ -18,6 +18,12 @@
  * - Standard: +15%, 1-2 profissionais, limpeza_completa
  * - Premium: +30%, 2-3 profissionais, limpeza_pesada + skills especiais
  *
+ * @deprecated Since Service Domain Refactor (FASE 6).
+ *             Use \LimpVix\Domain\Service\ExecutionLevel instead.
+ *             ExecutionLevel nao possui required_skills — o match tecnico
+ *             agora usa Complexity.capabilities via CapabilityRegistry.
+ *             Este arquivo sera removido quando todas as referencias forem migradas.
+ *
  * @package LimpVix\Domain\Briefing
  * @since 0.4.0
  */

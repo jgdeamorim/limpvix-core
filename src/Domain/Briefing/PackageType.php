@@ -17,6 +17,11 @@
  * - STANDARD: Limpeza completa, 1-2 profissionais, +15% no preço
  * - PREMIUM: Limpeza pesada/pós-obra, 2-3 profissionais, +30% no preço
  *
+ * @deprecated Since Service Domain Refactor (FASE 6).
+ *             Use \LimpVix\Domain\Service\ExecutionLevelType instead.
+ *             Mapeamento: basic → basic_execution, standard → standard_execution, premium → premium_execution.
+ *             Este arquivo sera removido quando todas as referencias forem migradas.
+ *
  * @package LimpVix\Domain\Briefing
  * @since 0.4.0
  */

@@ -8,6 +8,11 @@
  * - Formulário criar/editar pacotes
  * - Configuração: nome, percentual, profissionais, skills
  *
+ * @deprecated Since Service Domain Refactor (FASE 5).
+ *             Use \LimpVix\Infrastructure\Admin\Pages\ExecutionLevelManagementPage instead.
+ *             Menu "Pacotes" foi ocultado no admin (null parent).
+ *             Mantido para backward compat — acessivel via URL direto.
+ *
  * @package LimpVix\Infrastructure\Admin\Pages
  * @since 0.1.10
  */
