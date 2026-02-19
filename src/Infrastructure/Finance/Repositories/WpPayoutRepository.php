@@ -318,14 +318,17 @@ class WpPayoutRepository implements PayoutRepositoryInterface
      */
     public function getStats(): array
     {
-        // OTIMIZAÇÃO: UMA query com agregações (7 queries → 1 query)
+        // OTIMIZAÇÃO: UMA query com agregações
         $sql = "SELECT
             COUNT(CASE WHEN status = 'pending' THEN 1 END) as total_pending,
             COUNT(CASE WHEN status = 'approved' THEN 1 END) as total_approved,
             COUNT(CASE WHEN status = 'processing' THEN 1 END) as total_processing,
             COUNT(CASE WHEN status = 'completed' THEN 1 END) as total_completed,
             COUNT(CASE WHEN status = 'failed' THEN 1 END) as total_failed,
+            COUNT(CASE WHEN status = 'on_hold' THEN 1 END) as total_on_hold,
             SUM(CASE WHEN status = 'pending' THEN net_amount ELSE 0 END) as amount_pending,
+            SUM(CASE WHEN status = 'approved' THEN net_amount ELSE 0 END) as amount_approved,
+            SUM(CASE WHEN status = 'on_hold' THEN net_amount ELSE 0 END) as amount_on_hold,
             SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END) as amount_completed
         FROM {$this->table}";
 
@@ -337,7 +340,10 @@ class WpPayoutRepository implements PayoutRepositoryInterface
             'total_processing' => (int) ($result['total_processing'] ?? 0),
             'total_completed' => (int) ($result['total_completed'] ?? 0),
             'total_failed' => (int) ($result['total_failed'] ?? 0),
+            'total_on_hold' => (int) ($result['total_on_hold'] ?? 0),
             'amount_pending' => (float) ($result['amount_pending'] ?? 0.0),
+            'amount_approved' => (float) ($result['amount_approved'] ?? 0.0),
+            'amount_on_hold' => (float) ($result['amount_on_hold'] ?? 0.0),
             'amount_completed' => (float) ($result['amount_completed'] ?? 0.0),
         ];
     }

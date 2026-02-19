@@ -22,14 +22,14 @@ class PagamentosTab implements SettingsTabInterface
         $stats = $payoutRepo->getStats();
 
         // Calcular totais
-        $totalPayouts = $stats['total_pending'] + $stats['total_approved'] + $stats['total_processing'] + $stats['total_completed'] + $stats['total_failed'];
+        $totalPayouts = $stats['total_pending'] + $stats['total_approved'] + $stats['total_processing'] + $stats['total_completed'] + $stats['total_failed'] + $stats['total_on_hold'];
         $successRate = $totalPayouts > 0 ? round(($stats['total_completed'] / $totalPayouts) * 100, 1) : 0;
 
         // Valor total processado (completed)
         $totalProcessed = $stats['amount_completed'];
 
-        // Valor aguardando processamento
-        $totalPending = $stats['amount_pending'];
+        // Valor aguardando processamento (pending + approved + on_hold)
+        $totalPending = $stats['amount_pending'] + $stats['amount_approved'] + $stats['amount_on_hold'];
 
         ?>
         <!-- Hero Card -->
@@ -76,7 +76,7 @@ class PagamentosTab implements SettingsTabInterface
                             R$ <?php echo number_format($totalPending, 2, ',', '.'); ?>
                         </div>
                         <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">
-                            <?php echo $stats['total_pending'] + $stats['total_approved']; ?> pendentes
+                            <?php echo $stats['total_pending'] + $stats['total_approved'] + $stats['total_on_hold']; ?> pendentes
                         </div>
                     </div>
 
@@ -402,10 +402,10 @@ class PagamentosTab implements SettingsTabInterface
                 'status' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\EfiPayoutProvider') && $tableExists) ? 'Ativo' : 'Não Implementado'
             ],
             'feedback_window' => [
-                'implemented' => class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus')
+                'implemented' => class_exists('LimpVix\\Application\\UseCases\\Feedback\\CheckFeedbackWindowStatus')
                     && ($tableExists && $this->tableHasColumn($table, 'hold_until')),
-                'icon' => (class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? '✅' : '⚠️',
-                'status' => (class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? 'Ativo' : 'Parcial'
+                'icon' => (class_exists('LimpVix\\Application\\UseCases\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? '✅' : '⚠️',
+                'status' => (class_exists('LimpVix\\Application\\UseCases\\Feedback\\CheckFeedbackWindowStatus') && $tableExists && $this->tableHasColumn($table, 'hold_until')) ? 'Ativo' : 'Parcial'
             ],
             'reconciliation' => [
                 'implemented' => class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter'),
@@ -438,11 +438,11 @@ class PagamentosTab implements SettingsTabInterface
         return [
             'domain' => [
                 'PayoutRepositoryInterface' => interface_exists('LimpVix\\Domain\\Finance\\PayoutRepositoryInterface'),
-                'DomainEvents' => class_exists('LimpVix\\Domain\\Finance\\Events\\PayoutCompleted'),
+                'FinancialTransitionEvent' => class_exists('LimpVix\\Domain\\Finance\\FinancialTransitionEvent'),
             ],
             'application' => [
-                'ExecutePayout' => class_exists('LimpVix\\Application\\UseCase\\Finance\\ExecutePayout'),
-                'CompleteServiceWithPayout' => class_exists('LimpVix\\Application\\UseCase\\Finance\\CompleteServiceWithPayout'),
+                'ExecutePayout' => class_exists('LimpVix\\Application\\UseCases\\Financial\\ExecutePayout'),
+                'CompleteServiceWithPayout' => class_exists('LimpVix\\Application\\UseCases\\Order\\CompleteServiceWithPayout'),
                 'PayoutReconciliationService' => class_exists('LimpVix\\Application\\Services\\PayoutReconciliationService'),
                 'AutomaticPayoutDispatcher' => class_exists('LimpVix\\Infrastructure\\Adapters\\AutomaticPayoutDispatcher'),
             ],
