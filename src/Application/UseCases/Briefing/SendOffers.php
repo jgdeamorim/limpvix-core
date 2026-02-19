@@ -208,17 +208,16 @@ final class SendOffers
                 error_log("[SendOffers] Using capability-based matching: " . implode(', ', $slugs));
 
                 return [
-                    'skills' => ['limpeza_basica'], // Minimal skills for initial repo filter
+                    'skills' => ['cleaning_basic'], // Capability slug for initial repo filter
                     'use_capabilities' => true,
                     'capability_slugs' => $slugs,
                 ];
             }
         }
 
-        // Fallback: legacy required_skills from service_catalog
-        $skills = $this->getRequiredSkillsFromServiceCode($serviceCode);
+        // Fallback: default capability slug (no legacy DB lookup)
         return [
-            'skills' => $skills,
+            'skills' => ['cleaning_basic'],
             'use_capabilities' => false,
             'capability_slugs' => [],
         ];
@@ -296,36 +295,6 @@ final class SendOffers
         return array_map('intval', $ids);
     }
 
-    /**
-     * Legacy: Map service_code to required skills
-     *
-     * Fallback when capability tables are not populated.
-     * GAP D: Uses database-driven mapping from wp_limpvix_service_catalog.required_skills
-     *
-     * @param string $serviceCode
-     * @return string[]
-     */
-    private function getRequiredSkillsFromServiceCode(string $serviceCode): array
-    {
-        $table = $this->wpdb->prefix . 'limpvix_service_catalog';
-
-        $requiredSkills = $this->wpdb->get_var(
-            $this->wpdb->prepare(
-                "SELECT required_skills FROM {$table} WHERE service_code = %s AND is_active = 1",
-                $serviceCode
-            )
-        );
-
-        if ($requiredSkills) {
-            $skills = json_decode($requiredSkills, true);
-
-            if (is_array($skills) && !empty($skills)) {
-                return $skills;
-            }
-        }
-
-        return ['limpeza_basica']; // Default fallback
-    }
 
     /**
      * Score and rank professionals using unified ProfessionalMatcher (G-MATCHING-DUAL)

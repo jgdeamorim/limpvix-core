@@ -106,12 +106,7 @@ class ServiceCatalogPage
         $serviceType = sanitize_text_field($_POST['service_type'] ?? '');
         $displayName = sanitize_text_field($_POST['display_name'] ?? '');
         $description = sanitize_textarea_field($_POST['description'] ?? '');
-        $requiredSkills = isset($_POST['required_skills']) && is_array($_POST['required_skills'])
-            ? array_map('sanitize_text_field', $_POST['required_skills'])
-            : [];
-        $requiredSkillsJson = !empty($requiredSkills) ? json_encode($requiredSkills) : null;
         $basePrice = (float)($_POST['base_price'] ?? 0);
-        $timeMultiplier = (float)($_POST['time_multiplier'] ?? 1.0);
         $requiresMultiple = isset($_POST['requires_multiple_professionals']) ? 1 : 0;
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
@@ -127,9 +122,7 @@ class ServiceCatalogPage
             'service_type' => $serviceType,
             'display_name' => $displayName,
             'description' => $description,
-            'required_skills' => $requiredSkillsJson,
             'base_price' => $basePrice,
-            'time_multiplier' => $timeMultiplier,
             'requires_multiple_professionals' => $requiresMultiple,
             'is_active' => $isActive,
             'updated_at' => current_time('mysql')
@@ -140,7 +133,7 @@ class ServiceCatalogPage
                 $this->tableServices,
                 $data,
                 ['id' => $serviceId],
-                ['%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s'], // Added %s for required_skills
+                ['%s', '%s', '%s', '%s', '%s', '%f', '%d', '%d', '%s'],
                 ['%d']
             );
             $message = $result !== false ? 'Serviço atualizado!' : 'Erro ao atualizar';
@@ -149,7 +142,7 @@ class ServiceCatalogPage
             $result = $this->wpdb->insert(
                 $this->tableServices,
                 $data,
-                ['%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%d', '%d', '%s', '%s'] // Added %s for required_skills
+                ['%s', '%s', '%s', '%s', '%s', '%f', '%d', '%d', '%s', '%s']
             );
             $message = $result ? 'Serviço criado!' : 'Erro ao criar';
         }
@@ -327,14 +320,13 @@ class ServiceCatalogPage
                     <th>Tipo</th>
                     <th>Nome</th>
                     <th>Preço Base</th>
-                    <th>Multiplicador</th>
                     <th>Status</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($services)): ?>
-                    <tr><td colspan="9" style="text-align:center; padding:30px;">Nenhum serviço encontrado. <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services&action=create">Criar primeiro</a></td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:30px;">Nenhum serviço encontrado. <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services&action=create">Criar primeiro</a></td></tr>
                 <?php else: ?>
                     <?php foreach ($services as $service): ?>
                         <tr>
@@ -344,7 +336,6 @@ class ServiceCatalogPage
                             <td><?php echo esc_html($service['service_type']); ?></td>
                             <td><strong><?php echo esc_html($service['display_name']); ?></strong></td>
                             <td>R$ <?php echo number_format($service['base_price'], 2, ',', '.'); ?></td>
-                            <td><?php echo number_format($service['time_multiplier'], 2); ?>x</td>
                             <td><span class="status-badge <?php echo $service['is_active'] ? 'active' : 'inactive'; ?>"><?php echo $service['is_active'] ? '✓ Ativo' : '✗ Inativo'; ?></span></td>
                             <td>
                                 <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services&action=edit&id=<?php echo $service['id']; ?>" class="button button-small">Editar</a>
@@ -382,10 +373,7 @@ class ServiceCatalogPage
         $serviceType = $service['service_type'] ?? 'standard';
         $displayName = $service['display_name'] ?? '';
         $description = $service['description'] ?? '';
-        $requiredSkills = isset($service['required_skills']) ? json_decode($service['required_skills'], true) : [];
-        $requiredSkills = is_array($requiredSkills) ? $requiredSkills : [];
         $basePrice = $service['base_price'] ?? 0;
-        $timeMultiplier = $service['time_multiplier'] ?? 1.0;
         $requiresMultiple = isset($service['requires_multiple_professionals']) ? (bool)$service['requires_multiple_professionals'] : false;
         $isActive = isset($service['is_active']) ? (bool)$service['is_active'] : true;
 
@@ -438,30 +426,11 @@ class ServiceCatalogPage
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="required_skills">Skills Necessarias (legado)</label></th>
+                    <th>Capabilities</th>
                     <td>
-                        <?php
-                        // Skills carregadas do banco (wp_limpvix_capabilities)
-                        $availableSkills = $this->getAvailableCapabilities();
-                        ?>
-                        <div style="max-width: 400px; border: 1px solid #ccc; padding: 10px; max-height: 200px; overflow-y: auto;">
-                            <?php if (empty($availableSkills)): ?>
-                                <p style="color: #646970;">Nenhuma capability cadastrada. <a href="?page=limpvix-capabilities">Gerenciar Capabilities</a></p>
-                            <?php else: ?>
-                                <?php foreach ($availableSkills as $skillCode => $skillName): ?>
-                                    <label style="display: block; margin-bottom: 5px;">
-                                        <input type="checkbox"
-                                               name="required_skills[]"
-                                               value="<?php echo esc_attr($skillCode); ?>"
-                                               <?php checked(in_array($skillCode, $requiredSkills, true)); ?>>
-                                        <?php echo esc_html($skillName); ?>
-                                    </label>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
                         <p class="description">
-                            Skills legadas do servico (fallback). O novo sistema usa Capabilities vinculadas via Complexidades.<br>
-                            <a href="?page=limpvix-services&tab=complexities">Gerenciar Complexidades →</a>
+                            Multiplicador de tempo e capabilities sao gerenciados via <strong>Complexidades</strong>.<br>
+                            <a href="?page=limpvix-services&tab=complexities">Gerenciar Complexidades &rarr;</a>
                         </p>
                     </td>
                 </tr>
@@ -470,13 +439,6 @@ class ServiceCatalogPage
                     <td>
                         R$ <input type="number" name="base_price" id="base_price" value="<?php echo esc_attr($basePrice); ?>" step="0.01" class="small-text">
                         <p class="description">0 se calculado por m²</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="time_multiplier">Multiplicador de Tempo</label></th>
-                    <td>
-                        <input type="number" name="time_multiplier" id="time_multiplier" value="<?php echo esc_attr($timeMultiplier); ?>" step="0.1" min="0.1" max="10" class="small-text">x
-                        <p class="description">1.3 = +30% no tempo estimado</p>
                     </td>
                 </tr>
                 <tr>
@@ -972,43 +934,4 @@ class ServiceCatalogPage
         }
     }
 
-    /**
-     * Get available capabilities from database (replaces hardcoded skills list)
-     *
-     * @return array slug => display_name
-     */
-    private function getAvailableCapabilities(): array
-    {
-        $tableExists = $this->wpdb->get_var(
-            "SHOW TABLES LIKE '{$this->tableCapabilities}'"
-        );
-
-        if (!$tableExists) {
-            // Fallback to legacy hardcoded list if table doesn't exist yet
-            return [
-                'limpeza_basica' => 'Limpeza Basica',
-                'limpeza_profunda' => 'Limpeza Profunda',
-                'pos_obra' => 'Pos-Obra',
-                'teto' => 'Limpeza de Teto',
-                'esquadrias' => 'Esquadrias e Vidros',
-                'carpete' => 'Limpeza de Carpetes',
-                'estofados' => 'Higienizacao de Estofados',
-                'areas_externas' => 'Areas Externas',
-                'cozinha_industrial' => 'Cozinha Industrial',
-                'piscinas' => 'Piscinas',
-            ];
-        }
-
-        $capabilities = $this->wpdb->get_results(
-            "SELECT slug, display_name FROM {$this->tableCapabilities} WHERE is_active = 1 ORDER BY display_name",
-            ARRAY_A
-        );
-
-        $result = [];
-        foreach ($capabilities as $cap) {
-            $result[$cap['slug']] = $cap['display_name'];
-        }
-
-        return $result;
-    }
 }

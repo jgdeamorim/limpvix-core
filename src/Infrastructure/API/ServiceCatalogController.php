@@ -134,7 +134,6 @@ class ServiceCatalogController
                         display_name,
                         description,
                         base_price,
-                        time_multiplier,
                         requires_multiple_professionals
                     FROM {$this->tableServices}
                     WHERE is_active = 1";
@@ -161,7 +160,6 @@ class ServiceCatalogController
                     'name' => $service['display_name'],
                     'description' => $service['description'],
                     'base_price' => (float)$service['base_price'],
-                    'time_multiplier' => (float)$service['time_multiplier'],
                     'requires_multiple_professionals' => (bool)$service['requires_multiple_professionals'],
                     'complexities' => $complexitiesMap[$serviceId] ?? [],
                 ];

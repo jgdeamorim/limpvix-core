@@ -35,6 +35,7 @@ namespace LimpVix\Application\UseCases\Contract;
 
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;
+use LimpVix\Domain\Service\CapabilityRegistry;
 use LimpVix\Infrastructure\Persistence\WpExecutionRepository;
 
 defined('ABSPATH') || exit;
@@ -216,9 +217,9 @@ final class ReallocateProfessional
      */
     private function validateEligibility($contract, $newProfessional): void
     {
-        // Check required skills for the contract's service type
-        $serviceType = $contract->getContractType();
-        $requiredSkills = $this->getRequiredSkillsForService($serviceType);
+        // Check required capabilities for the contract's service
+        $serviceCode = $contract->getServiceCode();
+        $requiredSkills = $this->getRequiredSkillsForService($serviceCode);
 
         if (!empty($requiredSkills)) {
             $professionalSkills = $newProfessional->getSkills();
@@ -234,7 +235,7 @@ final class ReallocateProfessional
                 throw new \RuntimeException(sprintf(
                     'Professional #%d lacks required skills for service "%s": %s',
                     $newProfessional->getId(),
-                    $serviceType,
+                    $serviceCode,
                     implode(', ', $missingSkills)
                 ));
             }
@@ -255,26 +256,38 @@ final class ReallocateProfessional
     }
 
     /**
-     * Get required skills for a service type from catalog
+     * Get required capability slugs for a service via CapabilityRegistry.
      *
-     * @param string $serviceType
-     * @return array
+     * Looks up the first active complexity for the contract's service_code,
+     * then uses CapabilityRegistry::computeRequired() to get capability slugs.
+     * Falls back to ['cleaning_basic'] if no capabilities are found.
+     *
+     * @param string $serviceCode
+     * @return string[]
      */
-    private function getRequiredSkillsForService(string $serviceType): array
+    private function getRequiredSkillsForService(string $serviceCode): array
     {
         global $wpdb;
-        $table = $wpdb->prefix . 'limpvix_service_catalog';
 
-        $skills = $wpdb->get_var($wpdb->prepare(
-            "SELECT required_skills FROM {$table} WHERE slug = %s LIMIT 1",
-            $serviceType
+        $complexityTable = $wpdb->prefix . 'limpvix_service_complexities';
+        $catalogTable = $wpdb->prefix . 'limpvix_service_catalog';
+
+        $complexityId = $wpdb->get_var($wpdb->prepare(
+            "SELECT sc.id FROM {$complexityTable} sc
+             JOIN {$catalogTable} cat ON sc.service_id = cat.id
+             WHERE cat.service_code = %s AND sc.is_active = 1
+             ORDER BY sc.id ASC LIMIT 1",
+            $serviceCode
         ));
 
-        if (empty($skills)) {
-            return [];
+        if ($complexityId) {
+            $capabilities = CapabilityRegistry::computeRequired((int) $complexityId, []);
+
+            if (!empty($capabilities)) {
+                return array_map(fn($cap) => $cap->getSlug(), $capabilities);
+            }
         }
 
-        $decoded = json_decode($skills, true);
-        return is_array($decoded) ? $decoded : [];
+        return ['cleaning_basic'];
     }
 }
