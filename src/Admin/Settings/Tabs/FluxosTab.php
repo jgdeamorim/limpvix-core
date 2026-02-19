@@ -184,7 +184,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['scheduling'] = [
             'title' => 'Scheduling Pipeline',
             'desc' => 'Agendamento de execu&ccedil;&otilde;es de contrato: aloca&ccedil;&atilde;o &rarr; agenda &rarr; execu&ccedil;&atilde;o &rarr; conclus&atilde;o',
-            'completeness' => 90,
+            'completeness' => 98,
             'sm_class' => 'LimpVix\\Domain\\Execution\\ExecutionStatus',
             'total' => array_sum($contExDist) + array_sum($schedDist),
             'distribution' => array_merge($contExDist, $schedDist ? ['(schedules) ' . implode(', ', array_map(fn($k,$v) => "$k:$v", array_keys($schedDist), $schedDist)) => 0] : []),
@@ -197,9 +197,7 @@ class FluxosTab implements SettingsTabInterface
                 'no_show'      => ['label'=>'No-Show',       'color'=>'#ef4444'],
             ],
             'transitions' => 'draft &rarr; scheduled &rarr; in_progress &rarr; completed | cancelled | no_show',
-            'gaps' => [
-                ['severity'=>'medium', 'text'=>'GeolocationAdapter &eacute; STUB &mdash; geocoding real n&atilde;o integrado (Sprint 4: Google Maps / BrasilAPI)'],
-            ],
+            'gaps' => [],
             'insights' => $this->buildInsights($contExDist, [
                 ['condition' => array_sum($contExDist) === 0 && array_sum($schedDist) === 0, 'type'=>'info', 'text'=>'Nenhum agendamento criado. Depende de contratos ativos com profissional alocado'],
             ]),
@@ -373,7 +371,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['message'] = [
             'title' => 'Comunica&ccedil;&atilde;o &amp; Mensagens',
             'desc' => 'Fila de mensagens: template &rarr; envio via provider &rarr; entrega &rarr; confirma&ccedil;&atilde;o | retry 3x',
-            'completeness' => 85,
+            'completeness' => 95,
             'sm_class' => 'LimpVix\\Domain\\Communication\\MessageDelivery',
             'total' => array_sum($msgDist),
             'distribution' => $msgDist,
@@ -384,9 +382,9 @@ class FluxosTab implements SettingsTabInterface
                 'read'       => ['label'=>'Lido',      'color'=>'#059669'],
                 'failed'     => ['label'=>'Falhou',    'color'=>'#ef4444'],
             ],
-            'transitions' => 'pending &rarr; sent &rarr; delivered &rarr; read | failed (retry 3x)',
+            'transitions' => 'pending &rarr; sent &rarr; delivered &rarr; read | failed (retry 3x) | push via FCM',
             'gaps' => [
-                ['severity'=>'medium', 'text'=>'Flag notifications=OFF &mdash; sistema de notifica&ccedil;&otilde;es desabilitado (ativar em Settings)'],
+                ['severity'=>'low', 'text'=>'Flag notifications=OFF &mdash; ativar em Settings para habilitar envio (providers SMS + WhatsApp + Push FCM prontos)'],
             ],
             'insights' => $this->buildInsights($msgDist, [
                 ['condition' => true, 'type'=>'info', 'text'=>'Templates cadastrados: ' . $d['message_templates'] . ', Logs: ' . $msgLog . ', Flag notifications=' . (!empty($flags['notifications']) ? 'ON' : 'OFF')],
