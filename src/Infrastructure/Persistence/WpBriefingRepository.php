@@ -453,6 +453,14 @@ class WpBriefingRepository implements BriefingRepositoryInterface
         // CleaningTypes (de briefing_data)
         $cleaningTypes = $dataRows['cleaning_types'] ?? [];
 
+        // Location (de briefing_data)
+        $location = $dataRows['location'] ?? [];
+
+        // Geo fields (da tabela principal)
+        $geoIndex = isset($mainRow['geo_index']) ? (float) $mainRow['geo_index'] : null;
+        $geoClassification = $mainRow['geo_classification'] ?? null;
+        $geoMultiplier = isset($mainRow['geo_multiplier']) ? (float) $mainRow['geo_multiplier'] : null;
+
         // Construir Briefing
         return new Briefing(
             uuid: $mainRow['uuid'],
@@ -468,6 +476,10 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             phoneVerified: (bool) $mainRow['phone_verified'],
             version: $mainRow['version'],
             cleaningTypes: $cleaningTypes,
+            geoIndex: $geoIndex,
+            geoClassification: $geoClassification,
+            geoMultiplier: $geoMultiplier,
+            location: $location,
             createdAt: new \DateTimeImmutable($mainRow['created_at']),
             updatedAt: new \DateTimeImmutable($mainRow['updated_at']),
             lockedAt: $mainRow['locked_at'] ? new \DateTimeImmutable($mainRow['locked_at']) : null
@@ -510,6 +522,9 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             'requires_contract' => $briefing->requiresContract(),
             'phone_verified' => $briefing->isPhoneVerified(),
             'version' => $briefing->getVersion(),
+            'geo_index' => $briefing->getGeoIndex(),
+            'geo_classification' => $briefing->getGeoClassification(),
+            'geo_multiplier' => $briefing->getGeoMultiplier(),
             'created_at' => $briefing->getCreatedAt()->format('Y-m-d H:i:s'),
             'updated_at' => $briefing->getUpdatedAt()->format('Y-m-d H:i:s'),
             'locked_at' => $briefing->getLockedAt() ? $briefing->getLockedAt()->format('Y-m-d H:i:s') : null
@@ -536,6 +551,10 @@ class WpBriefingRepository implements BriefingRepositoryInterface
 
         if (!empty($briefing->getCleaningTypes())) {
             $data['cleaning_types'] = $briefing->getCleaningTypes();
+        }
+
+        if (!empty($briefing->getLocation())) {
+            $data['location'] = $briefing->getLocation();
         }
 
         return $data;
@@ -565,6 +584,9 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             '%d', // requires_contract
             '%d', // phone_verified
             '%s', // version
+            '%f', // geo_index
+            '%s', // geo_classification
+            '%f', // geo_multiplier
             '%s', // created_at
             '%s', // updated_at
             '%s'  // locked_at

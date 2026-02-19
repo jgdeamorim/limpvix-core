@@ -141,6 +141,30 @@ class Briefing
     private $cleaningTypes;
 
     /**
+     * Índice geográfico IBGE (0-1)
+     * @var float|null
+     */
+    private $geoIndex;
+
+    /**
+     * Classificação geográfica (vulneravel, popular, medio, alto, premium)
+     * @var string|null
+     */
+    private $geoClassification;
+
+    /**
+     * Multiplicador geográfico para pricing (0.85-1.30)
+     * @var float|null
+     */
+    private $geoMultiplier;
+
+    /**
+     * Dados de localização do serviço (address, city, state, zip_code)
+     * @var array
+     */
+    private $location;
+
+    /**
      * Data de lock (quando transicionou para locked)
      * Null enquanto não estiver locked
      *
@@ -164,6 +188,10 @@ class Briefing
      * @param bool $phoneVerified Telefone verificado?
      * @param string $version Versão do schema
      * @param array $cleaningTypes Tipos de limpeza selecionados
+     * @param float|null $geoIndex Índice geográfico IBGE
+     * @param string|null $geoClassification Classificação geo
+     * @param float|null $geoMultiplier Multiplicador geo
+     * @param array $location Dados de localização
      * @param \DateTimeImmutable|null $createdAt Data criação
      * @param \DateTimeImmutable|null $updatedAt Data atualização
      * @param \DateTimeImmutable|null $lockedAt Data lock
@@ -182,6 +210,10 @@ class Briefing
         bool $phoneVerified = false,
         string $version = '1.0',
         array $cleaningTypes = [],
+        ?float $geoIndex = null,
+        ?string $geoClassification = null,
+        ?float $geoMultiplier = null,
+        array $location = [],
         ?\DateTimeImmutable $createdAt = null,
         ?\DateTimeImmutable $updatedAt = null,
         ?\DateTimeImmutable $lockedAt = null
@@ -208,6 +240,10 @@ class Briefing
         $this->phoneVerified = $phoneVerified;
         $this->version = $version;
         $this->cleaningTypes = $cleaningTypes;
+        $this->geoIndex = $geoIndex;
+        $this->geoClassification = $geoClassification;
+        $this->geoMultiplier = $geoMultiplier;
+        $this->location = $location;
         $this->createdAt = $createdAt ?? new \DateTimeImmutable();
         $this->updatedAt = $updatedAt ?? new \DateTimeImmutable();
         $this->lockedAt = $lockedAt;
@@ -296,6 +332,26 @@ class Briefing
     public function getCleaningTypes(): array
     {
         return $this->cleaningTypes;
+    }
+
+    public function getGeoIndex(): ?float
+    {
+        return $this->geoIndex;
+    }
+
+    public function getGeoClassification(): ?string
+    {
+        return $this->geoClassification;
+    }
+
+    public function getGeoMultiplier(): ?float
+    {
+        return $this->geoMultiplier;
+    }
+
+    public function getLocation(): array
+    {
+        return $this->location;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
@@ -478,6 +534,36 @@ class Briefing
     }
 
     /**
+     * Atualizar dados geográficos (IBGE)
+     *
+     * @param float|null $index Índice 0-1
+     * @param string|null $classification Classificação
+     * @param float|null $multiplier Multiplicador de preço
+     * @return void
+     */
+    public function updateGeoData(?float $index, ?string $classification, ?float $multiplier): void
+    {
+        $this->geoIndex = $index;
+        $this->geoClassification = $classification;
+        $this->geoMultiplier = $multiplier;
+        $this->touch();
+    }
+
+    /**
+     * Atualizar dados de localização
+     *
+     * @param array $location {address, city, state, zip_code}
+     * @return void
+     * @throws \DomainException Se locked
+     */
+    public function updateLocation(array $location): void
+    {
+        $this->assertNotLocked();
+        $this->location = $location;
+        $this->touch();
+    }
+
+    /**
      * Calcular métricas baseado na estrutura atual
      *
      * Método simplificado - cálculo completo está em BriefingMetricsCalculator
@@ -556,6 +642,10 @@ class Briefing
             'requires_contract' => $this->requiresContract(),
             'version' => $this->version,
             'cleaning_types' => $this->cleaningTypes,
+            'geo_index' => $this->geoIndex,
+            'geo_classification' => $this->geoClassification,
+            'geo_multiplier' => $this->geoMultiplier,
+            'location' => $this->location,
             'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
             'updated_at' => $this->updatedAt->format('Y-m-d H:i:s'),
             'locked_at' => $this->lockedAt ? $this->lockedAt->format('Y-m-d H:i:s') : null

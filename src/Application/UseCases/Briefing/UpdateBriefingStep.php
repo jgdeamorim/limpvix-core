@@ -154,6 +154,14 @@ class UpdateBriefingStep
                 break;
 
             case 'location':
+                // Save location data to aggregate
+                $briefing->updateLocation([
+                    'address' => $stepData['address'] ?? '',
+                    'city' => $stepData['city'] ?? '',
+                    'state' => $stepData['state'] ?? '',
+                    'zip_code' => $stepData['zip_code'] ?? $stepData['cep'] ?? '',
+                ]);
+
                 // P0.4: Trigger IBGE geo index lookup when zip_code is provided
                 $zipCode = $stepData['zip_code'] ?? $stepData['cep'] ?? null;
                 if ($zipCode !== null) {
@@ -161,23 +169,11 @@ class UpdateBriefingStep
                     $geoResult = $ibgeService->calculate($zipCode);
 
                     if ($geoResult !== null) {
-                        // Save geo data to briefing via wpdb (direct update)
-                        // GAP: Briefing aggregate doesn't have geo fields yet (domain model)
-                        global $wpdb;
-                        $briefingId = $briefing->getId();
-                        if ($briefingId) {
-                            $wpdb->update(
-                                $wpdb->prefix . 'limpvix_briefings',
-                                [
-                                    'geo_index' => $geoResult['indice'],
-                                    'geo_classification' => $geoResult['classificacao'],
-                                    'geo_multiplier' => $geoResult['multiplicador'],
-                                ],
-                                ['id' => $briefingId],
-                                ['%f', '%s', '%f'],
-                                ['%d']
-                            );
-                        }
+                        $briefing->updateGeoData(
+                            (float) $geoResult['indice'],
+                            $geoResult['classificacao'],
+                            (float) $geoResult['multiplicador']
+                        );
                     }
                 }
                 break;

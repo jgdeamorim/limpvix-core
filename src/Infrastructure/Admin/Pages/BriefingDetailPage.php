@@ -475,7 +475,7 @@ class BriefingDetailPage
 
             $result = $createScheduleUseCase->execute(
                 'order_' . $briefing->getUuid(), // orderUuid (temporário - TODO: usar order real)
-                $briefing->getId(),
+                $briefing->getUuid(),
                 $requestedDateTime,
                 $location
             );

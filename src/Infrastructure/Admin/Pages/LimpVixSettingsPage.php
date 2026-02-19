@@ -452,7 +452,7 @@ class LimpVixSettingsPage
                                     <button type="button"
                                             class="button button-small limpvix-view-briefing"
                                             data-briefing-uuid="<?php echo esc_attr($uuid); ?>"
-                                            data-briefing-id="<?php echo esc_attr($briefing->getId()); ?>">
+                                            data-briefing-id="<?php echo esc_attr($briefing->getUuid()); ?>">
                                         👁️ Ver
                                     </button>
 
@@ -1698,7 +1698,7 @@ class LimpVixSettingsPage
                 }
             </style>
 
-            <h2>📋 Briefing #<?php echo esc_html($briefing->getId()); ?></h2>
+            <h2>📋 Briefing #<?php echo esc_html($briefing->getUuid()); ?></h2>
 
             <div class="section">
                 <h3>ℹ️ Informações Gerais</h3>

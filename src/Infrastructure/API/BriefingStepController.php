@@ -318,6 +318,20 @@ class BriefingStepController
             ];
         }
 
+        // Geo data
+        if ($briefing->getGeoIndex() !== null) {
+            $data['geo'] = [
+                'index' => $briefing->getGeoIndex(),
+                'classification' => $briefing->getGeoClassification(),
+                'multiplier' => $briefing->getGeoMultiplier(),
+            ];
+        }
+
+        // Location
+        if (!empty($briefing->getLocation())) {
+            $data['location'] = $briefing->getLocation();
+        }
+
         // Locked at
         if ($briefing->getLockedAt() !== null) {
             $data['locked_at'] = $briefing->getLockedAt()->format('c');
