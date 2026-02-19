@@ -263,6 +263,22 @@ final class ExecutionBootstrap
 
             $serviceLocation = new \LimpVix\Domain\Execution\ValueObjects\GeoLocation($lat, $lon);
 
+            // P1.4: Lookup expected rooms count from Briefing's PropertyStructure
+            $expectedRoomsCount = 0;
+            if ($briefingUuid) {
+                $briefingRepo = new \LimpVix\Infrastructure\Persistence\WpBriefingRepository();
+                $briefing = $briefingRepo->findByUuid($briefingUuid);
+                if ($briefing && $briefing->getStructure()) {
+                    $s = $briefing->getStructure();
+                    $expectedRoomsCount = $s->getBedrooms()
+                        + $s->getBathrooms()
+                        + ($s->hasLivingRoom() ? 1 : 0)
+                        + ($s->hasKitchen() ? 1 : 0)
+                        + ($s->hasOffice() ? 1 : 0)
+                        + ($s->hasExternalArea() ? 1 : 0);
+                }
+            }
+
             // 5. Criar Execution para rastreamento em tempo real
             $executionUuid = wp_generate_uuid4();
 
@@ -271,7 +287,8 @@ final class ExecutionBootstrap
                 $orderUuid,
                 $professionalUserId,
                 new \DateTimeImmutable($scheduledDate),
-                $serviceLocation
+                $serviceLocation,
+                $expectedRoomsCount
             );
 
             $repository = new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();

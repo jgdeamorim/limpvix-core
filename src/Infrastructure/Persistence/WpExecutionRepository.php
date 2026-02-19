@@ -256,6 +256,7 @@ class WpExecutionRepository implements ExecutionRepositoryInterface
             'evidence' => $this->serializeEvidenceCollection($execution->getEvidence()),
             'sla_violations' => $this->serializeSlaViolations($execution->getSlaViolations()),
             'feedback_window_expires_at' => $execution->getFeedbackWindowExpiresAt()?->format('Y-m-d H:i:s'),
+            'expected_rooms_count' => $execution->getExpectedRoomsCount(),
             'updated_at' => current_time('mysql'),
         ];
     }
@@ -281,7 +282,8 @@ class WpExecutionRepository implements ExecutionRepositoryInterface
             $this->deserializeSlaViolations($row['sla_violations']),
             isset($row['feedback_window_expires_at']) && $row['feedback_window_expires_at']
                 ? new \DateTimeImmutable($row['feedback_window_expires_at'])
-                : null
+                : null,
+            (int) ($row['expected_rooms_count'] ?? 0)
         );
     }
 

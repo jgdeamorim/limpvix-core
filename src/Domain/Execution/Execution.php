@@ -61,6 +61,9 @@ class Execution
     // Feedback Window (GAP #1)
     private ?\DateTimeImmutable $feedbackWindowExpiresAt = null;
 
+    // Expected rooms count (P1.4 - from Briefing PropertyStructure)
+    private int $expectedRoomsCount = 0;
+
     // Issues (GAP #4)
     private ?ValueObjects\IssueCollection $issues = null;
 
@@ -78,7 +81,8 @@ class Execution
         ?GeoLocation $checkOutGeo = null,
         ?EvidenceCollection $evidence = null,
         array $slaViolations = [],
-        ?\DateTimeImmutable $feedbackWindowExpiresAt = null
+        ?\DateTimeImmutable $feedbackWindowExpiresAt = null,
+        int $expectedRoomsCount = 0
     ) {
         $this->executionUuid = $executionUuid;
         $this->orderUuid = $orderUuid;
@@ -94,6 +98,7 @@ class Execution
         $this->evidence = $evidence;
         $this->slaViolations = $slaViolations;
         $this->feedbackWindowExpiresAt = $feedbackWindowExpiresAt;
+        $this->expectedRoomsCount = $expectedRoomsCount;
     }
 
     /**
@@ -104,7 +109,8 @@ class Execution
         string $orderUuid,
         int $professionalId,
         \DateTimeImmutable $scheduledStartTime,
-        GeoLocation $serviceLocation
+        GeoLocation $serviceLocation,
+        int $expectedRoomsCount = 0
     ): self {
         return new self(
             $executionUuid,
@@ -112,7 +118,11 @@ class Execution
             $professionalId,
             ExecutionStatusEnum::CREATED,
             $scheduledStartTime,
-            $serviceLocation
+            $serviceLocation,
+            self::DEFAULT_GEOFENCE_RADIUS_METERS,
+            null, null, null, null, null, [],
+            null,
+            $expectedRoomsCount
         );
     }
 
@@ -205,6 +215,17 @@ class Execution
         $this->checkOutAt = new \DateTimeImmutable();
         $this->checkOutGeo = $geo;
         $this->evidence = $evidence;
+
+        // P1.4: Validate room evidence count against expected rooms
+        if ($this->expectedRoomsCount > 0) {
+            $actualRooms = $evidence->countUniqueRooms('check_out');
+            if ($actualRooms < $this->expectedRoomsCount) {
+                error_log(sprintf(
+                    '[LimpVix] WARN: Execution %s checkout with %d/%d room photos',
+                    $this->executionUuid, $actualRooms, $this->expectedRoomsCount
+                ));
+            }
+        }
 
         // P0.1: Iniciar feedback window automaticamente após check-out
         $this->startFeedbackWindow();
@@ -485,6 +506,11 @@ class Execution
     public function getSlaViolations(): array
     {
         return $this->slaViolations;
+    }
+
+    public function getExpectedRoomsCount(): int
+    {
+        return $this->expectedRoomsCount;
     }
 
     public function hasSlaViolations(): bool
