@@ -24,6 +24,9 @@ class ServiceCatalogPage
     private $wpdb;
     private $tableServices;
     private $tableAdditionals;
+    private $tableComplexities;
+    private $tableCapabilities;
+    private $tableComplexityCapabilities;
 
     public function __construct()
     {
@@ -31,6 +34,9 @@ class ServiceCatalogPage
         $this->wpdb = $wpdb;
         $this->tableServices = $wpdb->prefix . 'limpvix_service_catalog';
         $this->tableAdditionals = $wpdb->prefix . 'limpvix_service_additionals';
+        $this->tableComplexities = $wpdb->prefix . 'limpvix_service_complexities';
+        $this->tableCapabilities = $wpdb->prefix . 'limpvix_capabilities';
+        $this->tableComplexityCapabilities = $wpdb->prefix . 'limpvix_complexity_capabilities';
     }
 
     public function register(): void
@@ -82,6 +88,12 @@ class ServiceCatalogPage
                 break;
             case 'delete_additional':
                 $this->deleteAdditional();
+                break;
+            case 'save_complexity':
+                $this->saveComplexity();
+                break;
+            case 'delete_complexity':
+                $this->deleteComplexity();
                 break;
         }
     }
@@ -230,7 +242,9 @@ class ServiceCatalogPage
 
             <?php if ($action === 'list'): ?>
                 <?php if ($currentTab === 'services'): ?>
-                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services&action=create" class="page-title-action">Adicionar Serviço</a>
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services&action=create" class="page-title-action">Adicionar Servico</a>
+                <?php elseif ($currentTab === 'complexities'): ?>
+                    <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=complexities&action=create" class="page-title-action">Adicionar Complexidade</a>
                 <?php else: ?>
                     <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=additionals&action=create" class="page-title-action">Adicionar Adicional</a>
                 <?php endif; ?>
@@ -245,10 +259,13 @@ class ServiceCatalogPage
             <!-- Tabs -->
             <h2 class="nav-tab-wrapper">
                 <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=services" class="nav-tab <?php echo $currentTab === 'services' ? 'nav-tab-active' : ''; ?>">
-                    🏢 Serviços Principais
+                    Servicos Principais
+                </a>
+                <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=complexities" class="nav-tab <?php echo $currentTab === 'complexities' ? 'nav-tab-active' : ''; ?>">
+                    Complexidades
                 </a>
                 <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=additionals" class="nav-tab <?php echo $currentTab === 'additionals' ? 'nav-tab-active' : ''; ?>">
-                    ➕ Adicionais/Extras
+                    Adicionais/Extras
                 </a>
             </h2>
 
@@ -259,6 +276,12 @@ class ServiceCatalogPage
                         $this->renderServiceForm($itemId);
                     } else {
                         $this->renderServicesList();
+                    }
+                } elseif ($currentTab === 'complexities') {
+                    if ($action === 'create' || $action === 'edit') {
+                        $this->renderComplexityForm($itemId);
+                    } else {
+                        $this->renderComplexitiesList();
                     }
                 } else {
                     if ($action === 'create' || $action === 'edit') {
@@ -415,37 +438,30 @@ class ServiceCatalogPage
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="required_skills">Skills Necessárias (GAP D)</label></th>
+                    <th><label for="required_skills">Skills Necessarias (legado)</label></th>
                     <td>
                         <?php
-                        // Lista de skills disponíveis (em português para compatibilidade)
-                        $availableSkills = [
-                            'limpeza_residencial' => 'Limpeza Residencial',
-                            'limpeza_comercial' => 'Limpeza Comercial',
-                            'limpeza_vidros' => 'Limpeza de Vidros',
-                            'limpeza_pesada' => 'Limpeza Pesada',
-                            'limpeza_pos_obra' => 'Limpeza Pós-Obra',
-                            'manutencao_piso' => 'Manutenção de Piso',
-                            'sanitizacao' => 'Sanitização',
-                            'organizacao' => 'Organização',
-                            'limpeza_teto' => 'Limpeza de Teto',
-                            'limpeza_cortinas' => 'Limpeza de Cortinas',
-                        ];
+                        // Skills carregadas do banco (wp_limpvix_capabilities)
+                        $availableSkills = $this->getAvailableCapabilities();
                         ?>
                         <div style="max-width: 400px; border: 1px solid #ccc; padding: 10px; max-height: 200px; overflow-y: auto;">
-                            <?php foreach ($availableSkills as $skillCode => $skillName): ?>
-                                <label style="display: block; margin-bottom: 5px;">
-                                    <input type="checkbox"
-                                           name="required_skills[]"
-                                           value="<?php echo esc_attr($skillCode); ?>"
-                                           <?php checked(in_array($skillCode, $requiredSkills, true)); ?>>
-                                    <?php echo esc_html($skillName); ?>
-                                </label>
-                            <?php endforeach; ?>
+                            <?php if (empty($availableSkills)): ?>
+                                <p style="color: #646970;">Nenhuma capability cadastrada. <a href="?page=limpvix-capabilities">Gerenciar Capabilities</a></p>
+                            <?php else: ?>
+                                <?php foreach ($availableSkills as $skillCode => $skillName): ?>
+                                    <label style="display: block; margin-bottom: 5px;">
+                                        <input type="checkbox"
+                                               name="required_skills[]"
+                                               value="<?php echo esc_attr($skillCode); ?>"
+                                               <?php checked(in_array($skillCode, $requiredSkills, true)); ?>>
+                                        <?php echo esc_html($skillName); ?>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                         <p class="description">
-                            Selecione as skills necessárias para executar este serviço.<br>
-                            Profissionais precisam ter pelo menos uma dessas skills para receber offers.
+                            Skills legadas do servico (fallback). O novo sistema usa Capabilities vinculadas via Complexidades.<br>
+                            <a href="?page=limpvix-services&tab=complexities">Gerenciar Complexidades →</a>
                         </p>
                     </td>
                 </tr>
@@ -637,5 +653,362 @@ class ServiceCatalogPage
             </p>
         </form>
         <?php
+    }
+
+    // ── Complexities Tab ──────────────────────────────────────────────────
+
+    private function saveComplexity(): void
+    {
+        $complexityId = isset($_POST['complexity_id']) ? (int)$_POST['complexity_id'] : 0;
+        $serviceId = (int)($_POST['service_id'] ?? 0);
+        $slug = sanitize_text_field($_POST['slug'] ?? '');
+        $displayName = sanitize_text_field($_POST['display_name'] ?? '');
+        $description = sanitize_textarea_field($_POST['description'] ?? '');
+        $timeMultiplier = (float)($_POST['time_multiplier'] ?? 1.0);
+        $isActive = isset($_POST['is_active']) ? 1 : 0;
+        $capabilityIds = isset($_POST['capability_ids']) ? array_map('intval', (array)$_POST['capability_ids']) : [];
+
+        if (empty($slug) || empty($displayName) || $serviceId <= 0) {
+            add_settings_error('limpvix_services', 'invalid_data', 'Campos obrigatorios nao preenchidos', 'error');
+            return;
+        }
+
+        $data = [
+            'service_id' => $serviceId,
+            'slug' => $slug,
+            'display_name' => $displayName,
+            'description' => $description ?: null,
+            'time_multiplier' => $timeMultiplier,
+            'is_active' => $isActive,
+            'updated_at' => current_time('mysql'),
+        ];
+
+        if ($complexityId > 0) {
+            $result = $this->wpdb->update(
+                $this->tableComplexities,
+                $data,
+                ['id' => $complexityId],
+                ['%d', '%s', '%s', '%s', '%f', '%d', '%s'],
+                ['%d']
+            );
+            $message = $result !== false ? 'Complexidade atualizada!' : 'Erro ao atualizar';
+        } else {
+            $data['created_at'] = current_time('mysql');
+            $result = $this->wpdb->insert(
+                $this->tableComplexities,
+                $data,
+                ['%d', '%s', '%s', '%s', '%f', '%d', '%s', '%s']
+            );
+            $complexityId = $this->wpdb->insert_id;
+            $message = $result ? 'Complexidade criada!' : 'Erro ao criar';
+        }
+
+        // Update capabilities junction
+        if ($complexityId > 0) {
+            $this->syncComplexityCapabilities($complexityId, $capabilityIds);
+        }
+
+        add_settings_error('limpvix_services', 'complexity_saved', $message, ($result !== false && $result !== 0) || $result === true ? 'success' : 'error');
+        wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=complexities&updated=1'));
+        exit;
+    }
+
+    private function deleteComplexity(): void
+    {
+        $complexityId = (int)($_POST['complexity_id'] ?? 0);
+
+        // Delete junction records first
+        $this->wpdb->delete($this->tableComplexityCapabilities, ['complexity_id' => $complexityId], ['%d']);
+
+        $result = $this->wpdb->delete($this->tableComplexities, ['id' => $complexityId], ['%d']);
+        add_settings_error('limpvix_services', 'complexity_deleted', $result ? 'Complexidade deletada!' : 'Erro ao deletar', $result ? 'success' : 'error');
+        wp_redirect(admin_url('admin.php?page=' . self::PAGE_SLUG . '&tab=complexities&deleted=1'));
+        exit;
+    }
+
+    private function renderComplexitiesList(): void
+    {
+        $complexities = $this->wpdb->get_results(
+            "SELECT sc.*, cat.display_name AS service_name, cat.service_code
+             FROM {$this->tableComplexities} sc
+             JOIN {$this->tableServices} cat ON sc.service_id = cat.id
+             ORDER BY cat.display_name, sc.time_multiplier ASC",
+            ARRAY_A
+        );
+
+        // Pre-fetch capability counts
+        $capCounts = [];
+        $capCountsRaw = $this->wpdb->get_results(
+            "SELECT complexity_id, COUNT(*) as cnt FROM {$this->tableComplexityCapabilities} GROUP BY complexity_id",
+            ARRAY_A
+        );
+        foreach ($capCountsRaw as $row) {
+            $capCounts[$row['complexity_id']] = (int)$row['cnt'];
+        }
+
+        ?>
+        <p class="description" style="margin-bottom: 15px;">
+            Complexidades definem o escopo tecnico de cada servico e quais <strong>capabilities</strong> o profissional precisa ter.
+        </p>
+
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">ID</th>
+                    <th>Servico</th>
+                    <th>Slug</th>
+                    <th>Nome</th>
+                    <th>Multiplicador</th>
+                    <th>Capabilities</th>
+                    <th style="width: 80px;">Status</th>
+                    <th style="width: 160px;">Acoes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($complexities)): ?>
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 30px; color: #646970;">
+                            Nenhuma complexidade encontrada. <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=complexities&action=create">Criar primeira</a>
+                        </td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($complexities as $c): ?>
+                        <tr>
+                            <td><?php echo esc_html($c['id']); ?></td>
+                            <td><?php echo esc_html($c['service_name']); ?> <code style="font-size:11px;"><?php echo esc_html($c['service_code']); ?></code></td>
+                            <td><code><?php echo esc_html($c['slug']); ?></code></td>
+                            <td><strong><?php echo esc_html($c['display_name']); ?></strong></td>
+                            <td><?php echo number_format($c['time_multiplier'], 2); ?>x</td>
+                            <td>
+                                <?php
+                                $count = $capCounts[$c['id']] ?? 0;
+                                echo $count > 0 ? $count . ' capabilities' : '<span style="color:#b32d2e;">Nenhuma</span>';
+                                ?>
+                            </td>
+                            <td>
+                                <span class="status-badge <?php echo $c['is_active'] ? 'active' : 'inactive'; ?>">
+                                    <?php echo $c['is_active'] ? 'Ativo' : 'Inativo'; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=complexities&action=edit&id=<?php echo $c['id']; ?>" class="button button-small">Editar</a>
+                                <form method="post" style="display:inline-block;" onsubmit="return confirm('Deletar esta complexidade?');">
+                                    <?php wp_nonce_field(self::NONCE_ACTION . '_delete_complexity', 'limpvix_service_nonce_delete_complexity'); ?>
+                                    <input type="hidden" name="limpvix_service_action_type" value="delete_complexity">
+                                    <input type="hidden" name="tab" value="complexities">
+                                    <input type="hidden" name="complexity_id" value="<?php echo $c['id']; ?>">
+                                    <button type="submit" class="button button-small button-link-delete">Deletar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+        <?php
+    }
+
+    private function renderComplexityForm(int $complexityId = 0): void
+    {
+        $complexity = null;
+        $isEdit = $complexityId > 0;
+
+        if ($isEdit) {
+            $complexity = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT * FROM {$this->tableComplexities} WHERE id = %d",
+                $complexityId
+            ), ARRAY_A);
+
+            if (!$complexity) {
+                echo '<div class="notice notice-error"><p>Complexidade nao encontrada.</p></div>';
+                return;
+            }
+        }
+
+        $serviceId = $complexity['service_id'] ?? (isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0);
+        $slug = $complexity['slug'] ?? '';
+        $displayName = $complexity['display_name'] ?? '';
+        $description = $complexity['description'] ?? '';
+        $timeMultiplier = $complexity['time_multiplier'] ?? 1.0;
+        $isActive = isset($complexity['is_active']) ? (bool)$complexity['is_active'] : true;
+
+        // Get all services for dropdown
+        $services = $this->wpdb->get_results(
+            "SELECT id, display_name, service_code FROM {$this->tableServices} WHERE is_active = 1 ORDER BY display_name",
+            ARRAY_A
+        );
+
+        // Get all capabilities for checkboxes
+        $allCapabilities = $this->wpdb->get_results(
+            "SELECT id, slug, display_name FROM {$this->tableCapabilities} WHERE is_active = 1 ORDER BY display_name",
+            ARRAY_A
+        );
+
+        // Get currently linked capability IDs
+        $linkedCapabilityIds = [];
+        if ($isEdit) {
+            $linkedCapabilityIds = $this->wpdb->get_col($this->wpdb->prepare(
+                "SELECT capability_id FROM {$this->tableComplexityCapabilities} WHERE complexity_id = %d",
+                $complexityId
+            ));
+            $linkedCapabilityIds = array_map('intval', $linkedCapabilityIds);
+        }
+
+        ?>
+        <form method="post">
+            <?php wp_nonce_field(self::NONCE_ACTION . '_save_complexity', 'limpvix_service_nonce_save_complexity'); ?>
+            <input type="hidden" name="limpvix_service_action_type" value="save_complexity">
+            <input type="hidden" name="tab" value="complexities">
+            <?php if ($isEdit): ?>
+                <input type="hidden" name="complexity_id" value="<?php echo $complexityId; ?>">
+            <?php endif; ?>
+
+            <table class="form-table">
+                <tr>
+                    <th><label for="service_id">Servico *</label></th>
+                    <td>
+                        <select name="service_id" id="service_id" required>
+                            <option value="">-- Selecione --</option>
+                            <?php foreach ($services as $svc): ?>
+                                <option value="<?php echo esc_attr($svc['id']); ?>" <?php selected($serviceId, (int)$svc['id']); ?>>
+                                    <?php echo esc_html($svc['display_name']); ?> (<?php echo esc_html($svc['service_code']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="slug">Slug *</label></th>
+                    <td>
+                        <input type="text" name="slug" id="slug" value="<?php echo esc_attr($slug); ?>"
+                               class="regular-text" <?php echo $isEdit ? 'readonly' : ''; ?> required
+                               pattern="[a-z][a-z0-9_]*">
+                        <p class="description">Ex: standard, detailed, post_construction</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="display_name">Nome *</label></th>
+                    <td>
+                        <input type="text" name="display_name" id="display_name" value="<?php echo esc_attr($displayName); ?>" class="regular-text" required>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="description">Descricao</label></th>
+                    <td>
+                        <textarea name="description" id="description" rows="3" class="large-text"><?php echo esc_textarea($description); ?></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="time_multiplier">Multiplicador de Tempo *</label></th>
+                    <td>
+                        <input type="number" name="time_multiplier" id="time_multiplier"
+                               value="<?php echo esc_attr($timeMultiplier); ?>"
+                               step="0.01" min="0.5" max="5.0" class="small-text" required>x
+                        <p class="description">1.00 = tempo base, 1.30 = +30% no tempo, 1.80 = +80%</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label>Capabilities Requeridas</label></th>
+                    <td>
+                        <?php if (empty($allCapabilities)): ?>
+                            <p style="color: #646970;">Nenhuma capability cadastrada. <a href="?page=limpvix-capabilities">Gerenciar Capabilities</a></p>
+                        <?php else: ?>
+                            <div style="max-width: 500px; border: 1px solid #ccc; padding: 10px; max-height: 250px; overflow-y: auto;">
+                                <?php foreach ($allCapabilities as $cap): ?>
+                                    <label style="display: block; margin-bottom: 5px;">
+                                        <input type="checkbox" name="capability_ids[]"
+                                               value="<?php echo esc_attr($cap['id']); ?>"
+                                               <?php checked(in_array((int)$cap['id'], $linkedCapabilityIds)); ?>>
+                                        <strong><?php echo esc_html($cap['display_name']); ?></strong>
+                                        <code style="font-size: 11px; color: #646970;"><?php echo esc_html($cap['slug']); ?></code>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                            <p class="description">
+                                Profissionais precisam ter TODAS as capabilities selecionadas para serem elegíveis.<br>
+                                <a href="?page=limpvix-capabilities">Gerenciar Capabilities →</a>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="is_active">Status</label></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="is_active" id="is_active" <?php checked($isActive); ?>>
+                            Complexidade ativa
+                        </label>
+                    </td>
+                </tr>
+            </table>
+
+            <p class="submit">
+                <button type="submit" class="button button-primary"><?php echo $isEdit ? 'Atualizar' : 'Criar'; ?> Complexidade</button>
+                <a href="?page=<?php echo self::PAGE_SLUG; ?>&tab=complexities" class="button">Cancelar</a>
+            </p>
+        </form>
+        <?php
+    }
+
+    // ── Helper Methods ────────────────────────────────────────────────────
+
+    /**
+     * Sync complexity-capability junction table
+     */
+    private function syncComplexityCapabilities(int $complexityId, array $capabilityIds): void
+    {
+        // Remove existing
+        $this->wpdb->delete($this->tableComplexityCapabilities, ['complexity_id' => $complexityId], ['%d']);
+
+        // Insert new
+        foreach ($capabilityIds as $capId) {
+            if ($capId > 0) {
+                $this->wpdb->insert(
+                    $this->tableComplexityCapabilities,
+                    ['complexity_id' => $complexityId, 'capability_id' => $capId],
+                    ['%d', '%d']
+                );
+            }
+        }
+    }
+
+    /**
+     * Get available capabilities from database (replaces hardcoded skills list)
+     *
+     * @return array slug => display_name
+     */
+    private function getAvailableCapabilities(): array
+    {
+        $tableExists = $this->wpdb->get_var(
+            "SHOW TABLES LIKE '{$this->tableCapabilities}'"
+        );
+
+        if (!$tableExists) {
+            // Fallback to legacy hardcoded list if table doesn't exist yet
+            return [
+                'limpeza_basica' => 'Limpeza Basica',
+                'limpeza_profunda' => 'Limpeza Profunda',
+                'pos_obra' => 'Pos-Obra',
+                'teto' => 'Limpeza de Teto',
+                'esquadrias' => 'Esquadrias e Vidros',
+                'carpete' => 'Limpeza de Carpetes',
+                'estofados' => 'Higienizacao de Estofados',
+                'areas_externas' => 'Areas Externas',
+                'cozinha_industrial' => 'Cozinha Industrial',
+                'piscinas' => 'Piscinas',
+            ];
+        }
+
+        $capabilities = $this->wpdb->get_results(
+            "SELECT slug, display_name FROM {$this->tableCapabilities} WHERE is_active = 1 ORDER BY display_name",
+            ARRAY_A
+        );
+
+        $result = [];
+        foreach ($capabilities as $cap) {
+            $result[$cap['slug']] = $cap['display_name'];
+        }
+
+        return $result;
     }
 }

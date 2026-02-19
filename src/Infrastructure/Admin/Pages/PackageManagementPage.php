@@ -399,19 +399,8 @@ class PackageManagementPage
         $requiredSkills = isset($package['required_skills']) ? json_decode($package['required_skills'], true) : [];
         $isActive = isset($package['is_active']) ? (bool)$package['is_active'] : true;
 
-        // Skills disponíveis
-        $availableSkills = [
-            'limpeza_basica' => 'Limpeza Básica',
-            'limpeza_pesada' => 'Limpeza Pesada',
-            'pos_obra' => 'Pós-Obra',
-            'pre_mudanca' => 'Pré-Mudança',
-            'teto_pvc' => 'Limpeza de Teto PVC',
-            'esquadrias' => 'Esquadrias e Vidros',
-            'persianas' => 'Limpeza de Persianas',
-            'cortinas' => 'Limpeza de Cortinas',
-            'estofados' => 'Higienização de Estofados',
-            'carpetes' => 'Limpeza de Carpetes',
-        ];
+        // Skills carregadas do banco (wp_limpvix_capabilities)
+        $availableSkills = $this->getAvailableCapabilities();
 
         ?>
         <form method="post" action="">
@@ -509,7 +498,10 @@ class PackageManagementPage
                                 </label>
                             <?php endforeach; ?>
                         </fieldset>
-                        <p class="description">Skills que os profissionais devem ter para este pacote</p>
+                        <p class="description">
+                            Skills legadas do pacote. O novo sistema usa <a href="?page=limpvix-execution-levels">Niveis de Execucao</a>
+                            que nao possuem skills (match feito via Complexidades).
+                        </p>
                     </td>
                 </tr>
 
@@ -534,5 +526,44 @@ class PackageManagementPage
             </p>
         </form>
         <?php
+    }
+
+    /**
+     * Get available capabilities from database (replaces hardcoded skills list)
+     *
+     * @return array slug => display_name
+     */
+    private function getAvailableCapabilities(): array
+    {
+        $table = $this->wpdb->prefix . 'limpvix_capabilities';
+
+        $tableExists = $this->wpdb->get_var(
+            "SHOW TABLES LIKE '{$table}'"
+        );
+
+        if (!$tableExists) {
+            return [
+                'limpeza_basica' => 'Limpeza Basica',
+                'limpeza_profunda' => 'Limpeza Profunda',
+                'pos_obra' => 'Pos-Obra',
+                'teto' => 'Limpeza de Teto',
+                'esquadrias' => 'Esquadrias e Vidros',
+                'carpete' => 'Limpeza de Carpetes',
+                'estofados' => 'Higienizacao de Estofados',
+                'areas_externas' => 'Areas Externas',
+            ];
+        }
+
+        $capabilities = $this->wpdb->get_results(
+            "SELECT slug, display_name FROM {$table} WHERE is_active = 1 ORDER BY display_name",
+            ARRAY_A
+        );
+
+        $result = [];
+        foreach ($capabilities as $cap) {
+            $result[$cap['slug']] = $cap['display_name'];
+        }
+
+        return $result;
     }
 }

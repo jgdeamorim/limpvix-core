@@ -23,6 +23,8 @@ use LimpVix\Infrastructure\Admin\Pages\PayoutsPage;
 use LimpVix\Infrastructure\Admin\Pages\MessageTemplatesAdminPage;
 use LimpVix\Infrastructure\Admin\Pages\FeedbackManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\PackageManagementPage;
+use LimpVix\Infrastructure\Admin\Pages\ExecutionLevelManagementPage;
+use LimpVix\Infrastructure\Admin\Pages\CapabilityManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\ServiceCatalogPage;
 use LimpVix\Infrastructure\Admin\Pages\ContractManagementPage;
 use LimpVix\Infrastructure\Admin\Pages\CustomersManagementPage;
@@ -129,6 +131,16 @@ class AdminBootstrap
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\PackageManagementPage')) {
             $packagePage = new PackageManagementPage();
             $packagePage->register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\ExecutionLevelManagementPage')) {
+            $executionLevelPage = new ExecutionLevelManagementPage();
+            $executionLevelPage->register();
+        }
+
+        if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\CapabilityManagementPage')) {
+            $capabilityPage = new CapabilityManagementPage();
+            $capabilityPage->register();
         }
 
         if (class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\ServiceCatalogPage')) {
@@ -272,6 +284,25 @@ class AdminBootstrap
 
         add_submenu_page(
             self::MENU_SLUG,
+            "Niveis de Execucao",
+            "Niveis Execucao",
+            "manage_options",
+            "limpvix-execution-levels",
+            function () { (new ExecutionLevelManagementPage())->render(); }
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            "Capabilities",
+            "Capabilities",
+            "manage_options",
+            "limpvix-capabilities",
+            function () { (new CapabilityManagementPage())->render(); }
+        );
+
+        // Legacy: Pacotes (backward compat — redireciona para Niveis de Execucao)
+        add_submenu_page(
+            null, // Hidden menu
             "Gerenciar Pacotes",
             "Pacotes",
             "manage_options",
