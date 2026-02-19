@@ -33,6 +33,9 @@ class ServiceCatalogController
     private $tableServices;
     private $tableAdditionals;
     private $tableBriefingAdditionals;
+    private $tableComplexities;
+    private $tableCapabilities;
+    private $tableComplexityCapabilities;
 
     public function __construct()
     {
@@ -41,6 +44,9 @@ class ServiceCatalogController
         $this->tableServices = $wpdb->prefix . 'limpvix_service_catalog';
         $this->tableAdditionals = $wpdb->prefix . 'limpvix_service_additionals';
         $this->tableBriefingAdditionals = $wpdb->prefix . 'limpvix_briefing_additionals';
+        $this->tableComplexities = $wpdb->prefix . 'limpvix_service_complexities';
+        $this->tableCapabilities = $wpdb->prefix . 'limpvix_capabilities';
+        $this->tableComplexityCapabilities = $wpdb->prefix . 'limpvix_complexity_capabilities';
     }
 
     /**
@@ -78,6 +84,13 @@ class ServiceCatalogController
                     'description' => 'Filtrar por categoria compatível'
                 ]
             ]
+        ]);
+
+        // GET /limpvix/v1/capabilities - Listar capabilities (SSOT)
+        register_rest_route(self::NAMESPACE, '/capabilities', [
+            'methods' => 'GET',
+            'callback' => [$this, 'listCapabilities'],
+            'permission_callback' => '__return_true',
         ]);
 
         // POST /limpvix/v1/briefing/{uuid}/additionals - Adicionar extras
@@ -134,10 +147,14 @@ class ServiceCatalogController
 
             $services = $this->wpdb->get_results($sql, ARRAY_A);
 
+            // Pre-fetch complexities with capabilities per service
+            $complexitiesMap = $this->getComplexitiesForServices(array_column($services, 'id'));
+
             // Formatar resposta
-            $formatted = array_map(function($service) {
+            $formatted = array_map(function($service) use ($complexitiesMap) {
+                $serviceId = (int)$service['id'];
                 return [
-                    'id' => (int)$service['id'],
+                    'id' => $serviceId,
                     'code' => $service['service_code'],
                     'category' => $service['category'],
                     'type' => $service['service_type'],
@@ -145,7 +162,8 @@ class ServiceCatalogController
                     'description' => $service['description'],
                     'base_price' => (float)$service['base_price'],
                     'time_multiplier' => (float)$service['time_multiplier'],
-                    'requires_multiple_professionals' => (bool)$service['requires_multiple_professionals']
+                    'requires_multiple_professionals' => (bool)$service['requires_multiple_professionals'],
+                    'complexities' => $complexitiesMap[$serviceId] ?? [],
                 ];
             }, $services);
 
@@ -335,6 +353,125 @@ class ServiceCatalogController
     }
 
     /**
+     * GET /limpvix/v1/capabilities
+     *
+     * Lista todas as capabilities ativas (SSOT)
+     */
+    public function listCapabilities(WP_REST_Request $request)
+    {
+        try {
+            $tableExists = $this->wpdb->get_var("SHOW TABLES LIKE '{$this->tableCapabilities}'");
+
+            if (!$tableExists) {
+                return new WP_REST_Response([
+                    'success' => true,
+                    'data' => [],
+                    'count' => 0,
+                    'message' => 'Capabilities table not yet created',
+                ], 200);
+            }
+
+            $capabilities = $this->wpdb->get_results(
+                "SELECT id, slug, display_name, description
+                 FROM {$this->tableCapabilities}
+                 WHERE is_active = 1
+                 ORDER BY display_name",
+                ARRAY_A
+            );
+
+            $formatted = array_map(function ($cap) {
+                return [
+                    'id' => (int)$cap['id'],
+                    'slug' => $cap['slug'],
+                    'name' => $cap['display_name'],
+                    'description' => $cap['description'],
+                ];
+            }, $capabilities);
+
+            return new WP_REST_Response([
+                'success' => true,
+                'data' => $formatted,
+                'count' => count($formatted),
+            ], 200);
+
+        } catch (\Exception $e) {
+            error_log('[ServiceCatalogController] listCapabilities error: ' . $e->getMessage());
+            return new WP_Error('limpvix_capabilities_error', 'Erro ao listar capabilities', ['status' => 500]);
+        }
+    }
+
+    /**
+     * Get complexities with capabilities for a set of service IDs
+     *
+     * @param array $serviceIds
+     * @return array serviceId => [{slug, name, time_multiplier, capabilities: [{slug, name}]}]
+     */
+    private function getComplexitiesForServices(array $serviceIds): array
+    {
+        if (empty($serviceIds)) {
+            return [];
+        }
+
+        $tableExists = $this->wpdb->get_var("SHOW TABLES LIKE '{$this->tableComplexities}'");
+        if (!$tableExists) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($serviceIds), '%d'));
+        $complexities = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT id, service_id, slug, display_name, time_multiplier
+                 FROM {$this->tableComplexities}
+                 WHERE service_id IN ({$placeholders}) AND is_active = 1
+                 ORDER BY time_multiplier ASC",
+                ...$serviceIds
+            ),
+            ARRAY_A
+        );
+
+        if (empty($complexities)) {
+            return [];
+        }
+
+        // Fetch capabilities for all complexities in one query
+        $complexityIds = array_column($complexities, 'id');
+        $capPlaceholders = implode(',', array_fill(0, count($complexityIds), '%d'));
+        $capLinks = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT cc.complexity_id, c.slug, c.display_name
+                 FROM {$this->tableComplexityCapabilities} cc
+                 JOIN {$this->tableCapabilities} c ON cc.capability_id = c.id
+                 WHERE cc.complexity_id IN ({$capPlaceholders})
+                 ORDER BY c.display_name",
+                ...$complexityIds
+            ),
+            ARRAY_A
+        );
+
+        // Group capabilities by complexity_id
+        $capsByComplexity = [];
+        foreach ($capLinks as $link) {
+            $capsByComplexity[$link['complexity_id']][] = [
+                'slug' => $link['slug'],
+                'name' => $link['display_name'],
+            ];
+        }
+
+        // Build result grouped by service_id
+        $result = [];
+        foreach ($complexities as $c) {
+            $result[(int)$c['service_id']][] = [
+                'slug' => $c['slug'],
+                'name' => $c['display_name'],
+                'time_multiplier' => (float)$c['time_multiplier'],
+                'capabilities' => $capsByComplexity[$c['id']] ?? [],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * Obter label da unidade
      *
      * @param string $unitType
@@ -343,8 +480,8 @@ class ServiceCatalogController
     private function getUnitLabel(string $unitType): string
     {
         $labels = [
-            'fixed' => 'Preço fixo',
-            'per_m2' => 'Por m²',
+            'fixed' => 'Preco fixo',
+            'per_m2' => 'Por m2',
             'per_unit' => 'Por unidade'
         ];
         return $labels[$unitType] ?? $unitType;

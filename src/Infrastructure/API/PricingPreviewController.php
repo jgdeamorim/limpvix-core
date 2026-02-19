@@ -54,6 +54,10 @@ class PricingPreviewController
             $frequency = $request->get_param('frequency') ?? 'once';
             $structure = $request->get_param('structure');
 
+            // New params (FASE 6 - Service Domain Refactor)
+            $complexitySlug = $request->get_param('complexity_slug');
+            $executionLevel = $request->get_param('execution_level');
+
             // If estimated_m2 not provided but structure is, calculate it
             if ($estimatedM2 === null && $structure !== null) {
                 $ps = PropertyStructure::fromArray($structure);
@@ -79,7 +83,7 @@ class PricingPreviewController
             }
 
             // Calculate via PricingEngine SSOT
-            $result = PricingEngine::calculatePrice([
+            $pricingInput = [
                 'estimated_m2' => (float) $estimatedM2,
                 'cleaning_types' => $cleaningTypes,
                 'additionals' => $resolvedAdditionals,
@@ -88,7 +92,17 @@ class PricingPreviewController
                 'geo_index' => $geoIndex,
                 'geo_multiplier' => $geoMultiplier,
                 'frequency' => $frequency,
-            ]);
+            ];
+
+            // New params override legacy when provided
+            if ($complexitySlug !== null) {
+                $pricingInput['complexity_slug'] = $complexitySlug;
+            }
+            if ($executionLevel !== null) {
+                $pricingInput['execution_level'] = $executionLevel;
+            }
+
+            $result = PricingEngine::calculatePrice($pricingInput);
 
             return new \WP_REST_Response([
                 'success' => true,
@@ -206,7 +220,17 @@ class PricingPreviewController
             'package_type' => [
                 'required' => false,
                 'type' => 'string',
-                'description' => 'Pacote (basic, standard, premium)'
+                'description' => 'Pacote legado (basic, standard, premium)'
+            ],
+            'complexity_slug' => [
+                'required' => false,
+                'type' => 'string',
+                'description' => 'Complexidade (standard, detailed, post_construction). Substitui cleaning_types.'
+            ],
+            'execution_level' => [
+                'required' => false,
+                'type' => 'string',
+                'description' => 'Nivel de execucao (basic_execution, standard_execution, premium_execution). Substitui package_type.'
             ],
             'zip_code' => [
                 'required' => false,

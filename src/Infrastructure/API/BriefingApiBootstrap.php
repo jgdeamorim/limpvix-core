@@ -87,6 +87,7 @@ class BriefingApiBootstrap
         $stepController = new BriefingStepController($updateBriefingStepUseCase, $repository);
         $phoneController = new BriefingPhoneController($verifyBriefingPhoneUseCase, $repository);
         $packageController = new PackageController($selectPackageUseCase);
+        $executionLevelController = new ExecutionLevelController($selectPackageUseCase);
         $serviceCatalogController = new ServiceCatalogController();
         $contractController = new ContractController([], null, $jwtMiddleware);
         $pricingPreviewController = new PricingPreviewController();
@@ -96,10 +97,11 @@ class BriefingApiBootstrap
         $briefingController->register();
         $stepController->register();
         $phoneController->register();
-        $packageController->register();
-        $serviceCatalogController->register();
+        $packageController->register();           // Legacy: /packages
+        $executionLevelController->register();     // New: /execution-levels
+        $serviceCatalogController->register();     // Updated: /services + /capabilities
         $contractController->register();
-        $pricingPreviewController->register();
+        $pricingPreviewController->register();     // Updated: accepts complexity_slug + execution_level
 
         // 5. Log (debug)
         if (defined('WP_DEBUG') && WP_DEBUG) {

@@ -51,9 +51,11 @@ class BriefingStepController
     private const VALID_STEPS = [
         'property_type',
         'cleaning_types',
+        'complexity',        // New: service complexity (FASE 6)
         'structure',
-        'additionals',      // P0.5
-        'package',           // P0.5
+        'additionals',       // P0.5
+        'package',           // P0.5 legacy
+        'execution_level',   // New: execution level (FASE 6)
         'frequency',
         'contract',
         'datetime',
@@ -238,11 +240,27 @@ class BriefingStepController
                 }
                 break;
 
+            case 'complexity':
+                // FASE 6: Complexity slug validation
+                $validComplexities = ['standard', 'detailed', 'post_construction'];
+                if (!isset($stepData['complexity_slug']) || !in_array($stepData['complexity_slug'], $validComplexities, true)) {
+                    return 'step_data.complexity_slug deve ser "standard", "detailed" ou "post_construction"';
+                }
+                break;
+
             case 'package':
-                // P0.5: Package type validation
+                // P0.5: Package type validation (legacy)
                 $validPackages = ['basic', 'standard', 'premium'];
                 if (!isset($stepData['package_type']) || !in_array($stepData['package_type'], $validPackages, true)) {
                     return 'step_data.package_type deve ser "basic", "standard" ou "premium"';
+                }
+                break;
+
+            case 'execution_level':
+                // FASE 6: Execution level validation
+                $validLevels = ['basic_execution', 'standard_execution', 'premium_execution'];
+                if (!isset($stepData['execution_level']) || !in_array($stepData['execution_level'], $validLevels, true)) {
+                    return 'step_data.execution_level deve ser "basic_execution", "standard_execution" ou "premium_execution"';
                 }
                 break;
 
