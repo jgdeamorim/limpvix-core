@@ -372,12 +372,21 @@ class Hooks
                 return;
             }
 
+            // Use form values if provided, otherwise fall back to stored (decrypted) values
             $email = sanitize_email($_POST['email'] ?? '');
-            $senha = sanitize_text_field($_POST['senha'] ?? '');
+            $senhaInput = sanitize_text_field($_POST['senha'] ?? '');
+
+            // If password field is empty, use stored+decrypted password
+            if (empty($senhaInput)) {
+                $senhaStored = get_option('limpvix_ppid_senha', '');
+                $senha = \LimpVix\Infrastructure\Security\TokenEncryption::decryptSafe((string) $senhaStored);
+            } else {
+                $senha = $senhaInput;
+            }
 
             if (empty($email) || empty($senha)) {
                 wp_send_json_error([
-                    'message' => 'Email e senha são obrigatórios'
+                    'message' => 'Email e senha são obrigatórios. Configure as credenciais e salve antes de testar.'
                 ]);
                 return;
             }

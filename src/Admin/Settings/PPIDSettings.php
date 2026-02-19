@@ -101,11 +101,12 @@ class PPIDSettings
                         <label for="ppid_use_mock">Modo de Operação</label>
                     </th>
                     <td>
+                        <?php $useMock = get_option('limpvix_ppid_use_mock', '1'); ?>
                         <select name="limpvix_ppid_use_mock" id="ppid_use_mock">
-                            <option value="1" <?php selected(get_option('limpvix_ppid_use_mock', true), true); ?>>
+                            <option value="1" <?php selected($useMock, '1'); ?>>
                                 🧪 Mock (Desenvolvimento) - Simula API sem consumir créditos
                             </option>
-                            <option value="0" <?php selected(get_option('limpvix_ppid_use_mock', true), false); ?>>
+                            <option value="0" <?php selected($useMock, '0'); ?>>
                                 🌐 Real (Produção) - Usa API PPID real
                             </option>
                         </select>
@@ -144,17 +145,18 @@ class PPIDSettings
                         <input type="password"
                                name="limpvix_ppid_senha"
                                id="ppid_senha"
-                               value="<?php echo esc_attr($senha); ?>"
+                               value=""
                                class="regular-text"
-                               placeholder="••••••••"
+                               placeholder="<?php echo !empty($senha) ? '••••••••••••••• (salva)' : 'Insira a senha'; ?>"
                                autocomplete="off">
-                        <button type="button"
-                                class="button"
-                                onclick="document.getElementById('ppid_senha').type = document.getElementById('ppid_senha').type === 'password' ? 'text' : 'password'">
-                            👁️ Mostrar
-                        </button>
+                        <?php if (!empty($senha)): ?>
+                            <span class="limpvix-badge limpvix-badge-success" style="margin-left: 8px; vertical-align: middle;">🔒 Salva e criptografada</span>
+                        <?php endif; ?>
                         <p class="description">
-                            Senha da sua conta PPID. Armazenada de forma segura.
+                            Senha da sua conta PPID. Armazenada com criptografia AES-256.
+                            <?php if (!empty($senha)): ?>
+                                <br><em>Deixe em branco para manter a senha atual.</em>
+                            <?php endif; ?>
                         </p>
                     </td>
                 </tr>
@@ -180,44 +182,78 @@ class PPIDSettings
             <!-- API Info Box -->
             <div class="limpvix-card" style="margin-top: 20px; background: #f8fafc; border-left: 4px solid #3b82f6;">
                 <div class="limpvix-card-body">
-                    <h4 style="margin-top: 0;">📘 Informações da API PPID</h4>
+                    <h4 style="margin-top: 0;">📘 API PPID &mdash; Verificação de Identidade Digital</h4>
+                    <p style="margin: 0 0 16px 0; color: #6b7280; font-size: 13px;">
+                        Base URL: <code>https://api.ppid.com.br</code> &nbsp;|&nbsp;
+                        Auth: <code>Authorization: Bearer &lt;JWT&gt;</code>
+                    </p>
 
-                    <table class="widefat" style="background: white;">
-                        <tr>
-                            <td><strong>Base URL</strong></td>
-                            <td><code>https://api.ppid.com.br</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Autenticação</strong></td>
-                            <td>JWT Bearer Token (renovado automaticamente)</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Endpoints Utilizados</strong></td>
-                            <td>
-                                • <code>/api/auth/login</code> - Login<br>
-                                • <code>/api/ocr/consultar</code> - OCR de documentos<br>
-                                • <code>/api/liveness/consultar</code> - Prova de vida<br>
-                                • <code>/api/facematch/consultar</code> - Comparação facial<br>
-                                • <code>/api/classification/consultar</code> - Classificação de documento
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Consumo de Créditos</strong></td>
-                            <td>Cada chamada de API consome créditos da sua conta PPID</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Documentação</strong></td>
-                            <td>
-                                <a href="https://api.ppid.com.br/docs" target="_blank">
-                                    📖 Acessar Documentação Completa
-                                </a>
-                            </td>
-                        </tr>
+                    <!-- Produtos -->
+                    <table class="widefat" style="background: white; margin-bottom: 16px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 180px;">Produto</th>
+                                <th>Endpoint</th>
+                                <th style="width: 280px;">Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Login</strong></td>
+                                <td><code>POST /api/auth/login</code></td>
+                                <td>Retorna JWT Token (email + senha)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>OCR</strong></td>
+                                <td>
+                                    <code>POST /api/ocr/consultar</code><br>
+                                    <code>POST /api/ocr/consultar-arquivo</code>
+                                </td>
+                                <td>Extração de dados de CNH, RG, RNE (1 crédito/consulta)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Face Match</strong></td>
+                                <td>
+                                    <code>POST /api/facematch/consultar</code><br>
+                                    <code>POST /api/facematch/consultar-arquivo</code>
+                                </td>
+                                <td>Comparação facial documento vs selfie (similaridade 0-100)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Liveness</strong></td>
+                                <td>
+                                    <code>POST /api/liveness/consultar</code><br>
+                                    <code>POST /api/liveness/consultar-arquivo</code>
+                                </td>
+                                <td>Prova de vida (detecta foto de foto, máscara, iluminação)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Classification</strong></td>
+                                <td>
+                                    <code>POST /api/classification/consultar</code><br>
+                                    <code>POST /api/classification/consultar-arquivo</code>
+                                </td>
+                                <td>Classifica tipo de documento (RG, CNH, Passaporte, CTPS...)</td>
+                            </tr>
+                        </tbody>
                     </table>
 
-                    <div style="margin-top: 16px; padding: 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
-                        <strong>💡 Dica:</strong> Monitore o saldo de créditos regularmente.
-                        Configure alertas para saldo baixo em Configurações > Notificações.
+                    <!-- Códigos HTTP -->
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                        <span style="padding: 4px 10px; background: #dcfce7; color: #166534; border-radius: 4px; font-size: 12px; font-weight: 600;">200 Sucesso</span>
+                        <span style="padding: 4px 10px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 12px; font-weight: 600;">400 Requisição inválida</span>
+                        <span style="padding: 4px 10px; background: #fecaca; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600;">401 Não autenticado</span>
+                        <span style="padding: 4px 10px; background: #fecaca; color: #991b1b; border-radius: 4px; font-size: 12px; font-weight: 600;">402 Saldo insuficiente</span>
+                        <span style="padding: 4px 10px; background: #e5e7eb; color: #374151; border-radius: 4px; font-size: 12px; font-weight: 600;">500 Erro interno</span>
+                    </div>
+
+                    <div style="display: flex; gap: 12px;">
+                        <a href="https://ppid.com.br/documentacao" target="_blank" class="button button-secondary">
+                            📖 Documentação Completa
+                        </a>
+                        <div style="padding: 8px 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 12px; flex: 1;">
+                            <strong>💡</strong> Cada consulta OCR/FaceMatch/Liveness/Classification consome créditos. Monitore o saldo regularmente.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -309,7 +345,8 @@ class PPIDSettings
             'sanitize_callback' => function($value) {
                 $sanitized = sanitize_text_field($value);
                 if (empty($sanitized)) {
-                    return '';
+                    // Keep existing encrypted password when field left blank
+                    return get_option('limpvix_ppid_senha', '');
                 }
                 return \LimpVix\Infrastructure\Security\TokenEncryption::encryptSafe($sanitized);
             },
@@ -320,6 +357,12 @@ class PPIDSettings
             'type' => 'boolean',
             'default' => false,
         ]);
-        register_setting("limpvix_ppid_settings", "limpvix_ppid_use_mock", [            "type" => "boolean",            "default" => true,        ]);
+        register_setting('limpvix_ppid_settings', 'limpvix_ppid_use_mock', [
+            'type' => 'string',
+            'sanitize_callback' => function ($value) {
+                return $value === '0' ? '0' : '1';
+            },
+            'default' => '1',
+        ]);
     }
 }

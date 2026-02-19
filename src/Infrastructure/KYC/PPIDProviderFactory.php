@@ -19,7 +19,7 @@ final class PPIDProviderFactory
      */
     public static function create()
     {
-        $useMock = get_option('limpvix_ppid_use_mock', true);
+        $useMock = filter_var(get_option('limpvix_ppid_use_mock', '1'), FILTER_VALIDATE_BOOLEAN);
 
         if ($useMock) {
             error_log('[PPID] Usando MOCK Provider (desenvolvimento)');
@@ -35,7 +35,7 @@ final class PPIDProviderFactory
      */
     public static function testConnection(string $email, string $senha): array
     {
-        $useMock = get_option('limpvix_ppid_use_mock', true);
+        $useMock = filter_var(get_option('limpvix_ppid_use_mock', '1'), FILTER_VALIDATE_BOOLEAN);
 
         if ($useMock) {
             return PPIDMockProvider::testConnection($email, $senha);
