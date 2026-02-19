@@ -5,15 +5,15 @@ declare(strict_types=1);
  * ExecutePayout - Use Case para Executar Payout (Golden Rule Protected)
  *
  * RESPONSABILIDADE:
- * - Buscar Execution e validar estado VALIDATED
- * - Garantir Golden Rule: Payout SÓ se Execution::VALIDATED
+ * - Buscar Execution e validar serviço completado (CHECKED_OUT com evidência)
+ * - Garantir Golden Rule: Payout SÓ se serviço completado
  * - Checar Feedback rating (Flow 4.4 integration)
- * - Delegar execução para MercadoPagoPayoutProvider
+ * - Delegar execução para PayoutProvider (EFI Bank PIX)
  * - Retornar Result (não lança exceptions)
  *
  * PRINCÍPIOS:
  * - Use Result Pattern
- * - Validação OBRIGATÓRIA de Execution::VALIDATED
+ * - Validação OBRIGATÓRIA: Execution deve estar CHECKED_OUT (P0.1: checkout = validação)
  * - Feedback hold logic: rating ≤ 2 bloqueia payout até admin aprovar
  * - SEM lógica de negócio (apenas orquestração)
  *
@@ -52,7 +52,7 @@ class ExecutePayout
      * FLUXO (REFATORADO - FLOW 4.4):
      * 1. Buscar payout no banco
      * 2. Buscar Execution correspondente
-     * 3. ✅ GOLDEN RULE: VALIDAR Execution::VALIDATED
+     * 3. ✅ GOLDEN RULE: VALIDAR serviço completado (CHECKED_OUT com evidência)
      * 4. ✅ FEEDBACK CHECK: Se rating ≤ 2 e não aprovado → HOLD payout
      * 5. Chamar MercadoPago Provider (IRREVERSÍVEL - fora de transação)
      * 6. SE sucesso no provider:
@@ -62,7 +62,7 @@ class ExecutePayout
      * 7. Retornar Result com status
      *
      * REGRA CRÍTICA:
-     * - Payout SÓ executa se Execution::VALIDATED
+     * - Payout SÓ executa se serviço completado (CHECKED_OUT com evidência)
      * - Payout SÓ executa se Feedback aprovado OU rating >= 3
      * - Provider call ANTES de DB transaction (chamadas externas são irreversíveis)
      * - DB update DEPOIS de provider success (protegido por transação)
@@ -93,11 +93,12 @@ class ExecutePayout
                 ));
             }
 
-            // 3. ✅ GOLDEN RULE: VALIDAR Execution::VALIDATED
-            if (!$execution->getStatus()->isValidated()) {
+            // 3. ✅ GOLDEN RULE: Serviço deve estar completado (CHECKED_OUT com evidência)
+            // P0.1: isServiceCompleted() substitui isValidated() - checkout com evidência É a validação
+            if (!$execution->getStatus()->isServiceCompleted()) {
                 return Result::fail(sprintf(
-                    'Cannot execute payout: Execution must be VALIDATED (current status: %s). ' .
-                    'Professional must complete check-in, check-out and evidence validation before payout.',
+                    'Cannot execute payout: Service must be completed (current status: %s). ' .
+                    'Professional must complete check-in, check-out with evidence before payout.',
                     $execution->getStatus()->value
                 ));
             }

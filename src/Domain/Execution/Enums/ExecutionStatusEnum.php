@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace LimpVix\Domain\Execution\Enums;
 
 /**
- * Execution Status Enum (Sprint 1 - Dia 1)
+ * Execution Status Enum (Sprint 1 - Dia 1, refatorado Fase 3 P0.1)
  *
  * Estados do RASTREAMENTO EM TEMPO REAL de uma execução de serviço.
  * Usado pelo aggregate Execution (check-in GPS, evidências, SLA, geofence).
@@ -13,8 +13,11 @@ namespace LimpVix\Domain\Execution\Enums;
  * pelo aggregate ContractExecution para rastrear o ciclo de AGENDAMENTO
  * (draft → scheduled → in_progress → completed/cancelled/no_show).
  *
- * Esta enum rastreia: check-in → execução → check-out → validação → fechamento
+ * Esta enum rastreia: check-in → execução → check-out → fechamento
  * ExecutionStatus rastreia: criação → agendamento → progresso → conclusão
+ *
+ * NOTA (P0.1): Estado VALIDATED foi removido. Check-out com evidência obrigatória
+ * É a validação. Fluxo: CHECKED_OUT → CLOSED (direto).
  *
  * Tabela: wp_limpvix_executions (coluna status)
  *
@@ -26,7 +29,6 @@ enum ExecutionStatusEnum: string
     case CHECKED_IN = 'checked_in';
     case IN_EXECUTION = 'in_execution';
     case CHECKED_OUT = 'checked_out';
-    case VALIDATED = 'validated';
     case CLOSED = 'closed';
 
     /**
@@ -61,13 +63,12 @@ enum ExecutionStatusEnum: string
             self::CHECKED_IN,
             self::IN_EXECUTION,
             self::CHECKED_OUT,
-            self::VALIDATED,
             self::CLOSED,
         ]);
     }
 
     /**
-     * Verifica se check-out foi realizado
+     * Verifica se check-out foi realizado (com evidência = serviço validado)
      *
      * @return bool
      */
@@ -75,20 +76,22 @@ enum ExecutionStatusEnum: string
     {
         return $this->isIn([
             self::CHECKED_OUT,
-            self::VALIDATED,
             self::CLOSED,
         ]);
     }
 
     /**
-     * Verifica se execução foi validada
+     * Verifica se o serviço foi completado (check-out com evidência realizado)
+     *
+     * P0.1: Substitui isValidated(). Check-out com evidência É a validação.
+     * Retorna true para CHECKED_OUT ou CLOSED.
      *
      * @return bool
      */
-    public function isValidated(): bool
+    public function isServiceCompleted(): bool
     {
         return $this->isIn([
-            self::VALIDATED,
+            self::CHECKED_OUT,
             self::CLOSED,
         ]);
     }
@@ -104,8 +107,7 @@ enum ExecutionStatusEnum: string
             self::CREATED => 'Criada',
             self::CHECKED_IN => 'Check-in Realizado',
             self::IN_EXECUTION => 'Em Execução',
-            self::CHECKED_OUT => 'Check-out Realizado',
-            self::VALIDATED => 'Validada',
+            self::CHECKED_OUT => 'Validada (Check-out com Evidência)',
             self::CLOSED => 'Fechada',
         };
     }

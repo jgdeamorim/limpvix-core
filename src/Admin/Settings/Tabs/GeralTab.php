@@ -771,7 +771,7 @@ class GeralTab implements SettingsTabInterface
             ['name' => 'Submit Feedback', 'use_case' => 'LimpVix\\Application\\UseCases\\Feedback\\SubmitFeedback'],
             ['name' => 'Payout Creation', 'use_case' => 'LimpVix\\Application\\UseCases\\Financial\\ExecutePayout'],
             ['name' => 'Issue Reporting', 'entity' => 'LimpVix\\Domain\\Execution\\Issue'],
-            ['name' => 'Validation Workflow', 'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\ValidateExecution'],
+            ['name' => 'Checkout + Validation', 'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckOut'],
         ];
 
         $operationalComplete = 0;

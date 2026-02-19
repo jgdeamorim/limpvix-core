@@ -14,7 +14,7 @@ defined('ABSPATH') || exit;
  * SubmitFeedback Use Case
  *
  * BUSINESS RULES:
- * - Feedback can only be submitted for VALIDATED executions
+ * - Feedback can only be submitted for completed executions (CHECKED_OUT with evidence)
  * - One feedback per order (enforced by DB UNIQUE constraint)
  * - Rating must be 1-5
  * - Rating < 3 automatically requires admin validation
@@ -52,17 +52,17 @@ final class SubmitFeedback
         int $rating,
         ?string $comment = null
     ): Result {
-        // 1. Validate execution is VALIDATED (Golden Rule extension)
+        // 1. Validate service is completed (P0.1: CHECKED_OUT with evidence = validated)
         $execution = $this->executionRepository->findByOrderId($orderId);
 
         if ($execution === null) {
             return Result::fail(sprintf('Execution not found for order #%d', $orderId));
         }
 
-        if (!$execution->getStatus()->isValidated()) {
+        if (!$execution->getStatus()->isServiceCompleted()) {
             return Result::fail(
                 sprintf(
-                    'Cannot submit feedback: Execution must be VALIDATED (current status: %s)',
+                    'Cannot submit feedback: Service must be completed (current status: %s)',
                     $execution->getStatus()->value
                 )
             );

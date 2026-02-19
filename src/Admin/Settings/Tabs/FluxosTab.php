@@ -679,8 +679,8 @@ class FluxosTab implements SettingsTabInterface
                 'entity' => 'LimpVix\\Domain\\Execution\\Issue',
             ],
             [
-                'name' => 'Validation Workflow',
-                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\ValidateExecution',
+                'name' => 'Checkout + Validation',
+                'use_case' => 'LimpVix\\Application\\UseCases\\Execution\\PerformCheckOut',
             ],
         ];
 

@@ -12,9 +12,9 @@ declare(strict_types=1);
  * - Validar janela temporal (±60min)
  * - Rastrear SLA
  *
- * REGRAS CRÍTICAS (DIA 3):
+ * REGRAS CRÍTICAS (DIA 3, refatorado P0.1):
  * ❌ checkout sem check-in
- * ❌ validate sem evidência
+ * ❌ checkout sem evidência (checkout = validação)
  * ❌ check-in fora da geofence (150m) → SLA violation
  * ❌ check-in fora da janela (±60min) → SLA violation
  *
@@ -173,7 +173,13 @@ class Execution
     /**
      * Realizar check-out (com geolocalização e evidências)
      *
-     * REGRA CRÍTICA: Evidência obrigatória
+     * P0.1: Check-out com evidência = validação do serviço.
+     * Absorveu a lógica do antigo validate(). Após checkout:
+     * - Evidência é obrigatória e salva
+     * - Feedback window de 24h é iniciada automaticamente
+     * - Estado CHECKED_OUT = serviço validado (pronto para payout)
+     *
+     * REGRA CRÍTICA: Evidência obrigatória + check-in deve ter sido feito
      */
     public function checkOut(GeoLocation $geo, EvidenceCollection $evidence): void
     {
@@ -185,71 +191,43 @@ class Execution
             );
         }
 
+        // P0.1: Validação de evidência absorvida do antigo validate()
+        if ($evidence->isEmpty()) {
+            throw InvalidExecutionTransitionException::evidenceRequired(
+                $this->status,
+                ExecutionStatusEnum::CHECKED_OUT
+            );
+        }
+
         $this->guardTransition(ExecutionStatusEnum::CHECKED_OUT);
-        
+
         $this->status = ExecutionStatusEnum::CHECKED_OUT;
         $this->checkOutAt = new \DateTimeImmutable();
         $this->checkOutGeo = $geo;
         $this->evidence = $evidence;
+
+        // P0.1: Iniciar feedback window automaticamente após check-out
+        $this->startFeedbackWindow();
+
+        // Disparar evento de check-out/validação
+        do_action('limpvix_execution_checked_out', $this->executionUuid, $this->orderUuid, $this->professionalId);
     }
 
     /**
-     * Validar execução
+     * Check if execution service is completed and ready for payout
      *
-     * REGRA CRÍTICA (DIA 3): Evidência deve existir + SLA verificado
+     * P0.1: Substitui canBeValidated(). Verifica se o check-out foi
+     * realizado com evidência (que É a validação).
+     *
+     * @return bool True if service completed with evidence
      */
-    public function validate(): void
+    public function isServiceCompleted(): bool
     {
-        // Validação crítica: evidência deve estar presente
-        if ($this->evidence === null) {
-            throw InvalidExecutionTransitionException::evidenceRequired(
-                $this->status,
-                ExecutionStatusEnum::VALIDATED
-            );
-        }
-
-        $this->guardTransition(ExecutionStatusEnum::VALIDATED);
-        $this->status = ExecutionStatusEnum::VALIDATED;
-    }
-
-    /**
-     * Check if execution can be validated
-     *
-     * Helper method to verify if execution meets all preconditions
-     * for validation without performing the actual transition.
-     *
-     * PRECONDITIONS:
-     * - Status must be CHECKED_OUT
-     * - Evidence must be present
-     * - Check-in must have occurred
-     * - Check-out must have occurred
-     *
-     * @return bool True if execution can be validated, false otherwise
-     * @since 1.0.0 (Validation Workflow - Flow #10)
-     */
-    public function canBeValidated(): bool
-    {
-        // Must be in CHECKED_OUT status
-        if ($this->status !== ExecutionStatusEnum::CHECKED_OUT) {
-            return false;
-        }
-
-        // Evidence must be present
-        if ($this->evidence === null || $this->evidence->isEmpty()) {
-            return false;
-        }
-
-        // Check-in must have occurred
-        if ($this->checkInAt === null) {
-            return false;
-        }
-
-        // Check-out must have occurred
-        if ($this->checkOutAt === null) {
-            return false;
-        }
-
-        return true;
+        return $this->status->isServiceCompleted()
+            && $this->evidence !== null
+            && !$this->evidence->isEmpty()
+            && $this->checkInAt !== null
+            && $this->checkOutAt !== null;
     }
 
     // ========================================
@@ -318,10 +296,10 @@ class Execution
     /**
      * Start 24-hour feedback window
      *
-     * Called after execution is VALIDATED to give customer
-     * 24 hours to submit feedback before payout authorization
+     * Called automatically after check-out (P0.1: checkout = validation)
+     * to give customer 24 hours to submit feedback before payout authorization
      *
-     * @since GAP #1
+     * @since GAP #1, updated P0.1
      */
     public function startFeedbackWindow(): void
     {
@@ -429,10 +407,8 @@ class Execution
             ExecutionStatusEnum::IN_EXECUTION => [
                 ExecutionStatusEnum::CHECKED_OUT,
             ],
+            // P0.1: CHECKED_OUT → CLOSED (direto, sem VALIDATED intermediário)
             ExecutionStatusEnum::CHECKED_OUT => [
-                ExecutionStatusEnum::VALIDATED,
-            ],
-            ExecutionStatusEnum::VALIDATED => [
                 ExecutionStatusEnum::CLOSED,
             ],
             ExecutionStatusEnum::CLOSED => [],

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * (Sprint 0 - Dia 4 + Sprint 1 - Dia 4)
  *
  * RESPONSABILIDADE:
- * - Validar Execution::VALIDATED (NOVO - Sprint 1)
+ * - Validar serviço completado (CHECKED_OUT com evidência) (P0.1)
  * - Transicionar Order: IN_EXECUTION → COMPLETED
  * - Transicionar Financial: HELD → PAYOUT_AUTHORIZED
  * - Retornar Result (não lança exceptions)
@@ -18,11 +18,11 @@ declare(strict_types=1);
  *
  * REGRAS CRÍTICAS:
  * ❌ Financial::authorizePayout() SÓ se Order::COMPLETED (Sprint 0)
- * ❌ Payout SÓ se Execution::VALIDATED (Sprint 1 - DIA 4)
+ * ❌ Payout SÓ se serviço completado (CHECKED_OUT com evidência) (P0.1)
  *
  * REGRA DE OURO DO SISTEMA:
- * Pagamento só acontece se existir execução VALIDADA.
- * Não agendada, não iniciada, não "em execução" — VALIDADA.
+ * Pagamento só acontece se existir execução com check-out e evidência.
+ * Não agendada, não iniciada, não "em execução" — CHECKED_OUT com evidência.
  *
  * @package LimpVix\Application\UseCases\Order
  */
@@ -44,14 +44,14 @@ class CompleteServiceWithPayout
     /**
      * Executar Use Case
      *
-     * FLUXO (Sprint 1 - DIA 4):
-     * 0. VALIDAR Execution::VALIDATED (BLOQUEIO)
+     * FLUXO (Sprint 1 - DIA 4, refatorado P0.1):
+     * 0. VALIDAR serviço completado (CHECKED_OUT com evidência)
      * 1. Completar Order (IN_EXECUTION → COMPLETED)
      * 2. Atualizar Financial com Order status
      * 3. Autorizar Payout (HELD → PAYOUT_AUTHORIZED)
      *
      * GARANTIA:
-     * - Execution DEVE estar VALIDATED antes de qualquer transição
+     * - Serviço DEVE estar completado (CHECKED_OUT) antes de qualquer transição
      * - Financial::authorizePayout() valida Order::COMPLETED internamente
      * - Se violar qualquer regra, exception é capturada e retorna Result::fail
      *
@@ -62,11 +62,11 @@ class CompleteServiceWithPayout
      */
     public function execute(Order $order, Financial $financial, Execution $execution): Result
     {
-        // 0. VALIDAÇÃO CRÍTICA (Sprint 1 - DIA 4): Execution DEVE estar VALIDATED
+        // 0. VALIDAÇÃO CRÍTICA (P0.1): Serviço deve estar completado (CHECKED_OUT com evidência)
         // (FORA da transação - early return se falhar)
-        if (!$execution->getStatus()->isValidated()) {
+        if (!$execution->getStatus()->isServiceCompleted()) {
             return Result::fail(sprintf(
-                'Cannot authorize payout: Execution must be VALIDATED (current status: %s)',
+                'Cannot authorize payout: Service must be completed with evidence (current status: %s)',
                 $execution->getStatus()->value
             ));
         }
