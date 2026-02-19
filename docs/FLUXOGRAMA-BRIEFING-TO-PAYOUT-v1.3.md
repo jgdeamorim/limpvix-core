@@ -1,9 +1,16 @@
 # FLUXOGRAMA COMPLETO: Briefing ao Payout do Profissional
-## LimpVix Core Plugin - v1.3.2 (2026-02-19)
+## LimpVix Core Plugin - v1.3.3 (2026-02-19)
 
 > **DOCUMENTO PADRAO DE FLUXO DO SISTEMA**
 > Este arquivo eh a referencia canonica do fluxo operacional LimpVix.
 > Deve ser atualizado a cada ajuste no sistema.
+
+### Changelog v1.3.2 -> v1.3.3 (Sprint 3 Implementado)
+- FECHADO: S3.1 RetryFailedPayment agora pausa contrato apos 3 falhas + dispara limpvix_payment_max_retries_exceeded
+- FECHADO: S3.2 ReallocateProfessional com eligibility checks (skills match + service region)
+- FECHADO: S3.3 WpScheduleRepository tolerance dinamica (duration/2, min 30, max 120) + allocation_score persistido
+- FECHADO: S3.4 FrontendGuards honeypot real (campos website + limpvix_hp) + audit persistido em tabela
+- FECHADO: S3.5 OrderDetailController anomaly detection (gaps >48h, eventos duplicados, nao resolvidos >24h)
 
 ### Changelog v1.3.1 -> v1.3.2 (Sprint 2 Implementado)
 - FECHADO: S2.1 VerifyBriefingPhone com cascata OTP: Firebase → Twilio → permissivo (fallback automatico)

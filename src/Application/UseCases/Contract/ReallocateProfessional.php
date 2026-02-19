@@ -107,10 +107,8 @@ final class ReallocateProfessional
             );
         }
 
-        // TODO: Add more eligibility checks:
-        // - Has required skills for service
-        // - Within service region distance
-        // - Available during contract period
+        // Eligibility checks: skills match + region compatibility
+        $this->validateEligibility($contract, $newProfessional);
 
         // 5. Check for active executions (in_progress) - BLOCKS reallocation
         $activeExecutions = $this->executionRepository->findActiveExecutionsForContract($contractId);
@@ -203,5 +201,80 @@ final class ReallocateProfessional
                 $updatedExecutionsCount
             ),
         ];
+    }
+
+    /**
+     * Validate professional eligibility for this contract
+     *
+     * Checks:
+     * - Required skills for the service type
+     * - Service region compatibility
+     *
+     * @param mixed $contract
+     * @param mixed $newProfessional
+     * @throws \RuntimeException if ineligible
+     */
+    private function validateEligibility($contract, $newProfessional): void
+    {
+        // Check required skills for the contract's service type
+        $serviceType = $contract->getContractType();
+        $requiredSkills = $this->getRequiredSkillsForService($serviceType);
+
+        if (!empty($requiredSkills)) {
+            $professionalSkills = $newProfessional->getSkills();
+            $missingSkills = [];
+
+            foreach ($requiredSkills as $skill) {
+                if (!$professionalSkills->hasSkill($skill)) {
+                    $missingSkills[] = $skill;
+                }
+            }
+
+            if (!empty($missingSkills)) {
+                throw new \RuntimeException(sprintf(
+                    'Professional #%d lacks required skills for service "%s": %s',
+                    $newProfessional->getId(),
+                    $serviceType,
+                    implode(', ', $missingSkills)
+                ));
+            }
+        }
+
+        // Check service region compatibility
+        $professionalRegion = $newProfessional->getServiceRegion();
+        if ($professionalRegion && method_exists($contract, 'getRegion')) {
+            $contractRegion = $contract->getRegion();
+            if ($contractRegion && !$professionalRegion->coversRegion($contractRegion)) {
+                throw new \RuntimeException(sprintf(
+                    'Professional #%d service region does not cover contract region "%s"',
+                    $newProfessional->getId(),
+                    $contractRegion
+                ));
+            }
+        }
+    }
+
+    /**
+     * Get required skills for a service type from catalog
+     *
+     * @param string $serviceType
+     * @return array
+     */
+    private function getRequiredSkillsForService(string $serviceType): array
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_service_catalog';
+
+        $skills = $wpdb->get_var($wpdb->prepare(
+            "SELECT required_skills FROM {$table} WHERE slug = %s LIMIT 1",
+            $serviceType
+        ));
+
+        if (empty($skills)) {
+            return [];
+        }
+
+        $decoded = json_decode($skills, true);
+        return is_array($decoded) ? $decoded : [];
     }
 }

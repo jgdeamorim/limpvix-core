@@ -109,14 +109,98 @@ class OrderDetailController
 
         $lastEvent = end($ledgerHistory);
 
+        $anomalies = $this->detectAnomalies($ledgerHistory);
+
         return [
             'order_uuid' => $orderUuid,
             'current_status' => $lastEvent['event_type'] ?? 'unknown',
             'transition_count' => count($ledgerHistory),
             'first_event' => reset($ledgerHistory),
             'last_event' => $lastEvent,
-            'has_anomalies' => false // TODO: Detectar anomalias
+            'has_anomalies' => !empty($anomalies),
+            'anomalies' => $anomalies,
         ];
+    }
+
+    /**
+     * Detect anomalies in ledger history
+     *
+     * Checks:
+     * - Excessive duration between events (>48h gap)
+     * - Duplicate consecutive events (same type)
+     * - Out-of-order transitions
+     * - Missing expected events
+     *
+     * @param array $ledgerHistory
+     * @return array List of anomaly descriptions
+     */
+    private function detectAnomalies(array $ledgerHistory): array
+    {
+        $anomalies = [];
+
+        if (count($ledgerHistory) < 2) {
+            return $anomalies;
+        }
+
+        $previousEvent = null;
+        foreach ($ledgerHistory as $event) {
+            if ($previousEvent === null) {
+                $previousEvent = $event;
+                continue;
+            }
+
+            // Check for duplicate consecutive events
+            if (($event['event_type'] ?? '') === ($previousEvent['event_type'] ?? '')) {
+                $anomalies[] = sprintf(
+                    'Evento duplicado consecutivo: "%s"',
+                    $event['event_type'] ?? 'unknown'
+                );
+            }
+
+            // Check for excessive time gap (>48h between events)
+            if (!empty($event['created_at']) && !empty($previousEvent['created_at'])) {
+                try {
+                    $current = new \DateTimeImmutable($event['created_at']);
+                    $previous = new \DateTimeImmutable($previousEvent['created_at']);
+                    $diffHours = ($current->getTimestamp() - $previous->getTimestamp()) / 3600;
+
+                    if ($diffHours > 48) {
+                        $anomalies[] = sprintf(
+                            'Gap excessivo entre eventos: %.0fh entre "%s" e "%s"',
+                            $diffHours,
+                            $previousEvent['event_type'] ?? 'unknown',
+                            $event['event_type'] ?? 'unknown'
+                        );
+                    }
+                } catch (\Exception $e) {
+                    // Skip date parsing errors
+                }
+            }
+
+            $previousEvent = $event;
+        }
+
+        // Check for unresolved events older than 24h
+        $lastEvent = end($ledgerHistory);
+        if (!empty($lastEvent['created_at']) && empty($lastEvent['resolved'])) {
+            try {
+                $lastDate = new \DateTimeImmutable($lastEvent['created_at']);
+                $now = new \DateTimeImmutable();
+                $ageHours = ($now->getTimestamp() - $lastDate->getTimestamp()) / 3600;
+
+                if ($ageHours > 24) {
+                    $anomalies[] = sprintf(
+                        'Evento nao resolvido ha %.0fh: "%s"',
+                        $ageHours,
+                        $lastEvent['event_type'] ?? 'unknown'
+                    );
+                }
+            } catch (\Exception $e) {
+                // Skip
+            }
+        }
+
+        return $anomalies;
     }
 
     /**

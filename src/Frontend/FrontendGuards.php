@@ -110,10 +110,18 @@ class FrontendGuards
      */
     private static function checkHoneypot(): bool
     {
-        // TODO: Implementar quando tiver formulário
-        // Verificar se campo "website" (honeypot) está vazio
+        // Hidden field "website" — humans leave it empty, bots fill it in
+        // Only check if the field is present in the POST (form submitted)
+        if (isset($_POST['website']) && !empty($_POST['website'])) {
+            return false; // Bot detected
+        }
 
-        return true; // Por enquanto, sempre passa
+        // Hidden field "limpvix_hp" with CSS display:none
+        if (isset($_POST['limpvix_hp']) && !empty($_POST['limpvix_hp'])) {
+            return false; // Bot detected
+        }
+
+        return true;
     }
 
     /**
@@ -182,6 +190,18 @@ class FrontendGuards
 
         error_log('[LimpVix Security] ' . json_encode($data, JSON_UNESCAPED_UNICODE));
 
-        // TODO: Persistir em tabela de auditoria
+        // Persist to audit table
+        global $wpdb;
+        $table = $wpdb->prefix . 'limpvix_security_audit';
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") === $table) {
+            $wpdb->insert($table, [
+                'event_type' => $type,
+                'ip_address' => self::getClientIp(),
+                'user_agent' => substr($_SERVER['HTTP_USER_AGENT'] ?? 'unknown', 0, 500),
+                'context' => json_encode($context, JSON_UNESCAPED_UNICODE),
+                'created_at' => current_time('mysql'),
+            ], ['%s', '%s', '%s', '%s', '%s']);
+        }
     }
 }

@@ -255,13 +255,34 @@ class RetryFailedPayment
         // Send customer notification
         $this->notifyCustomerPaymentFailed($contract, $payment);
 
-        // TODO: Update contract status to payment_failed
-        // This should be done via domain event listener to maintain separation
-        // For now, just log - will be implemented in Phase 4 (Integration)
-        error_log(sprintf(
-            '[LimpVix] TODO: Update Contract %d status to payment_failed',
-            $contract->getId()->toInt()
-        ));
+        // Pause contract due to payment failure (pause is valid from active state)
+        try {
+            if ($contract->getStatus()->isActive()) {
+                $contract->pause('Pagamento falhou após 3 tentativas');
+                $this->contractRepository->save($contract);
+
+                error_log(sprintf(
+                    '[LimpVix] Contract %d paused due to payment failure (3 attempts exhausted)',
+                    $contract->getId()->toInt()
+                ));
+            }
+        } catch (\Exception $e) {
+            error_log(sprintf(
+                '[LimpVix] Failed to pause contract %d after payment failure: %s',
+                $contract->getId()->toInt(),
+                $e->getMessage()
+            ));
+        }
+
+        // Dispatch event for listeners (notification, admin alerts)
+        if (function_exists('do_action')) {
+            do_action('limpvix_payment_max_retries_exceeded', [
+                'contract_id' => $contract->getId()->toInt(),
+                'payment_uuid' => $payment->getPaymentUuid(),
+                'attempt_count' => $payment->getAttemptCount(),
+                'failure_reason' => $payment->getFailureReason(),
+            ]);
+        }
     }
 
     /**

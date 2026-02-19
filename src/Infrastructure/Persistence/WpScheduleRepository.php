@@ -295,9 +295,12 @@ final class WpScheduleRepository implements ScheduleRepositoryInterface
         $this->setProperty($schedule, 'requestedTime', new \DateTimeImmutable($row['requested_time']));
 
         // TimeWindow
+        // Calculate tolerance based on service duration (min 30min, max 120min, default: duration/2)
+        $durationMinutes = (int) $row['estimated_duration_minutes'];
+        $tolerance = max(30, min(120, intdiv($durationMinutes, 2)));
         $validWindow = TimeWindow::fromRequestedTime(
             new \DateTimeImmutable($row['requested_time']),
-            60 // TODO: calcular tolerance correto
+            $tolerance
         );
         $this->setProperty($schedule, 'validWindow', $validWindow);
 
@@ -371,7 +374,7 @@ final class WpScheduleRepository implements ScheduleRepositoryInterface
                     'allocated_start' => $slot->getStart()->format('Y-m-d H:i:s'),
                     'allocated_end' => $slot->getEnd()->format('Y-m-d H:i:s'),
                     'status' => 'allocated',
-                    'allocation_score' => null, // TODO: armazenar score
+                    'allocation_score' => 0.0, // Updated via ProfessionalAllocated event listener
                     'allocated_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
                 ],
                 ['%s', '%d', '%s', '%s', '%s', '%f', '%s']

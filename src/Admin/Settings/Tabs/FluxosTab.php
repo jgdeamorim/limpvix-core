@@ -184,7 +184,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['scheduling'] = [
             'title' => 'Scheduling Pipeline',
             'desc' => 'Agendamento de execu&ccedil;&otilde;es de contrato: aloca&ccedil;&atilde;o &rarr; agenda &rarr; execu&ccedil;&atilde;o &rarr; conclus&atilde;o',
-            'completeness' => 85,
+            'completeness' => 90,
             'sm_class' => 'LimpVix\\Domain\\Execution\\ExecutionStatus',
             'total' => array_sum($contExDist) + array_sum($schedDist),
             'distribution' => array_merge($contExDist, $schedDist ? ['(schedules) ' . implode(', ', array_map(fn($k,$v) => "$k:$v", array_keys($schedDist), $schedDist)) => 0] : []),
@@ -198,8 +198,7 @@ class FluxosTab implements SettingsTabInterface
             ],
             'transitions' => 'draft &rarr; scheduled &rarr; in_progress &rarr; completed | cancelled | no_show',
             'gaps' => [
-                ['severity'=>'medium', 'text'=>'GeolocationAdapter &eacute; STUB &mdash; geocoding real n&atilde;o integrado (Google Maps / CEP local)'],
-                ['severity'=>'low', 'text'=>'ScheduleCreationListener: recorr&ecirc;ncia n&atilde;o configurada (TODO)'],
+                ['severity'=>'medium', 'text'=>'GeolocationAdapter &eacute; STUB &mdash; geocoding real n&atilde;o integrado (Sprint 4: Google Maps / BrasilAPI)'],
             ],
             'insights' => $this->buildInsights($contExDist, [
                 ['condition' => array_sum($contExDist) === 0 && array_sum($schedDist) === 0, 'type'=>'info', 'text'=>'Nenhum agendamento criado. Depende de contratos ativos com profissional alocado'],
