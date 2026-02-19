@@ -1014,8 +1014,9 @@ class DependenciasTab implements SettingsTabInterface
         $checks += 1;
         if ($d['has_comm_provider']) $passed += 1;
 
-        // Payment gateway (EFI Bank)
-        $checks += 1;
+        // Payment gateway (EFI Bank: plugin ativo + credenciais)
+        $checks += 2;
+        if ($d['efi_plugin_active']) $passed += 1;
         if ($d['efi_configured']) $passed += 1;
 
         // Roles

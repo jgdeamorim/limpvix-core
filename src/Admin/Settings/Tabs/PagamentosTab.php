@@ -21,9 +21,6 @@ class PagamentosTab implements SettingsTabInterface
         $payoutRepo = new \LimpVix\Infrastructure\Finance\Repositories\WpPayoutRepository();
         $stats = $payoutRepo->getStats();
 
-        // Verificar configuração do MercadoPago (TODAS as 4 credenciais)
-        $mpStatus = $this->getMercadoPagoConfigStatus();
-
         // Calcular totais
         $totalPayouts = $stats['total_pending'] + $stats['total_approved'] + $stats['total_processing'] + $stats['total_completed'] + $stats['total_failed'];
         $successRate = $totalPayouts > 0 ? round(($stats['total_completed'] / $totalPayouts) * 100, 1) : 0;
@@ -44,7 +41,7 @@ class PagamentosTab implements SettingsTabInterface
                             💳 Sistema de Pagamentos & Payouts
                         </h1>
                         <p style="color: rgba(255, 255, 255, 0.9); margin: 0; font-size: 16px;">
-                            EFI Bank (primário) + MercadoPago (fallback) — pagamentos via PIX e repasses automáticos aos profissionais
+                            EFI Bank — pagamentos via PIX e repasses automáticos aos profissionais
                         </p>
                     </div>
                     <div style="text-align: right;">
@@ -390,69 +387,6 @@ class PagamentosTab implements SettingsTabInterface
     // PRIVATE HELPERS
     // ========================================================================
 
-    private function getMercadoPagoConfigStatus(): array
-    {
-        // Verifica se WooCommerce MercadoPago está conectado (usa MercadoPagoDetector)
-        $wcMPConnected = class_exists('LimpVix\\Admin\\Settings\\MercadoPagoDetector')
-            && \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected();
-
-        // Credenciais sincronizadas do WooCommerce (para pagamentos de clientes)
-        $status = get_option('limpvix_mp_status', []);
-        $environment = $status['environment'] ?? 'test';
-        $tokenKey = $environment === 'test' ? 'limpvix_mp_access_token_test' : 'limpvix_mp_access_token_prod';
-        $keyKey = $environment === 'test' ? 'limpvix_mp_public_key_test' : 'limpvix_mp_public_key_prod';
-
-        $accessToken = get_option($tokenKey);
-        $publicKey = get_option($keyKey);
-
-        // Credenciais OAuth LimpVix (para payouts profissionais MP→MP)
-        $clientId = get_option('limpvix_mercadopago_client_id');
-        $clientSecret = get_option('limpvix_mercadopago_client_secret');
-
-        $platformConfigured = $wcMPConnected || (!empty($accessToken) && !empty($publicKey));
-        $oauthConfigured = !empty($clientId) && !empty($clientSecret);
-        $fullyConfigured = $platformConfigured && $oauthConfigured;
-
-        $missing = [];
-        if (!$platformConfigured) {
-            if (!$wcMPConnected) {
-                $missing[] = 'WooCommerce MP não conectado';
-            }
-            if (empty($accessToken)) {
-                $missing[] = 'Access Token';
-            }
-            if (empty($publicKey)) {
-                $missing[] = 'Public Key';
-            }
-        }
-        if (!$oauthConfigured) {
-            if (empty($clientId)) {
-                $missing[] = 'Client ID (OAuth Profissionais)';
-            }
-            if (empty($clientSecret)) {
-                $missing[] = 'Client Secret (OAuth Profissionais)';
-            }
-        }
-
-        return [
-            'platform_configured' => $platformConfigured,
-            'oauth_configured' => $oauthConfigured,
-            'fully_configured' => $fullyConfigured,
-            'wc_mp_connected' => $wcMPConnected,
-            'environment' => $environment,
-            'status_icon' => $fullyConfigured ? '✓' : '⚠',
-            'status_text' => $fullyConfigured
-                ? 'Configurado e Ativo'
-                : ($platformConfigured
-                    ? 'Configuração Parcial (Falta OAuth para Profissionais)'
-                    : ($wcMPConnected
-                        ? 'WooCommerce MP OK - Configure OAuth Profissionais'
-                        : 'Conecte WooCommerce MercadoPago')),
-            'status_color' => $fullyConfigured ? '#4ade80' : '#fbbf24',
-            'missing' => $missing,
-        ];
-    }
-
     private function getPayoutFeaturesStatus(): array
     {
         global $wpdb;
@@ -462,10 +396,10 @@ class PagamentosTab implements SettingsTabInterface
 
         return [
             'pix_transfer' => [
-                'implemented' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider')
+                'implemented' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\EfiPayoutProvider')
                     && $tableExists,
-                'icon' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider') && $tableExists) ? '✅' : '❌',
-                'status' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider') && $tableExists) ? 'Ativo' : 'Não Implementado'
+                'icon' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\EfiPayoutProvider') && $tableExists) ? '✅' : '❌',
+                'status' => (class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\EfiPayoutProvider') && $tableExists) ? 'Ativo' : 'Não Implementado'
             ],
             'feedback_window' => [
                 'implemented' => class_exists('LimpVix\\Application\\UseCase\\Feedback\\CheckFeedbackWindowStatus')
@@ -494,7 +428,7 @@ class PagamentosTab implements SettingsTabInterface
             'multi_recipient' => [
                 'implemented' => $tableExists && $this->tableHasColumn($table, 'recipient_type'),
                 'icon' => ($tableExists && $this->tableHasColumn($table, 'recipient_type')) ? '✅' : '❌',
-                'status' => ($tableExists && $this->tableHasColumn($table, 'recipient_type')) ? 'PIX + Conta + MP' : 'Não Implementado'
+                'status' => ($tableExists && $this->tableHasColumn($table, 'recipient_type')) ? 'PIX + Conta Bancária' : 'Não Implementado'
             ],
         ];
     }
@@ -514,7 +448,7 @@ class PagamentosTab implements SettingsTabInterface
             ],
             'infrastructure' => [
                 'WpPayoutRepository' => class_exists('LimpVix\\Infrastructure\\Finance\\Repositories\\WpPayoutRepository'),
-                'MercadoPagoPayoutProvider' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\MercadoPagoPayoutProvider'),
+                'EfiPayoutProvider' => class_exists('LimpVix\\Infrastructure\\Finance\\Providers\\EfiPayoutProvider'),
                 'PayoutReconciliationCronAdapter' => class_exists('LimpVix\\Infrastructure\\Cron\\PayoutReconciliationCronAdapter'),
                 'ReleasePayoutHoldOnFeedbackApproved' => class_exists('LimpVix\\Infrastructure\\EventListeners\\ReleasePayoutHoldOnFeedbackApproved'),
             ],
