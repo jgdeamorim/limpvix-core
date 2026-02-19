@@ -113,27 +113,9 @@ class FeedbackManagementPage
         <?php endif;
 
         /* ── Sub-navegação ── */
-        $c2Label  = $c2Pending > 0 ? "⚠️ C2 — Bloqueiam Payout <span class='lmpx-badge-danger'>{$c2Pending}</span>" : '⚠️ C2 — Bloqueiam Payout';
-        $rvLabel  = $reviewsPending > 0 ? "⭐ Reviews <span class='lmpx-badge-warn'>{$reviewsPending}</span>" : '⭐ Reviews';
+        $c2Label  = $c2Pending > 0 ? "⚠️ C2 — Bloqueiam Payout <span class='limpvix-badge limpvix-badge-danger' style='font-size:11px;'>{$c2Pending}</span>" : '⚠️ C2 — Bloqueiam Payout';
+        $rvLabel  = $reviewsPending > 0 ? "⭐ Reviews <span class='limpvix-badge limpvix-badge-warning' style='font-size:11px;'>{$reviewsPending}</span>" : '⭐ Reviews';
         ?>
-
-    <style>
-    .lmpx-badge-danger{display:inline-block;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:0 7px;margin-left:5px;line-height:18px;vertical-align:middle;}
-    .lmpx-badge-warn{display:inline-block;background:#d97706;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:0 7px;margin-left:5px;line-height:18px;vertical-align:middle;}
-    .lmpx-fb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0 20px;}
-    .lmpx-fb-stat{padding:14px 18px;border-radius:6px;border-left:4px solid;}
-    .lmpx-fb-stat small{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;}
-    .lmpx-fb-stat strong{font-size:30px;font-weight:800;display:block;line-height:1;}
-    .lmpx-sev-grave{background:#fee2e2;border-left-color:#dc2626;}
-    .lmpx-sev-medio{background:#fef3c7;border-left-color:#d97706;}
-    .lmpx-sev-leve {background:#d1fae5;border-left-color:#059669;}
-    .lmpx-sev-ok   {background:#dbeafe;border-left-color:#2563eb;}
-    .lmpx-tag{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;}
-    .lmpx-tag-pending {background:#fef3c7;color:#92400e;}
-    .lmpx-tag-approved{background:#d1fae5;color:#065f46;}
-    .lmpx-tag-rejected{background:#fee2e2;color:#991b1b;}
-    .lmpx-action-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:4px;border:1px solid;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;background:#fff;}
-    </style>
 
     <h2 class="nav-tab-wrapper" style="margin-bottom:20px;">
         <?php $this->navTab($section, 'c2',      $c2Label,  $standalone); ?>
@@ -165,7 +147,7 @@ class FeedbackManagementPage
         $rejected = array_filter($c2, fn($r) => $r['validation_status'] === 'rejected');
 
         // Stats
-        echo '<div class="lmpx-fb-grid">';
+        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0 20px;">';
         $this->stat('Aguardam Ação',    count($pending),  '#fee2e2','#dc2626','#991b1b');
         $this->stat('Payout Liberado',  count($approved), '#d1fae5','#059669','#065f46');
         $this->stat('Payout em Hold',   count($rejected), '#f3f4f6','#6b7280','#374151');
@@ -193,7 +175,7 @@ class FeedbackManagementPage
         <div class="notice notice-success" style="margin:0;"><p>✨ Nenhum feedback C2 nos últimos 30 dias.</p></div>
         <?php return; endif; ?>
 
-        <table class="wp-list-table widefat fixed" style="border-radius:6px;overflow:hidden;">
+        <table class="limpvix-table" style="border-radius:6px;overflow:hidden;">
             <thead style="background:#f1f5f9;">
                 <tr>
                     <th style="width:50px;padding:10px 8px;">ID</th>
@@ -316,7 +298,7 @@ class FeedbackManagementPage
         <div class="notice notice-info" style="margin:0;"><p>Nenhum review neste filtro.</p></div>
         <?php return; endif; ?>
 
-        <table class="wp-list-table widefat fixed" style="border-radius:6px;overflow:hidden;">
+        <table class="limpvix-table" style="border-radius:6px;overflow:hidden;">
             <thead style="background:#f1f5f9;">
                 <tr>
                     <th style="width:50px;">ID</th>
@@ -857,17 +839,17 @@ class FeedbackManagementPage
     private function badge(string $status): string
     {
         return match($status) {
-            'approved' => '<span class="lmpx-tag lmpx-tag-approved">✅ Aprovado</span>',
-            'rejected' => '<span class="lmpx-tag lmpx-tag-rejected">❌ Rejeitado</span>',
-            default    => '<span class="lmpx-tag lmpx-tag-pending">⏳ Pendente</span>',
+            'approved' => '<span class="limpvix-badge limpvix-badge-success">Aprovado</span>',
+            'rejected' => '<span class="limpvix-badge limpvix-badge-danger">Rejeitado</span>',
+            default    => '<span class="limpvix-badge limpvix-badge-warning limpvix-badge-dot">Pendente</span>',
         };
     }
 
     private function stat(string $label, int $val, string $bg, string $border, string $color): void
     {
-        echo "<div class=\"lmpx-fb-stat\" style=\"background:{$bg};border-left-color:{$border};\">"
-           . "<small style=\"color:{$color};\">{$label}</small>"
-           . "<strong style=\"color:{$color};\">{$val}</strong>"
+        echo "<div style=\"padding:14px 18px;border-radius:6px;border-left:4px solid {$border};background:{$bg};\">"
+           . "<small style=\"display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;color:{$color};\">{$label}</small>"
+           . "<strong style=\"font-size:30px;font-weight:800;display:block;line-height:1;color:{$color};\">{$val}</strong>"
            . "</div>\n";
     }
 }
