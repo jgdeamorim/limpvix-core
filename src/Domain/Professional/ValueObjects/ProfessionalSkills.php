@@ -204,7 +204,110 @@ final class ProfessionalSkills
     }
 
     /**
-     * Retorna nível de match com skills requeridas (0-100)
+     * Verifica se possui TODAS as capabilities requeridas
+     *
+     * Capability slugs sao mapeados para skills do profissional.
+     * Usa tabela de mapeamento capability_slug → skill_code.
+     *
+     * @param string[] $capabilitySlugs Slugs de capabilities (ex: cleaning_basic, window_cleaning)
+     * @return bool
+     */
+    public function hasAllCapabilities(array $capabilitySlugs): bool
+    {
+        if (empty($capabilitySlugs)) {
+            return true;
+        }
+
+        foreach ($capabilitySlugs as $slug) {
+            $mappedSkills = self::mapCapabilityToSkills($slug);
+
+            // Profissional precisa ter pelo menos 1 das skills mapeadas
+            if (!empty($mappedSkills) && !$this->hasAnySkill($mappedSkills)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Retorna capabilities faltantes
+     *
+     * @param string[] $capabilitySlugs
+     * @return string[] Capability slugs que faltam
+     */
+    public function getMissingCapabilities(array $capabilitySlugs): array
+    {
+        $missing = [];
+        foreach ($capabilitySlugs as $slug) {
+            $mappedSkills = self::mapCapabilityToSkills($slug);
+            if (!empty($mappedSkills) && !$this->hasAnySkill($mappedSkills)) {
+                $missing[] = $slug;
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * Match percentage com capabilities (0-100)
+     *
+     * @param string[] $capabilitySlugs
+     * @return float
+     */
+    public function getCapabilityMatchPercentage(array $capabilitySlugs): float
+    {
+        if (empty($capabilitySlugs)) {
+            return 100.0;
+        }
+
+        $matchCount = 0;
+        foreach ($capabilitySlugs as $slug) {
+            $mappedSkills = self::mapCapabilityToSkills($slug);
+            if (empty($mappedSkills) || $this->hasAnySkill($mappedSkills)) {
+                $matchCount++;
+            }
+        }
+
+        return round(($matchCount / count($capabilitySlugs)) * 100, 2);
+    }
+
+    /**
+     * Mapeia capability slug para skills existentes do profissional
+     *
+     * Tabela de mapeamento bidirecional: capabilities (SSOT) → skills legadas.
+     * Quando o sistema migrar completamente para capabilities, este mapeamento
+     * sera removido e as skills serao armazenadas diretamente como capability slugs.
+     *
+     * @param string $capabilitySlug
+     * @return string[] Skills legadas correspondentes
+     */
+    private static function mapCapabilityToSkills(string $capabilitySlug): array
+    {
+        $map = [
+            'cleaning_basic'             => ['limpeza_basica'],
+            'cleaning_deep'              => ['limpeza_profunda'],
+            'cleaning_post_construction' => ['pos_obra'],
+            'cleaning_pre_move'          => ['limpeza_profunda'],
+            'window_cleaning'            => ['esquadrias', 'vidros'],
+            'ceiling_cleaning'           => ['teto'],
+            'carpet_cleaning'            => ['carpete'],
+            'upholstery_cleaning'        => ['estofados'],
+            'floor_polishing'            => ['limpeza_basica'],
+            'curtain_cleaning'           => ['esquadrias'],
+            'garden_cleaning'            => ['areas_externas'],
+            'appliance_cleaning'         => ['limpeza_basica'],
+            'cabinet_cleaning'           => ['limpeza_basica'],
+            'sanitization'               => ['limpeza_profunda'],
+            'organization'               => ['limpeza_basica'],
+            'industrial_kitchen'         => ['cozinha_industrial'],
+            'pool_cleaning'              => ['piscinas'],
+        ];
+
+        return $map[$capabilitySlug] ?? [];
+    }
+
+    /**
+     * Retorna nivel de match com skills requeridas (0-100)
      *
      * @param array $requiredSkills
      * @return float

@@ -13,6 +13,7 @@ use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Contract\ContractId;
 use LimpVix\Application\Services\Matching\ProfessionalMatcher;
+use LimpVix\Domain\Service\CapabilityRegistry;
 
 defined('ABSPATH') || exit;
 
@@ -86,8 +87,11 @@ final class SendOffers
             );
         }
 
-        // 4. Get required skills from service_code
-        $requiredSkills = $this->getRequiredSkillsFromServiceCode($contract->getServiceCode());
+        // 4. Get required capabilities (new system) with fallback to legacy skills
+        $capabilityResult = $this->getRequiredCapabilities($contractId, $contract->getServiceCode());
+        $requiredSkills = $capabilityResult['skills'];
+        $useCapabilities = $capabilityResult['use_capabilities'];
+        $capabilitySlugs = $capabilityResult['capability_slugs'];
 
         // 5. Get scheduled start date (use contract start_date with default time 10:00)
         // Note: start_date is DATE type (no time), so we set 10:00 as default matching time
@@ -97,6 +101,9 @@ final class SendOffers
         // 6. Find eligible professionals using repository pagination
         error_log("[SendOffers] DEBUG: Calling findEligibleFor with lat=$latitude, lng=$longitude");
         error_log("[SendOffers] DEBUG: Required skills: " . implode(',', $requiredSkills));
+        if ($useCapabilities) {
+            error_log("[SendOffers] DEBUG: Capabilities: " . implode(',', $capabilitySlugs));
+        }
         error_log("[SendOffers] DEBUG: DateTime: " . $scheduledDateTime->format('Y-m-d H:i:s'));
 
         $eligibleProfessionals = $this->professionalRepo->findEligibleFor(
@@ -108,13 +115,23 @@ final class SendOffers
             0 // offset
         );
 
+        // 6b. If using capabilities, filter further by capability match
+        if ($useCapabilities && !empty($capabilitySlugs)) {
+            $eligibleProfessionals = array_filter(
+                $eligibleProfessionals,
+                fn($prof) => $prof->hasRequiredCapabilities($capabilitySlugs)
+            );
+            $eligibleProfessionals = array_values($eligibleProfessionals);
+        }
+
         error_log("[SendOffers] DEBUG: findEligibleFor returned " . count($eligibleProfessionals) . " professionals");
 
         if (empty($eligibleProfessionals)) {
             throw new \RuntimeException(
                 'No eligible professionals found for this contract. ' .
                 'Criteria: location (' . $latitude . ',' . $longitude . '), ' .
-                'skills: ' . implode(', ', $requiredSkills)
+                'skills: ' . implode(', ', $requiredSkills) .
+                ($useCapabilities ? ', capabilities: ' . implode(', ', $capabilitySlugs) : '')
             );
         }
 
@@ -167,26 +184,138 @@ final class SendOffers
     }
 
     /**
-     * Map service_code to required skills
+     * Get required capabilities for matching
      *
-     * GAP D: Now uses database-driven mapping from wp_limpvix_service_catalog.required_skills
-     * Migration 025 added required_skills JSON column
+     * New system (FASE 3): Uses CapabilityRegistry to compute required capabilities
+     * from complexity + additionals. Falls back to legacy required_skills if
+     * capability tables are not populated.
+     *
+     * @param int $contractId
+     * @param string $serviceCode
+     * @return array{skills: string[], use_capabilities: bool, capability_slugs: string[]}
+     */
+    private function getRequiredCapabilities(int $contractId, string $serviceCode): array
+    {
+        // Try new capability system first
+        $complexityId = $this->getComplexityIdForContract($contractId, $serviceCode);
+
+        if ($complexityId) {
+            $additionalIds = $this->getAdditionalIdsForContract($contractId);
+            $capabilities = CapabilityRegistry::computeRequired($complexityId, $additionalIds);
+
+            if (!empty($capabilities)) {
+                $slugs = array_map(fn($cap) => $cap->getSlug(), $capabilities);
+                error_log("[SendOffers] Using capability-based matching: " . implode(', ', $slugs));
+
+                return [
+                    'skills' => ['limpeza_basica'], // Minimal skills for initial repo filter
+                    'use_capabilities' => true,
+                    'capability_slugs' => $slugs,
+                ];
+            }
+        }
+
+        // Fallback: legacy required_skills from service_catalog
+        $skills = $this->getRequiredSkillsFromServiceCode($serviceCode);
+        return [
+            'skills' => $skills,
+            'use_capabilities' => false,
+            'capability_slugs' => [],
+        ];
+    }
+
+    /**
+     * Get complexity_id for a contract's service
+     *
+     * Looks up the service_complexities table based on the contract's service_code.
+     * Returns the first active complexity for that service.
+     *
+     * @param int $contractId
+     * @param string $serviceCode
+     * @return int|null
+     */
+    private function getComplexityIdForContract(int $contractId, string $serviceCode): ?int
+    {
+        // Check if complexity tables exist
+        $complexityTable = $this->wpdb->prefix . 'limpvix_service_complexities';
+        $tableExists = $this->wpdb->get_var(
+            "SHOW TABLES LIKE '{$complexityTable}'"
+        );
+
+        if (!$tableExists) {
+            return null;
+        }
+
+        $catalogTable = $this->wpdb->prefix . 'limpvix_service_catalog';
+
+        // Get first active complexity for this service
+        $complexityId = $this->wpdb->get_var(
+            $this->wpdb->prepare(
+                "SELECT sc.id FROM {$complexityTable} sc
+                 JOIN {$catalogTable} cat ON sc.service_id = cat.id
+                 WHERE cat.service_code = %s AND sc.is_active = 1
+                 ORDER BY sc.id ASC LIMIT 1",
+                $serviceCode
+            )
+        );
+
+        return $complexityId ? (int) $complexityId : null;
+    }
+
+    /**
+     * Get additional_ids selected for a contract's briefing
+     *
+     * @param int $contractId
+     * @return int[]
+     */
+    private function getAdditionalIdsForContract(int $contractId): array
+    {
+        $contractsTable = $this->wpdb->prefix . 'limpvix_contracts';
+        $briefingAddTable = $this->wpdb->prefix . 'limpvix_briefing_additionals';
+
+        // Get briefing_uuid from contract
+        $briefingUuid = $this->wpdb->get_var(
+            $this->wpdb->prepare(
+                "SELECT briefing_uuid FROM {$contractsTable} WHERE id = %d",
+                $contractId
+            )
+        );
+
+        if (!$briefingUuid) {
+            return [];
+        }
+
+        // Get additional_ids from briefing_additionals
+        $ids = $this->wpdb->get_col(
+            $this->wpdb->prepare(
+                "SELECT additional_id FROM {$briefingAddTable} WHERE briefing_uuid = %s",
+                $briefingUuid
+            )
+        );
+
+        return array_map('intval', $ids);
+    }
+
+    /**
+     * Legacy: Map service_code to required skills
+     *
+     * Fallback when capability tables are not populated.
+     * GAP D: Uses database-driven mapping from wp_limpvix_service_catalog.required_skills
+     *
+     * @param string $serviceCode
+     * @return string[]
      */
     private function getRequiredSkillsFromServiceCode(string $serviceCode): array
     {
-        global $wpdb;
+        $table = $this->wpdb->prefix . 'limpvix_service_catalog';
 
-        // Query service catalog for required skills
-        $table = $wpdb->prefix . 'limpvix_service_catalog';
-
-        $requiredSkills = $wpdb->get_var(
-            $wpdb->prepare(
+        $requiredSkills = $this->wpdb->get_var(
+            $this->wpdb->prepare(
                 "SELECT required_skills FROM {$table} WHERE service_code = %s AND is_active = 1",
                 $serviceCode
             )
         );
 
-        // If found and valid JSON, decode and return
         if ($requiredSkills) {
             $skills = json_decode($requiredSkills, true);
 
@@ -195,9 +324,7 @@ final class SendOffers
             }
         }
 
-        // Fallback: if service not found or no skills defined, use default
-        // This ensures backwards compatibility and prevents breaking if migration not run
-        return ['limpeza_residencial']; // Default fallback
+        return ['limpeza_basica']; // Default fallback
     }
 
     /**

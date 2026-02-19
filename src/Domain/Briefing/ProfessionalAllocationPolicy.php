@@ -92,10 +92,21 @@ class ProfessionalAllocationPolicy
             }
         }
 
-        // 4. Package premium (mínimo 2 profissionais)
+        // 4. Premium execution level or legacy package premium (mínimo 2 profissionais)
+        $isPremium = false;
         if ($package && $package->getType()->isPremium()) {
-            $reasoning[] = "Pacote Premium contratado";
-            $reasoning[] = "Mínimo {$config['premium_min_professionals']} profissionais para qualidade premium";
+            $isPremium = true;
+        }
+        // New system: check ExecutionLevel if available on briefing
+        if (!$isPremium && method_exists($briefing, 'getExecutionLevel')) {
+            $executionLevel = $briefing->getExecutionLevel();
+            if ($executionLevel && method_exists($executionLevel, 'getType') && $executionLevel->getType()->isPremium()) {
+                $isPremium = true;
+            }
+        }
+        if ($isPremium) {
+            $reasoning[] = "Pacote/Nivel Premium contratado";
+            $reasoning[] = "Minimo {$config['premium_min_professionals']} profissionais para qualidade premium";
             $requiredCount = max($requiredCount, $config['premium_min_professionals']);
         }
 
@@ -266,9 +277,9 @@ class ProfessionalAllocationPolicy
             $requiredCount = max($requiredCount, $config['complex_min_professionals']);
         }
 
-        // Package
-        if ($packageType === 'premium') {
-            $reasoning[] = "Pacote Premium";
+        // Package or ExecutionLevel premium
+        if ($packageType === 'premium' || $packageType === 'premium_execution') {
+            $reasoning[] = "Pacote/Nivel Premium";
             $requiredCount = max($requiredCount, $config['premium_min_professionals']);
         }
 

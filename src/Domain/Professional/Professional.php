@@ -423,6 +423,19 @@ class Professional
         return $this->skills->hasAllSkills($requiredSkills);
     }
 
+    /**
+     * Verifica se possui todas as capabilities requeridas
+     *
+     * Usa mapeamento capability_slug → skill_code para backward compat.
+     *
+     * @param string[] $capabilitySlugs
+     * @return bool
+     */
+    public function hasRequiredCapabilities(array $capabilitySlugs): bool
+    {
+        return $this->skills->hasAllCapabilities($capabilitySlugs);
+    }
+
     public function isSuspended(): bool
     {
         if ($this->suspendedUntil === null) return false;
