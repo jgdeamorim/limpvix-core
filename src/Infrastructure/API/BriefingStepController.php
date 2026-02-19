@@ -52,6 +52,8 @@ class BriefingStepController
         'property_type',
         'cleaning_types',
         'structure',
+        'additionals',      // P0.5
+        'package',           // P0.5
         'frequency',
         'contract',
         'datetime',
@@ -216,6 +218,31 @@ class BriefingStepController
                     if (!isset($stepData[$field])) {
                         return "step_data.{$field} é obrigatório";
                     }
+                }
+                break;
+
+            case 'additionals':
+                // P0.5: Additionals are optional - validate format if provided
+                if (isset($stepData['additionals']) && !is_array($stepData['additionals'])) {
+                    return 'step_data.additionals deve ser array de {additional_id, quantity}';
+                }
+                if (isset($stepData['additionals'])) {
+                    foreach ($stepData['additionals'] as $add) {
+                        if (!isset($add['additional_id'])) {
+                            return 'Cada adicional deve ter additional_id';
+                        }
+                        if (isset($add['quantity']) && (!is_numeric($add['quantity']) || (int) $add['quantity'] < 1)) {
+                            return 'Quantidade deve ser >= 1';
+                        }
+                    }
+                }
+                break;
+
+            case 'package':
+                // P0.5: Package type validation
+                $validPackages = ['basic', 'standard', 'premium'];
+                if (!isset($stepData['package_type']) || !in_array($stepData['package_type'], $validPackages, true)) {
+                    return 'step_data.package_type deve ser "basic", "standard" ou "premium"';
                 }
                 break;
 

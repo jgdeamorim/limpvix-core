@@ -48,15 +48,16 @@ class GetBriefingSchema
     private function getSteps(string $propertyType): array
     {
         $steps = [
-            $this->getPropertyTypeStep(),
-            $this->getCleaningTypesStep(),
-            $this->getStructureStep($propertyType),
-            $this->getFrequencyStep(),
-            // Contract step é condicional (adicionado dinamicamente)
-            $this->getDateTimeStep(),
-            $this->getLocationStep(),
-            $this->getPhoneVerificationStep(),
-            $this->getCheckoutStep()
+            $this->getPropertyTypeStep(),             // Step 1
+            $this->getCleaningTypesStep(),             // Step 2
+            $this->getStructureStep($propertyType),    // Step 3
+            $this->getAdditionalsStep($propertyType),  // Step 4 (P0.5)
+            $this->getPackageStep(),                   // Step 5 (P0.5)
+            $this->getFrequencyStep(),                 // Step 6
+            $this->getDateTimeStep(),                  // Step 7
+            $this->getLocationStep(),                  // Step 8
+            $this->getPhoneVerificationStep(),         // Step 9
+            $this->getCheckoutStep()                   // Step 10
         ];
 
         return array_values(array_filter($steps));
@@ -171,12 +172,143 @@ class GetBriefingSchema
     }
 
     /**
-     * Step 4: Frequência
+     * Step 4: Serviços Adicionais (P0.5)
+     */
+    private function getAdditionalsStep(string $propertyType): array
+    {
+        // Query additionals from catalog
+        global $wpdb;
+        $additionals = [];
+
+        $table = $wpdb->prefix . 'limpvix_service_additionals';
+        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '{$table}'") === $table;
+
+        if ($tableExists) {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT id, name, slug, description, base_price, unit, property_types
+                     FROM {$table}
+                     WHERE active = 1
+                     ORDER BY sort_order ASC, name ASC"
+                ),
+                ARRAY_A
+            );
+
+            foreach ($rows as $row) {
+                // Filter by property type if specified
+                $propTypes = json_decode($row['property_types'] ?? '[]', true);
+                if (!empty($propTypes) && !in_array($propertyType, $propTypes, true)) {
+                    continue;
+                }
+
+                $additionals[] = [
+                    'value' => (int) $row['id'],
+                    'label' => $row['name'],
+                    'description' => $row['description'] ?? '',
+                    'price' => (float) ($row['base_price'] ?? 0),
+                    'unit' => $row['unit'] ?? 'unit',
+                    'slug' => $row['slug'] ?? '',
+                ];
+            }
+        }
+
+        // Fallback if table doesn't exist or is empty
+        if (empty($additionals)) {
+            $additionals = [
+                ['value' => 'window_frames', 'label' => 'Limpeza de Esquadrias', 'price' => 30.0, 'unit' => 'unit'],
+                ['value' => 'blinds', 'label' => 'Limpeza de Persianas', 'price' => 25.0, 'unit' => 'unit'],
+                ['value' => 'ceiling_pvc', 'label' => 'Limpeza de Forro PVC', 'price' => 40.0, 'unit' => 'm2'],
+                ['value' => 'upholstery', 'label' => 'Limpeza de Estofados', 'price' => 50.0, 'unit' => 'unit'],
+                ['value' => 'carpets', 'label' => 'Limpeza de Tapetes', 'price' => 35.0, 'unit' => 'unit'],
+                ['value' => 'garden', 'label' => 'Limpeza de Jardim', 'price' => 45.0, 'unit' => 'unit'],
+                ['value' => 'organization', 'label' => 'Organização', 'price' => 40.0, 'unit' => 'hour'],
+                ['value' => 'appliances', 'label' => 'Limpeza de Eletrodomésticos', 'price' => 20.0, 'unit' => 'unit'],
+                ['value' => 'cabinets', 'label' => 'Limpeza de Armários', 'price' => 25.0, 'unit' => 'unit'],
+                ['value' => 'curtains', 'label' => 'Limpeza de Cortinas', 'price' => 30.0, 'unit' => 'unit'],
+            ];
+        }
+
+        return [
+            'step' => 4,
+            'name' => 'additionals',
+            'title' => 'Serviços Adicionais',
+            'description' => 'Selecione serviços adicionais (opcional)',
+            'optional' => true,
+            'fields' => [
+                [
+                    'name' => 'additionals',
+                    'type' => 'checkbox_quantity',
+                    'required' => false,
+                    'options' => $additionals
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * Step 5: Pacote (P0.5)
+     */
+    private function getPackageStep(): array
+    {
+        // Query packages from catalog
+        global $wpdb;
+        $packages = [];
+
+        $table = $wpdb->prefix . 'limpvix_package_configs';
+        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '{$table}'") === $table;
+
+        if ($tableExists) {
+            $rows = $wpdb->get_results(
+                "SELECT type, name, description, percentage_increase
+                 FROM {$table}
+                 WHERE active = 1
+                 ORDER BY percentage_increase ASC",
+                ARRAY_A
+            );
+
+            foreach ($rows as $row) {
+                $packages[] = [
+                    'value' => $row['type'],
+                    'label' => $row['name'],
+                    'description' => $row['description'] ?? '',
+                    'percentage_increase' => (float) ($row['percentage_increase'] ?? 0),
+                ];
+            }
+        }
+
+        // Fallback
+        if (empty($packages)) {
+            $packages = [
+                ['value' => 'basic', 'label' => 'Básico', 'description' => 'Limpeza padrão', 'percentage_increase' => 0],
+                ['value' => 'standard', 'label' => 'Standard', 'description' => 'Limpeza + itens adicionais selecionados', 'percentage_increase' => 15],
+                ['value' => 'premium', 'label' => 'Premium', 'description' => 'Limpeza completa + todos adicionais + prioridade', 'percentage_increase' => 30],
+            ];
+        }
+
+        return [
+            'step' => 5,
+            'name' => 'package',
+            'title' => 'Pacote',
+            'description' => 'Escolha o nível de serviço',
+            'fields' => [
+                [
+                    'name' => 'package_type',
+                    'type' => 'radio',
+                    'required' => true,
+                    'default' => 'basic',
+                    'options' => $packages
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * Step 6: Frequência
      */
     private function getFrequencyStep(): array
     {
         return [
-            'step' => 4,
+            'step' => 6,
             'name' => 'frequency',
             'title' => 'Frequência',
             'description' => 'Com que frequência deseja o serviço?',
@@ -204,12 +336,12 @@ class GetBriefingSchema
     }
 
     /**
-     * Step 5: Data e Janela de Chegada
+     * Step 7: Data e Janela de Chegada
      */
     private function getDateTimeStep(): array
     {
         return [
-            'step' => 5,
+            'step' => 7,
             'name' => 'datetime',
             'title' => 'Data e Horário',
             'description' => 'Escolha a data e janela de chegada',
@@ -238,12 +370,12 @@ class GetBriefingSchema
     }
 
     /**
-     * Step 6: Localização
+     * Step 8: Localização
      */
     private function getLocationStep(): array
     {
         return [
-            'step' => 6,
+            'step' => 8,
             'name' => 'location',
             'title' => 'Localização',
             'description' => 'Endereço do serviço',
@@ -280,12 +412,12 @@ class GetBriefingSchema
     }
 
     /**
-     * Step 7: Verificação de Telefone (Firebase OTP)
+     * Step 9: Verificação de Telefone (Firebase OTP)
      */
     private function getPhoneVerificationStep(): array
     {
         return [
-            'step' => 7,
+            'step' => 9,
             'name' => 'phone_verification',
             'title' => 'Verificação de Telefone',
             'description' => 'Confirme seu número de telefone via SMS',
@@ -295,12 +427,12 @@ class GetBriefingSchema
     }
 
     /**
-     * Step 8: Checkout
+     * Step 10: Checkout
      */
     private function getCheckoutStep(): array
     {
         return [
-            'step' => 8,
+            'step' => 10,
             'name' => 'checkout',
             'title' => 'Pagamento',
             'description' => 'Finalize seu pedido',
