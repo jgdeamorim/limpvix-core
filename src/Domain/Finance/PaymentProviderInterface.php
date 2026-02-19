@@ -47,4 +47,37 @@ interface PaymentProviderInterface
      * @return string  Mensagem em português para o cliente/admin
      */
     public function getFailureReason(string $statusDetail): string;
+
+    /**
+     * Consultar status atual de um pagamento no gateway
+     *
+     * @param string $paymentId  ID da transação no gateway (txid para EFI Bank)
+     * @return array  Dados do pagamento incluindo 'status'
+     */
+    public function getPaymentStatus(string $paymentId): array;
+
+    /**
+     * Verificar assinatura do webhook (segurança)
+     *
+     * @param array  $headers  Headers HTTP do request
+     * @param string $body     Body cru do request
+     * @return bool  True se assinatura válida
+     */
+    public function verifyWebhookSignature(array $headers, string $body): bool;
+
+    /**
+     * Parsear payload do webhook do gateway
+     *
+     * @param array $payload  Payload JSON decodificado
+     * @return array  Dados normalizados: payment_id, event_type, status
+     */
+    public function parseWebhookPayload(array $payload): array;
+
+    /**
+     * Mapear status do gateway para status do RecurringPayment
+     *
+     * @param string $gatewayStatus  Status no formato do gateway
+     * @return string  Status normalizado: pending, completed, failed
+     */
+    public function mapStatusToRecurringPayment(string $gatewayStatus): string;
 }

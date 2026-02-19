@@ -392,19 +392,28 @@ final class ContractBootstrap
             self::logInfo('HealthController REST API registered (cron monitoring)');
         }
 
-        // 3. Register MercadoPagoWebhookController (GAP #2)
-        if (class_exists('LimpVix\\Infrastructure\\API\\Controllers\\MercadoPagoWebhookController')) {
-            $paymentUseCases = $container->has('recurring_payment_use_cases')
-                ? $container->get('recurring_payment_use_cases')
-                : ($GLOBALS['limpvix_recurring_payment_use_cases'] ?? []);
+        // 3. Register EFI Bank Webhook Controller (PIX notifications)
+        $paymentUseCases = $container->has('recurring_payment_use_cases')
+            ? $container->get('recurring_payment_use_cases')
+            : ($GLOBALS['limpvix_recurring_payment_use_cases'] ?? []);
 
-            if (isset($paymentUseCases['process_webhook'])) {
-                $webhookController = new \LimpVix\Infrastructure\API\Controllers\MercadoPagoWebhookController(
+        if (isset($paymentUseCases['process_webhook'])) {
+            // EFI Bank Webhook (primary — PIX)
+            if (class_exists('LimpVix\\Infrastructure\\API\\Controllers\\EfiBankWebhookController')) {
+                $efiWebhookController = new \LimpVix\Infrastructure\API\Controllers\EfiBankWebhookController(
                     $paymentUseCases['process_webhook']
                 );
-                $webhookController->register();
+                $efiWebhookController->register();
+                self::logInfo('EfiBankWebhookController registered at /webhooks/efi-bank');
+            }
 
-                self::logInfo('GAP #2: MercadoPagoWebhookController registered at /webhooks/mercadopago');
+            // MercadoPago Webhook (legacy — mantido para backwards compatibility)
+            if (class_exists('LimpVix\\Infrastructure\\API\\Controllers\\MercadoPagoWebhookController')) {
+                $mpWebhookController = new \LimpVix\Infrastructure\API\Controllers\MercadoPagoWebhookController(
+                    $paymentUseCases['process_webhook']
+                );
+                $mpWebhookController->register();
+                self::logInfo('MercadoPagoWebhookController registered at /webhooks/mercadopago (legacy)');
             }
         }
 
@@ -557,7 +566,10 @@ final class ContractBootstrap
         // GAP #2: Contract Renewed (auto-renewal via payment)
         add_action('limpvix_contract_renewed', [self::class, 'onContractRenewed'], 10, 1);
 
-        self::logInfo('Contract Event Listeners registered (including GAP #2 renewal)');
+        // GAP #2 FIX: RecurringPaymentCompleted → renew contract + schedule next execution
+        add_action('limpvix_recurring_payment_completed', [self::class, 'onRecurringPaymentCompleted'], 10, 1);
+
+        self::logInfo('Contract Event Listeners registered (including GAP #2 renewal + recurring payment completed)');
     }
 
     /**
@@ -933,6 +945,74 @@ final class ContractBootstrap
 
         } catch (\Exception $e) {
             self::logError('GAP #2: ContractRenewed event handler failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Handler: RecurringPaymentCompleted
+     *
+     * Triggered when a recurring payment charge is successfully processed.
+     * Renews the associated contract and schedules the next execution.
+     *
+     * @param array $eventData RecurringPaymentCompleted event data
+     * @return void
+     */
+    public static function onRecurringPaymentCompleted(array $eventData): void
+    {
+        $contractId = (int) ($eventData['contract_id'] ?? 0);
+        $paymentUuid = $eventData['payment_uuid'] ?? '';
+        $billingCycle = (int) ($eventData['billing_cycle'] ?? 0);
+
+        if ($contractId <= 0) {
+            self::logError('RecurringPaymentCompleted: missing contract_id');
+            return;
+        }
+
+        try {
+            $contractRepository = $GLOBALS['limpvix_contract_repository'] ?? null;
+            if (!$contractRepository) {
+                self::logError('RecurringPaymentCompleted: ContractRepository not available');
+                return;
+            }
+
+            $contract = $contractRepository->findById(
+                \LimpVix\Domain\Contract\ContractId::fromInt($contractId)
+            );
+
+            if (!$contract) {
+                self::logError("RecurringPaymentCompleted: Contract {$contractId} not found");
+                return;
+            }
+
+            // Renew contract: extend end_date based on frequency
+            if ($contract->getStatus()->isActive() && $contract->isAutoRenew()) {
+                $frequency = $contract->getContractType(); // weekly, biweekly, monthly
+                $extensionDays = match ($frequency) {
+                    'weekly' => 7,
+                    'biweekly' => 14,
+                    'monthly' => 30,
+                    default => 30,
+                };
+
+                $newEndDate = (new \DateTimeImmutable())->modify("+{$extensionDays} days");
+                $contract->renew($newEndDate);
+                $contractRepository->save($contract);
+
+                self::logInfo(sprintf(
+                    'RecurringPaymentCompleted: Contract %d renewed (cycle %d, payment %s, extended +%d days)',
+                    $contractId, $billingCycle, $paymentUuid, $extensionDays
+                ));
+            }
+
+            // Schedule next execution if applicable
+            do_action('limpvix_execution_scheduled', [
+                'contract_id' => $contractId,
+                'trigger' => 'recurring_payment_completed',
+                'billing_cycle' => $billingCycle,
+            ]);
+
+        } catch (\Exception $e) {
+            self::logError('RecurringPaymentCompleted handler failed: ' . $e->getMessage());
         }
     }
 

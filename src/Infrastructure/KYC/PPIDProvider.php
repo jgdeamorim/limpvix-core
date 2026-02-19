@@ -40,7 +40,8 @@ final class PPIDProvider
         }
 
         $email = get_option('limpvix_ppid_email');
-        $senha = get_option('limpvix_ppid_senha');
+        $senhaRaw = get_option('limpvix_ppid_senha');
+        $senha = \LimpVix\Infrastructure\Security\TokenEncryption::decryptSafe((string) $senhaRaw);
 
         if (empty($email) || empty($senha)) {
             throw new \RuntimeException('PPID credentials not configured');

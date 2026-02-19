@@ -6,34 +6,28 @@ namespace LimpVix\Infrastructure\Cron;
 defined('ABSPATH') || exit;
 
 /**
- * Payment Authorization Timeout Cron Adapter
+ * PIX Payment Timeout Cron Adapter (EFI Bank)
  *
  * RESPONSABILIDADE:
- * - Detectar payments PRE_AUTHORIZED há mais de 24h
- * - Capturar automaticamente (se order confirmada)
- * - Cancelar automaticamente (se order cancelada ou sem resposta)
- * - Prevenir expiração de authorization no gateway
+ * - Detectar cobranças PIX pendentes (status 'pending') há mais de TIMEOUT_HOURS
+ * - Consultar API EFI Bank para status real da cobrança
+ * - Se CONCLUIDA → marcar como pago (webhook perdido)
+ * - Se REMOVIDA* → marcar como expirado
+ * - Se ATIVA mas expirada → marcar como expirado
  *
  * FREQUÊNCIA: A cada 1 hora
  *
- * WORKFLOW:
- * 1. Buscar orders com payment_status = 'pre_authorized'
- * 2. Filtrar: authorization_date < NOW() - 24h
- * 3. Para cada payment:
- *    a. Se order está confirmada (checkout completo) → CAPTURE
- *    b. Se order está pending/cancelled → CANCEL authorization
- * 4. Registrar estatísticas
+ * CONTEXTO PIX:
+ * PIX não tem "pre-authorization". Uma cobrança PIX (cob) é:
+ * - ATIVA     → QR Code gerado, aguardando pagamento
+ * - CONCLUIDA → Pagamento recebido
+ * - REMOVIDA_PELO_USUARIO_RECEBEDOR → Cancelada pelo recebedor
+ * - REMOVIDA_PELO_PSP → Expirada/removida pelo banco
  *
  * CENÁRIO CRÍTICO QUE RESOLVE:
- * - Payment pre-authorized no gateway
- * - Order aguarda validação/checkout por >30 dias
- * - Authorization expira no gateway (perdemos pagamento)
- * - Sistema tenta capturar payment expirado → FALHA
- *
- * GOLDEN RULE:
- * - Capture SÓ se order status permiteCapture PRE-AUTHORIZATION pode ser:
- * - CAPTURED (se order confirmada) → Dinheiro é transferido
- * - CANCELLED (se order não confirmada) → Dinheiro volta ao cliente
+ * - Webhook PIX não chegou (falha de rede, servidor fora do ar)
+ * - Cobrança PIX expirou sem o sistema saber
+ * - Cliente pagou mas status ficou "pending" localmente
  *
  * @package LimpVix\Infrastructure\Cron
  * @since 0.10.0
@@ -49,12 +43,9 @@ final class PaymentAuthorizationTimeoutCronAdapter
      */
     public static function register(): void
     {
-        // Schedule event se não existir
         if (!wp_next_scheduled(self::HOOK_NAME)) {
             wp_schedule_event(time(), self::RECURRENCE, self::HOOK_NAME);
         }
-
-        // Registrar handler
         add_action(self::HOOK_NAME, [self::class, 'execute']);
     }
 
@@ -70,12 +61,12 @@ final class PaymentAuthorizationTimeoutCronAdapter
     }
 
     /**
-     * Executar timeout check
+     * Executar verificação de cobranças PIX pendentes
      *
      * @return array{
-     *     pre_authorized_count: int,
-     *     captured: int,
-     *     cancelled: int,
+     *     pending_count: int,
+     *     confirmed: int,
+     *     expired: int,
      *     errors: int,
      *     execution_time: float
      * }
@@ -87,82 +78,118 @@ final class PaymentAuthorizationTimeoutCronAdapter
         $start_time = microtime(true);
 
         $stats = [
-            'pre_authorized_count' => 0,
-            'captured' => 0,
-            'cancelled' => 0,
+            'pending_count' => 0,
+            'confirmed' => 0,
+            'expired' => 0,
             'errors' => 0,
             'execution_time' => 0.0,
         ];
 
-        error_log('[PaymentAuthorizationTimeout] Starting timeout check...');
+        error_log('[PixPaymentTimeout] Starting PIX payment timeout check...');
 
-        // Query: Orders com payment PRE_AUTHORIZED há >24h
-        // Assumindo estrutura WordPress + WooCommerce ou custom orders table
         $timeout_threshold = date('Y-m-d H:i:s', strtotime('-' . self::TIMEOUT_HOURS . ' hours'));
-
-        // NOTA: Adaptar query para estrutura real do LimpVix
-        // Exemplo genérico:
         $orders_table = $wpdb->prefix . 'limpvix_orders';
 
-        // Check if table exists
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$orders_table}'") === $orders_table;
-
-        if (!$table_exists) {
-            error_log('[PaymentAuthorizationTimeout] Orders table not found. Skipping.');
+        // Verificar se tabela existe
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$orders_table}'") !== $orders_table) {
+            error_log('[PixPaymentTimeout] Orders table not found. Skipping.');
             $stats['execution_time'] = microtime(true) - $start_time;
             return $stats;
         }
 
+        // Buscar cobranças PIX pendentes criadas há mais de TIMEOUT_HOURS
         $query = $wpdb->prepare(
-            "SELECT id, order_uuid, payment_status, order_status, authorization_date, payment_gateway
+            "SELECT id, order_uuid, payment_status, order_status,
+                    gateway_transaction_id, payment_gateway, created_at
              FROM {$orders_table}
-             WHERE payment_status = 'pre_authorized'
-               AND authorization_date < %s
+             WHERE payment_status IN ('pending', 'pre_authorized')
+               AND created_at < %s
+               AND gateway_transaction_id IS NOT NULL
+               AND gateway_transaction_id != ''
              LIMIT 100",
             $timeout_threshold
         );
 
-        $expired_authorizations = $wpdb->get_results($query, ARRAY_A);
-        $stats['pre_authorized_count'] = count($expired_authorizations);
+        $pending_payments = $wpdb->get_results($query, ARRAY_A);
+        $stats['pending_count'] = count($pending_payments);
 
         error_log(sprintf(
-            '[PaymentAuthorizationTimeout] Found %d payments with expired authorization (>%dh).',
-            $stats['pre_authorized_count'],
+            '[PixPaymentTimeout] Found %d pending PIX payments older than %dh.',
+            $stats['pending_count'],
             self::TIMEOUT_HOURS
         ));
 
-        // Process each payment
-        foreach ($expired_authorizations as $order) {
+        if ($stats['pending_count'] === 0) {
+            $stats['execution_time'] = microtime(true) - $start_time;
+            return $stats;
+        }
+
+        // Inicializar EFI Bank provider
+        $efiProvider = new \LimpVix\Infrastructure\Finance\Providers\EfiPaymentProvider();
+
+        if (!$efiProvider->isAvailable()) {
+            error_log('[PixPaymentTimeout] EFI Bank provider not available. Skipping.');
+            $stats['execution_time'] = microtime(true) - $start_time;
+            return $stats;
+        }
+
+        foreach ($pending_payments as $order) {
             try {
                 $order_id = (int) $order['id'];
-                $order_status = $order['order_status'];
-                $payment_gateway = $order['payment_gateway'] ?? 'mercadopago';
+                $txid = $order['gateway_transaction_id'];
 
-                // Decision: CAPTURE or CANCEL?
-                if (in_array($order_status, ['confirmed', 'processing', 'completed'], true)) {
-                    // Order confirmada → CAPTURE payment
-                    $captured = self::capturePayment($order_id, $payment_gateway);
+                // Consultar status real na API EFI Bank
+                $chargeData = $efiProvider->getChargeStatus($txid);
 
-                    if ($captured) {
-                        $stats['captured']++;
+                if ($chargeData === null) {
+                    // Não conseguiu consultar — pode ser problema de rede
+                    error_log(sprintf(
+                        '[PixPaymentTimeout] Could not check charge %s for order #%d',
+                        $txid,
+                        $order_id
+                    ));
+                    $stats['errors']++;
+                    continue;
+                }
+
+                $efiStatus = $chargeData['status'] ?? 'ATIVA';
+
+                if ($efiStatus === 'CONCLUIDA') {
+                    // Pagamento confirmado — webhook perdido!
+                    $confirmed = self::confirmPayment($order_id, $txid, $chargeData);
+                    if ($confirmed) {
+                        $stats['confirmed']++;
                         error_log(sprintf(
-                            '[PaymentAuthorizationTimeout] CAPTURED payment for order #%d (status: %s)',
+                            '[PixPaymentTimeout] CONFIRMED missed payment for order #%d (txid: %s)',
                             $order_id,
-                            $order_status
+                            $txid
                         ));
                     } else {
                         $stats['errors']++;
                     }
-                } else {
-                    // Order pending/cancelled → CANCEL authorization
-                    $cancelled = self::cancelAuthorization($order_id, $payment_gateway);
-
-                    if ($cancelled) {
-                        $stats['cancelled']++;
+                } elseif (in_array($efiStatus, ['REMOVIDA_PELO_USUARIO_RECEBEDOR', 'REMOVIDA_PELO_PSP'], true)) {
+                    // Cobrança removida/expirada
+                    $expired = self::expireCharge($order_id, $txid, $efiStatus);
+                    if ($expired) {
+                        $stats['expired']++;
                         error_log(sprintf(
-                            '[PaymentAuthorizationTimeout] CANCELLED authorization for order #%d (status: %s)',
+                            '[PixPaymentTimeout] EXPIRED charge for order #%d (txid: %s, reason: %s)',
                             $order_id,
-                            $order_status
+                            $txid,
+                            $efiStatus
+                        ));
+                    } else {
+                        $stats['errors']++;
+                    }
+                } elseif ($efiStatus === 'ATIVA') {
+                    // Ainda ativa mas passou do timeout — marcar como expirada
+                    $expired = self::expireCharge($order_id, $txid, 'TIMEOUT_LOCAL');
+                    if ($expired) {
+                        $stats['expired']++;
+                        error_log(sprintf(
+                            '[PixPaymentTimeout] EXPIRED (timeout) charge for order #%d (txid: %s)',
+                            $order_id,
+                            $txid
                         ));
                     } else {
                         $stats['errors']++;
@@ -171,25 +198,23 @@ final class PaymentAuthorizationTimeoutCronAdapter
             } catch (\Exception $e) {
                 $stats['errors']++;
                 error_log(sprintf(
-                    '[PaymentAuthorizationTimeout] ERROR processing order #%d: %s',
+                    '[PixPaymentTimeout] ERROR processing order #%d: %s',
                     $order['id'],
                     $e->getMessage()
                 ));
             }
         }
 
-        // Log final
         $stats['execution_time'] = microtime(true) - $start_time;
 
         error_log(sprintf(
-            '[PaymentAuthorizationTimeout] Job completed: %d captured, %d cancelled, %d errors (%.2fs)',
-            $stats['captured'],
-            $stats['cancelled'],
+            '[PixPaymentTimeout] Job completed: %d confirmed, %d expired, %d errors (%.2fs)',
+            $stats['confirmed'],
+            $stats['expired'],
             $stats['errors'],
             $stats['execution_time']
         ));
 
-        // Notificar admin se houver problemas
         if ($stats['errors'] > 0) {
             self::notifyAdmin($stats);
         }
@@ -198,37 +223,33 @@ final class PaymentAuthorizationTimeoutCronAdapter
     }
 
     /**
-     * Capturar payment (finalize authorization)
+     * Confirmar pagamento que foi detectado via polling (webhook perdido)
      *
-     * @param int $order_id Order ID
-     * @param string $gateway Payment gateway
+     * @param int    $order_id   Order ID
+     * @param string $txid       EFI Bank txid
+     * @param array  $chargeData Dados da cobrança do EFI Bank
      * @return bool Success
      */
-    private static function capturePayment(int $order_id, string $gateway): bool
+    private static function confirmPayment(int $order_id, string $txid, array $chargeData): bool
     {
         global $wpdb;
 
-        // TODO: Implement actual capture logic via gateway API
-        // Para MercadoPago: usar API de capture
-        // Para outros gateways: usar SDK apropriado
-
         try {
-            // EXEMPLO SIMPLIFICADO - Implementar integração real
-            if ($gateway === 'mercadopago') {
-                // MercadoPago capture logic
-                // $mpProvider = new MercadoPagoPaymentProvider();
-                // $result = $mpProvider->capturePayment($order_id);
-                // if (!$result) return false;
+            $orders_table = $wpdb->prefix . 'limpvix_orders';
+
+            // Extrair data do pagamento PIX
+            $paidAt = current_time('mysql');
+            if (!empty($chargeData['pix'][0]['horario'])) {
+                $paidAt = date('Y-m-d H:i:s', strtotime($chargeData['pix'][0]['horario']));
             }
 
-            // Atualizar status local
-            $orders_table = $wpdb->prefix . 'limpvix_orders';
+            $endToEndId = $chargeData['pix'][0]['endToEndId'] ?? null;
 
             $updated = $wpdb->update(
                 $orders_table,
                 [
-                    'payment_status' => 'captured',
-                    'captured_at' => current_time('mysql'),
+                    'payment_status' => 'paid',
+                    'captured_at' => $paidAt,
                     'updated_at' => current_time('mysql'),
                 ],
                 ['id' => $order_id],
@@ -236,10 +257,17 @@ final class PaymentAuthorizationTimeoutCronAdapter
                 ['%d']
             );
 
-            return $updated !== false;
+            if ($updated === false) {
+                return false;
+            }
+
+            // Disparar ação para outros listeners processarem (renovação contrato, etc.)
+            do_action('limpvix_pix_payment_confirmed_via_polling', $order_id, $txid, $chargeData);
+
+            return true;
         } catch (\Exception $e) {
             error_log(sprintf(
-                '[PaymentAuthorizationTimeout] Capture failed for order #%d: %s',
+                '[PixPaymentTimeout] Confirm failed for order #%d: %s',
                 $order_id,
                 $e->getMessage()
             ));
@@ -248,32 +276,24 @@ final class PaymentAuthorizationTimeoutCronAdapter
     }
 
     /**
-     * Cancelar authorization (refund pre-authorization)
+     * Marcar cobrança PIX como expirada
      *
-     * @param int $order_id Order ID
-     * @param string $gateway Payment gateway
+     * @param int    $order_id Order ID
+     * @param string $txid     EFI Bank txid
+     * @param string $reason   Razão da expiração (status EFI ou TIMEOUT_LOCAL)
      * @return bool Success
      */
-    private static function cancelAuthorization(int $order_id, string $gateway): bool
+    private static function expireCharge(int $order_id, string $txid, string $reason): bool
     {
         global $wpdb;
 
         try {
-            // TODO: Implement actual cancellation logic via gateway API
-            if ($gateway === 'mercadopago') {
-                // MercadoPago cancel logic
-                // $mpProvider = new MercadoPagoPaymentProvider();
-                // $result = $mpProvider->cancelAuthorization($order_id);
-                // if (!$result) return false;
-            }
-
-            // Atualizar status local
             $orders_table = $wpdb->prefix . 'limpvix_orders';
 
             $updated = $wpdb->update(
                 $orders_table,
                 [
-                    'payment_status' => 'authorization_cancelled',
+                    'payment_status' => 'expired',
                     'cancelled_at' => current_time('mysql'),
                     'updated_at' => current_time('mysql'),
                 ],
@@ -282,10 +302,16 @@ final class PaymentAuthorizationTimeoutCronAdapter
                 ['%d']
             );
 
-            return $updated !== false;
+            if ($updated === false) {
+                return false;
+            }
+
+            do_action('limpvix_pix_charge_expired', $order_id, $txid, $reason);
+
+            return true;
         } catch (\Exception $e) {
             error_log(sprintf(
-                '[PaymentAuthorizationTimeout] Cancellation failed for order #%d: %s',
+                '[PixPaymentTimeout] Expire failed for order #%d: %s',
                 $order_id,
                 $e->getMessage()
             ));
@@ -295,8 +321,6 @@ final class PaymentAuthorizationTimeoutCronAdapter
 
     /**
      * Notificar admin sobre problemas
-     *
-     * @param array $stats Estatísticas de execução
      */
     private static function notifyAdmin(array $stats): void
     {
@@ -306,25 +330,25 @@ final class PaymentAuthorizationTimeoutCronAdapter
         }
 
         $subject = sprintf(
-            '[LimpVix] Alerta: %d erros em Payment Authorization Timeout',
+            '[LimpVix] Alerta: %d erros em PIX Payment Timeout',
             $stats['errors']
         );
 
         $message = sprintf(
             "Olá,\n\n" .
-            "O sistema detectou problemas ao processar authorizations expiradas:\n\n" .
-            "- Pre-authorizations encontradas: %d\n" .
-            "- Capturadas com sucesso: %d\n" .
-            "- Canceladas com sucesso: %d\n" .
+            "O sistema detectou problemas ao processar cobranças PIX pendentes:\n\n" .
+            "- Cobranças pendentes encontradas: %d\n" .
+            "- Confirmadas (webhook perdido): %d\n" .
+            "- Expiradas: %d\n" .
             "- Erros: %d\n\n" .
             "Por favor, verifique o painel administrativo.\n\n" .
             "Dashboard: %s\n\n" .
             "---\n" .
-            "LimpVix Core v0.10.0\n" .
-            "Automated Payment Authorization Timeout System",
-            $stats['pre_authorized_count'],
-            $stats['captured'],
-            $stats['cancelled'],
+            "LimpVix Core\n" .
+            "PIX Payment Timeout Cron (EFI Bank)",
+            $stats['pending_count'],
+            $stats['confirmed'],
+            $stats['expired'],
             $stats['errors'],
             admin_url('admin.php?page=limpvix-orders')
         );
@@ -332,7 +356,7 @@ final class PaymentAuthorizationTimeoutCronAdapter
         wp_mail($admin_email, $subject, $message);
 
         error_log(sprintf(
-            '[PaymentAuthorizationTimeout] Alert email sent to %s',
+            '[PixPaymentTimeout] Alert email sent to %s',
             $admin_email
         ));
     }

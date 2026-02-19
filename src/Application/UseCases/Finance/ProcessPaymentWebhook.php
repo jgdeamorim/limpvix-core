@@ -61,14 +61,14 @@ final class ProcessPaymentWebhook
     /**
      * Execute use case
      *
-     * @param array $webhookPayload MercadoPago webhook data
+     * @param array $webhookPayload Gateway webhook data (EFI Bank PIX or legacy)
      * @param array $headers HTTP headers
      * @return Result
      */
     public function execute(array $webhookPayload, array $headers = []): Result
     {
         try {
-            // 1. Verify webhook signature (security)
+            // 1. Verify webhook signature/structure (security)
             if (!empty($headers)) {
                 $isValid = $this->paymentProvider->verifyWebhookSignature(
                     $headers,
@@ -80,7 +80,7 @@ final class ProcessPaymentWebhook
                 }
             }
 
-            // 2. Parse webhook payload
+            // 2. Parse webhook payload (provider-specific format → normalized)
             $parsed = $this->paymentProvider->parseWebhookPayload($webhookPayload);
 
             if (empty($parsed['payment_id'])) {
@@ -94,14 +94,26 @@ final class ProcessPaymentWebhook
 
             $paymentId = (string) $parsed['payment_id'];
 
-            // 3. Query MercadoPago API for current status (anti-fraud)
-            $mpPaymentData = $this->paymentProvider->getPaymentStatus($paymentId);
+            // 3. Query gateway API for current status (double-check / anti-fraud)
+            try {
+                $gatewayData = $this->paymentProvider->getPaymentStatus($paymentId);
+            } catch (\Exception $e) {
+                // Se falhar ao consultar API, usar dados do webhook diretamente
+                error_log(sprintf(
+                    '[LimpVix] Gateway status check failed for %s, using webhook data: %s',
+                    $paymentId,
+                    $e->getMessage()
+                ));
+                $gatewayData = [
+                    'status' => $parsed['status'] ?? 'CONCLUIDA',
+                    'date_approved' => $parsed['horario'] ?? null,
+                ];
+            }
 
-            // 4. Find RecurringPayment by gateway_transaction_id
+            // 4. Find RecurringPayment by gateway_transaction_id (txid)
             $payment = $this->paymentRepository->findByGatewayTransactionId($paymentId);
 
             if ($payment === null) {
-                // Payment not found - might be a non-recurring payment
                 return Result::fail(
                     sprintf('RecurringPayment not found for gateway ID: %s', $paymentId)
                 );
@@ -110,11 +122,10 @@ final class ProcessPaymentWebhook
             // 5. Check if status changed (idempotency - ignore duplicate webhooks)
             $currentStatus = $payment->getStatus()->getValue();
             $newStatus = $this->paymentProvider->mapStatusToRecurringPayment(
-                $mpPaymentData['status']
+                $gatewayData['status']
             );
 
             if ($currentStatus === $newStatus) {
-                // Status hasn't changed, ignore webhook
                 return Result::ok([
                     'message' => 'Status unchanged, webhook ignored',
                     'payment_uuid' => $payment->getPaymentUuid(),
@@ -124,7 +135,7 @@ final class ProcessPaymentWebhook
 
             // 6. Update payment status
             if ($newStatus === 'completed') {
-                $paidAt = new \DateTimeImmutable($mpPaymentData['date_approved'] ?? 'now');
+                $paidAt = new \DateTimeImmutable($gatewayData['date_approved'] ?? 'now');
                 $payment->markAsCompleted($paidAt);
 
                 // 7. Renew contract
@@ -132,21 +143,21 @@ final class ProcessPaymentWebhook
 
             } elseif ($newStatus === 'failed') {
                 $failureReason = $this->paymentProvider->getFailureReason(
-                    $mpPaymentData['status_detail'] ?? 'unknown'
+                    $gatewayData['status_detail'] ?? $gatewayData['status'] ?? 'unknown'
                 );
                 $payment->markAsFailed($failureReason);
             }
 
-            // 9. Save updated payment
+            // 8. Save updated payment
             $this->paymentRepository->save($payment);
 
-            // 10. Domain events are automatically dispatched via aggregate
+            // 9. Domain events are automatically dispatched via aggregate
 
             return Result::ok([
                 'payment_uuid' => $payment->getPaymentUuid(),
                 'old_status' => $currentStatus,
                 'new_status' => $payment->getStatus()->getValue(),
-                'mp_status' => $mpPaymentData['status'],
+                'gateway_status' => $gatewayData['status'],
                 'contract_id' => $payment->getContractId(),
             ]);
 

@@ -229,6 +229,89 @@ class EfiPaymentProvider implements PaymentProviderInterface
         return $this->sandbox;
     }
 
+    /**
+     * Consultar status de pagamento via API EFI Bank
+     * Usado pelo ProcessPaymentWebhook e PaymentAuthorizationTimeout
+     *
+     * @param string $paymentId  txid da cobrança PIX
+     * @return array  Dados da cobrança incluindo 'status'
+     */
+    public function getPaymentStatus(string $paymentId): array
+    {
+        $charge = $this->getChargeStatus($paymentId);
+
+        if ($charge === null) {
+            throw new \RuntimeException("EFI Bank: cobrança {$paymentId} não encontrada");
+        }
+
+        return [
+            'status' => $charge['status'] ?? 'ATIVA',
+            'txid' => $charge['txid'] ?? $paymentId,
+            'valor' => $charge['valor']['original'] ?? '0.00',
+            'date_approved' => $charge['pix'][0]['horario'] ?? null,
+            'payer_info' => $charge['pix'][0]['infoPagador'] ?? null,
+            'end_to_end_id' => $charge['pix'][0]['endToEndId'] ?? null,
+            'raw' => $charge,
+        ];
+    }
+
+    /**
+     * Verificar webhook da EFI Bank
+     * EFI Bank usa mTLS para autenticação do webhook — não envia HMAC.
+     * A verificação é feita no nível do servidor (certificado mTLS).
+     * Aqui apenas validamos estrutura básica do payload.
+     */
+    public function verifyWebhookSignature(array $headers, string $body): bool
+    {
+        // EFI Bank valida via mTLS no nível de conexão, não por HMAC.
+        // Se o request chegou até aqui, já foi autenticado pelo mTLS do servidor.
+        // Validação adicional: verificar se o payload tem estrutura esperada.
+        $data = json_decode($body, true);
+        return isset($data['pix']) && is_array($data['pix']);
+    }
+
+    /**
+     * Parsear payload do webhook EFI Bank PIX
+     *
+     * Formato EFI Bank:
+     * { "pix": [{ "endToEndId": "...", "txid": "...", "chave": "...", "valor": "...", "horario": "..." }] }
+     */
+    public function parseWebhookPayload(array $payload): array
+    {
+        $pixEvents = $payload['pix'] ?? [];
+
+        if (empty($pixEvents)) {
+            return ['payment_id' => null, 'event_type' => 'unknown', 'events' => []];
+        }
+
+        // Primeiro evento PIX (normalmente só vem um)
+        $firstPix = $pixEvents[0];
+
+        return [
+            'payment_id' => $firstPix['txid'] ?? null,
+            'event_type' => 'payment',
+            'status' => 'CONCLUIDA', // Se webhook PIX chegou, pagamento foi confirmado
+            'end_to_end_id' => $firstPix['endToEndId'] ?? null,
+            'valor' => $firstPix['valor'] ?? '0.00',
+            'horario' => $firstPix['horario'] ?? null,
+            'chave' => $firstPix['chave'] ?? null,
+            'events' => $pixEvents,
+        ];
+    }
+
+    /**
+     * Mapear status EFI Bank → status RecurringPayment
+     */
+    public function mapStatusToRecurringPayment(string $gatewayStatus): string
+    {
+        return match ($gatewayStatus) {
+            'CONCLUIDA' => 'completed',
+            'ATIVA' => 'pending',
+            'REMOVIDA_PELO_USUARIO_RECEBEDOR', 'REMOVIDA_PELO_PSP' => 'failed',
+            default => 'pending',
+        };
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // OAuth2 com cache
     // ─────────────────────────────────────────────────────────────────────────

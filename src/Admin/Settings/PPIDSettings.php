@@ -307,8 +307,11 @@ class PPIDSettings
         register_setting('limpvix_ppid_settings', 'limpvix_ppid_senha', [
             'type' => 'string',
             'sanitize_callback' => function($value) {
-                // TODO: Encrypt password before storing
-                return sanitize_text_field($value);
+                $sanitized = sanitize_text_field($value);
+                if (empty($sanitized)) {
+                    return '';
+                }
+                return \LimpVix\Infrastructure\Security\TokenEncryption::encryptSafe($sanitized);
             },
             'default' => '',
         ]);

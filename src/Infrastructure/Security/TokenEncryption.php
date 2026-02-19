@@ -31,27 +31,60 @@ final class TokenEncryption
      */
     public function __construct()
     {
-        // Get encryption key from wp-config.php
-        if (!defined('LIMPVIX_ENCRYPTION_KEY')) {
+        // Priority: LIMPVIX_ENCRYPTION_KEY > AUTH_KEY derived
+        if (defined('LIMPVIX_ENCRYPTION_KEY') && strlen(LIMPVIX_ENCRYPTION_KEY) === 64 && ctype_xdigit(LIMPVIX_ENCRYPTION_KEY)) {
+            $this->encryptionKey = LIMPVIX_ENCRYPTION_KEY;
+        } elseif (defined('AUTH_KEY') && strlen(AUTH_KEY) >= 32) {
+            // Derive a 64-char hex key from WordPress AUTH_KEY
+            $this->encryptionKey = hash('sha256', AUTH_KEY); // 64 hex chars
+        } else {
             throw new \RuntimeException(
-                'LIMPVIX_ENCRYPTION_KEY not defined in wp-config.php. ' .
-                'Add: define(\'LIMPVIX_ENCRYPTION_KEY\', \'your-64-char-hex-key\');'
+                'Encryption key not available. Either define LIMPVIX_ENCRYPTION_KEY (64 hex chars) in wp-config.php, ' .
+                'or ensure AUTH_KEY is set (WordPress default). Generate with: bin2hex(random_bytes(32))'
             );
         }
+    }
 
-        $this->encryptionKey = LIMPVIX_ENCRYPTION_KEY;
+    /**
+     * Singleton instance for convenience
+     */
+    private static ?self $instance = null;
 
-        // Validate key length (must be 32 bytes = 64 hex chars for AES-256)
-        if (strlen($this->encryptionKey) !== 64) {
-            throw new \RuntimeException(
-                'LIMPVIX_ENCRYPTION_KEY must be exactly 64 hexadecimal characters (32 bytes). ' .
-                'Generate with: bin2hex(random_bytes(32))'
-            );
+    public static function getInstance(): self
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
         }
+        return self::$instance;
+    }
 
-        // Validate key is valid hex
-        if (!ctype_xdigit($this->encryptionKey)) {
-            throw new \RuntimeException('LIMPVIX_ENCRYPTION_KEY must contain only hexadecimal characters (0-9, a-f)');
+    /**
+     * Encrypt with graceful degradation (returns plaintext if encryption unavailable)
+     */
+    public static function encryptSafe(string $value): string
+    {
+        try {
+            return self::getInstance()->encrypt($value) ?? $value;
+        } catch (\Exception $e) {
+            error_log('[LimpVix][Security] Encryption unavailable, storing plaintext: ' . $e->getMessage());
+            return $value;
+        }
+    }
+
+    /**
+     * Decrypt with graceful degradation (returns value as-is if not encrypted)
+     */
+    public static function decryptSafe(string $value): string
+    {
+        if (empty($value)) {
+            return $value;
+        }
+        try {
+            $decrypted = self::getInstance()->decrypt($value);
+            return $decrypted ?? $value;
+        } catch (\Exception $e) {
+            // Value is likely plaintext (not encrypted yet)
+            return $value;
         }
     }
 
