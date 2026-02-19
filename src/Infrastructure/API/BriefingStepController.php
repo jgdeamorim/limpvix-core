@@ -292,6 +292,7 @@ class BriefingStepController
             'phone_verified' => $briefing->isPhoneVerified(),
             'requires_contract' => $briefing->requiresContract(),
             'is_locked' => $briefing->isLocked(),
+            'cleaning_types' => $briefing->getCleaningTypes(),
             'version' => $briefing->getVersion(),
             'created_at' => $briefing->getCreatedAt()->format('c'),
             'updated_at' => $briefing->getUpdatedAt()->format('c')

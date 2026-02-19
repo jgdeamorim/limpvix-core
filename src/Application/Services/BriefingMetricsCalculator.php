@@ -224,7 +224,7 @@ class BriefingMetricsCalculator
      *
      * @return array
      */
-    public function getTimeFa (): array
+    public function getTimeFactors(): array
     {
         return array_merge(self::TIME_FACTORS, self::ADDITIONAL_TIME_FACTORS);
     }

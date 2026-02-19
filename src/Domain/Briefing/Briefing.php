@@ -134,6 +134,13 @@ class Briefing
     private $updatedAt;
 
     /**
+     * Tipos de limpeza selecionados
+     *
+     * @var array
+     */
+    private $cleaningTypes;
+
+    /**
      * Data de lock (quando transicionou para locked)
      * Null enquanto não estiver locked
      *
@@ -156,6 +163,7 @@ class Briefing
      * @param Complexity|null $complexity Complexidade do serviço
      * @param bool $phoneVerified Telefone verificado?
      * @param string $version Versão do schema
+     * @param array $cleaningTypes Tipos de limpeza selecionados
      * @param \DateTimeImmutable|null $createdAt Data criação
      * @param \DateTimeImmutable|null $updatedAt Data atualização
      * @param \DateTimeImmutable|null $lockedAt Data lock
@@ -173,6 +181,7 @@ class Briefing
         ?Complexity $complexity = null,
         bool $phoneVerified = false,
         string $version = '1.0',
+        array $cleaningTypes = [],
         ?\DateTimeImmutable $createdAt = null,
         ?\DateTimeImmutable $updatedAt = null,
         ?\DateTimeImmutable $lockedAt = null
@@ -198,6 +207,7 @@ class Briefing
         $this->complexity = $complexity;
         $this->phoneVerified = $phoneVerified;
         $this->version = $version;
+        $this->cleaningTypes = $cleaningTypes;
         $this->createdAt = $createdAt ?? new \DateTimeImmutable();
         $this->updatedAt = $updatedAt ?? new \DateTimeImmutable();
         $this->lockedAt = $lockedAt;
@@ -281,6 +291,11 @@ class Briefing
     public function getVersion(): string
     {
         return $this->version;
+    }
+
+    public function getCleaningTypes(): array
+    {
+        return $this->cleaningTypes;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
@@ -449,6 +464,20 @@ class Briefing
     }
 
     /**
+     * Atualizar tipos de limpeza selecionados
+     *
+     * @param array $cleaningTypes
+     * @return void
+     * @throws \DomainException Se locked
+     */
+    public function updateCleaningTypes(array $cleaningTypes): void
+    {
+        $this->assertNotLocked();
+        $this->cleaningTypes = $cleaningTypes;
+        $this->touch();
+    }
+
+    /**
      * Calcular métricas baseado na estrutura atual
      *
      * Método simplificado - cálculo completo está em BriefingMetricsCalculator
@@ -526,6 +555,7 @@ class Briefing
             'phone_verified' => $this->phoneVerified,
             'requires_contract' => $this->requiresContract(),
             'version' => $this->version,
+            'cleaning_types' => $this->cleaningTypes,
             'created_at' => $this->createdAt->format('Y-m-d H:i:s'),
             'updated_at' => $this->updatedAt->format('Y-m-d H:i:s'),
             'locked_at' => $this->lockedAt ? $this->lockedAt->format('Y-m-d H:i:s') : null

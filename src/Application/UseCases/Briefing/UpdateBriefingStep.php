@@ -139,6 +139,10 @@ class UpdateBriefingStep
     private function applyStepUpdate(Briefing $briefing, string $stepName, array $stepData): void
     {
         switch ($stepName) {
+            case 'cleaning_types':
+                $briefing->updateCleaningTypes($stepData['cleaning_types'] ?? []);
+                break;
+
             case 'structure':
                 $structure = PropertyStructure::fromArray($stepData);
                 $briefing->updateStructure($structure);
@@ -206,7 +210,11 @@ class UpdateBriefingStep
             return; // Sem estrutura, não pode calcular
         }
 
-        $cleaningTypes = $stepData['cleaning_types'] ?? [];
+        // Usar cleaningTypes do aggregate (persistido), com fallback para stepData
+        $cleaningTypes = $briefing->getCleaningTypes();
+        if (empty($cleaningTypes) && isset($stepData['cleaning_types'])) {
+            $cleaningTypes = $stepData['cleaning_types'];
+        }
         $additionalConditions = $stepData['additional_conditions'] ?? [];
 
         $metrics = $this->metricsCalculator->calculate(

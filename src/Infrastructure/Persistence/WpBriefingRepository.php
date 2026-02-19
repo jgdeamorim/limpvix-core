@@ -450,6 +450,9 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             $complexity = $this->hydrateComplexity($mainRow['complexity_level'], $mainRow['complexity_multiplier']);
         }
 
+        // CleaningTypes (de briefing_data)
+        $cleaningTypes = $dataRows['cleaning_types'] ?? [];
+
         // Construir Briefing
         return new Briefing(
             uuid: $mainRow['uuid'],
@@ -464,6 +467,7 @@ class WpBriefingRepository implements BriefingRepositoryInterface
             complexity: $complexity,
             phoneVerified: (bool) $mainRow['phone_verified'],
             version: $mainRow['version'],
+            cleaningTypes: $cleaningTypes,
             createdAt: new \DateTimeImmutable($mainRow['created_at']),
             updatedAt: new \DateTimeImmutable($mainRow['updated_at']),
             lockedAt: $mainRow['locked_at'] ? new \DateTimeImmutable($mainRow['locked_at']) : null
@@ -528,6 +532,10 @@ class WpBriefingRepository implements BriefingRepositoryInterface
 
         if ($briefing->getFrequency() !== null) {
             $data['frequency'] = $briefing->getFrequency()->toArray();
+        }
+
+        if (!empty($briefing->getCleaningTypes())) {
+            $data['cleaning_types'] = $briefing->getCleaningTypes();
         }
 
         return $data;
