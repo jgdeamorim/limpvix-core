@@ -67,11 +67,18 @@ class DependenciasTab implements SettingsTabInterface
         }
         $d['woocommerce_active'] = is_plugin_active('woocommerce/woocommerce.php');
         $d['woocommerce_version'] = $d['woocommerce_active'] ? $this->getPluginVersion('woocommerce/woocommerce.php') : null;
-        $d['efi_active'] = is_plugin_active('woo-gerencianet-official/woo-gerencianet-official.php');
-        $d['efi_version'] = $d['efi_active'] ? $this->getPluginVersion('woo-gerencianet-official/woo-gerencianet-official.php') : null;
-        $d['mercadopago_active'] = is_plugin_active('woocommerce-mercadopago/woocommerce-mercadopago.php');
-        $d['mercadopago_version'] = $d['mercadopago_active'] ? $this->getPluginVersion('woocommerce-mercadopago/woocommerce-mercadopago.php') : null;
+        $d['efi_plugin_active'] = is_plugin_active('woo-gerencianet-official/woo-gerencianet-official.php');
+        $d['efi_plugin_version'] = $d['efi_plugin_active'] ? $this->getPluginVersion('woo-gerencianet-official/woo-gerencianet-official.php') : null;
         $d['limpvix_version'] = defined('LIMPVIX_VERSION') ? LIMPVIX_VERSION : '0.2.0';
+
+        // ── EFI Bank API credentials ──
+        $d['efi_client_id'] = get_option('limpvix_efi_client_id', '');
+        $d['efi_client_secret'] = get_option('limpvix_efi_client_secret', '');
+        $d['efi_pix_key'] = get_option('limpvix_efi_pix_key', '');
+        $d['efi_cert_path'] = get_option('limpvix_efi_cert_path', '');
+        $d['efi_sandbox'] = get_option('limpvix_efi_sandbox', 'no') === 'yes';
+        $d['efi_configured'] = !empty($d['efi_client_id']) && !empty($d['efi_client_secret']) && !empty($d['efi_pix_key']);
+        $d['efi_cert_ok'] = !empty($d['efi_cert_path']) && file_exists($d['efi_cert_path']);
 
         // ── REST API routes ──
         $d['rest_routes'] = $this->countRestRoutes();
@@ -97,16 +104,27 @@ class DependenciasTab implements SettingsTabInterface
         // ── Feature Flags ──
         $d['flags'] = $this->getFeatureFlagStatus();
 
-        // ── Communication ──
-        $d['twilio_configured'] = !empty(get_option('limpvix_twilio_account_sid'))
-                                && !empty(get_option('limpvix_twilio_auth_token'));
+        // ── Communication Providers ──
+        $d['twilio_account_sid'] = get_option('limpvix_twilio_account_sid', '');
+        $d['twilio_auth_token'] = get_option('limpvix_twilio_auth_token', '');
+        $d['twilio_verify_sid'] = get_option('limpvix_twilio_verify_service_sid', '');
+        $d['twilio_from_number'] = get_option('limpvix_twilio_from_number', '');
+        $d['twilio_configured'] = !empty($d['twilio_account_sid']) && !empty($d['twilio_auth_token']);
         $d['twilio_enabled'] = (bool) get_option('limpvix_twilio_enabled', false);
-        $d['nvoip_configured'] = !empty(get_option('limpvix_nvoip_email'))
-                               && !empty(get_option('limpvix_nvoip_password'));
-        $d['nvoip_enabled'] = (bool) get_option('limpvix_nvoip_enabled', false);
+
+        $nvoipSettings = get_option('limpvix_nvoip_settings', []);
+        if (!is_array($nvoipSettings)) $nvoipSettings = [];
+        $d['nvoip_configured'] = !empty($nvoipSettings['api_key']) && !empty($nvoipSettings['user_token']);
+        $d['nvoip_enabled'] = !empty($nvoipSettings['enabled']);
+        $d['nvoip_number'] = $nvoipSettings['default_number'] ?? '';
+
         $d['ppid_configured'] = !empty(get_option('limpvix_ppid_email'))
-                              && !empty(get_option('limpvix_ppid_password'));
+                              && !empty(get_option('limpvix_ppid_senha'));
         $d['ppid_enabled'] = (bool) get_option('limpvix_ppid_enabled', false);
+
+        $d['firebase_configured'] = !empty(get_option('limpvix_firebase_credentials'))
+                                  || !empty(get_option('limpvix_firebase_project_id'));
+
         $d['has_comm_provider'] = ($d['twilio_configured'] && $d['twilio_enabled'])
                                 || ($d['nvoip_configured'] && $d['nvoip_enabled']);
 
@@ -266,13 +284,12 @@ class DependenciasTab implements SettingsTabInterface
     {
         $plugins = [
             ['WooCommerce', $d['woocommerce_active'], $d['woocommerce_version'], '5.0.0', 'OBRIGATORIO', 'E-commerce e checkout de clientes'],
-            ['EFI Bank (Gerencianet)', $d['efi_active'], $d['efi_version'], null, 'RECOMENDADO', 'PIX cobranca e payouts via EFI'],
-            ['WC MercadoPago', $d['mercadopago_active'], $d['mercadopago_version'], '6.0.0', 'OPCIONAL', 'Gateway alternativo de pagamento'],
+            ['EFI Bank (Gerencianet)', $d['efi_plugin_active'], $d['efi_plugin_version'], null, 'OBRIGATORIO', 'PIX cobranca (cob) e payouts (cash-out) via EFI'],
         ];
         ?>
         <div class="lvx-section">
             <div class="lvx-section-head">
-                <h3>&#128268; Plugins &amp; Gateways de Pagamento</h3>
+                <h3>&#128268; Plugins &amp; Gateway de Pagamento</h3>
             </div>
             <div class="lvx-section-body">
                 <table class="lvx-tbl">
@@ -280,7 +297,7 @@ class DependenciasTab implements SettingsTabInterface
                     <tbody>
                     <?php foreach ($plugins as [$name, $active, $ver, $minVer, $req, $desc]): ?>
                         <tr>
-                            <td><?php echo $active ? '<span class="lvx-ok">&#9989;</span>' : ($req === 'OBRIGATORIO' ? '<span class="lvx-err">&#10060;</span>' : '<span class="lvx-muted">&#9898;</span>'); ?></td>
+                            <td><?php echo $active ? '<span class="lvx-ok">&#9989;</span>' : '<span class="lvx-err">&#10060;</span>'; ?></td>
                             <td><strong><?php echo esc_html($name); ?></strong></td>
                             <td>
                                 <?php if ($ver): ?>
@@ -294,23 +311,48 @@ class DependenciasTab implements SettingsTabInterface
                                     <span class="lvx-muted">N/A</span>
                                 <?php endif; ?>
                             </td>
-                            <td><span class="lvx-badge <?php echo $req === 'OBRIGATORIO' ? 'lvx-badge-err' : ($req === 'RECOMENDADO' ? 'lvx-badge-warn' : 'lvx-badge-neutral'); ?>"><?php echo esc_html($req); ?></span></td>
+                            <td><span class="lvx-badge <?php echo $req === 'OBRIGATORIO' ? 'lvx-badge-err' : 'lvx-badge-neutral'; ?>"><?php echo esc_html($req); ?></span></td>
                             <td><?php echo esc_html($desc); ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+
+                <?php // EFI Bank API Credentials detail ?>
+                <h4 style="margin:16px 0 8px;font-size:13px;">EFI Bank &mdash; Credenciais API</h4>
+                <table class="lvx-tbl">
+                    <tbody>
+                        <tr>
+                            <td style="width:36px;"><?php echo $d['efi_configured'] ? '<span class="lvx-ok">&#9989;</span>' : '<span class="lvx-err">&#10060;</span>'; ?></td>
+                            <td><strong>Client ID + Secret</strong></td>
+                            <td><?php echo !empty($d['efi_client_id']) ? '<code>' . esc_html(substr($d['efi_client_id'], 0, 20)) . '...</code>' : '<span class="lvx-err">NAO CONFIGURADO</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo !empty($d['efi_pix_key']) ? '<span class="lvx-ok">&#9989;</span>' : '<span class="lvx-err">&#10060;</span>'; ?></td>
+                            <td><strong>PIX Key</strong></td>
+                            <td><?php echo !empty($d['efi_pix_key']) ? '<code>' . esc_html($d['efi_pix_key']) . '</code>' : '<span class="lvx-err">NAO CONFIGURADO</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo $d['efi_cert_ok'] ? '<span class="lvx-ok">&#9989;</span>' : '<span class="lvx-warn">&#9888;</span>'; ?></td>
+                            <td><strong>Certificado mTLS</strong></td>
+                            <td><?php echo $d['efi_cert_ok'] ? '<code>' . esc_html(basename($d['efi_cert_path'])) . '</code>' : (!empty($d['efi_cert_path']) ? '<span class="lvx-warn">arquivo nao encontrado</span>' : '<span class="lvx-warn">caminho nao definido</span>'); ?></td>
+                        </tr>
+                        <tr>
+                            <td><?php echo $d['efi_sandbox'] ? '<span class="lvx-warn">&#9888;</span>' : '<span class="lvx-ok">&#9989;</span>'; ?></td>
+                            <td><strong>Ambiente</strong></td>
+                            <td><span class="lvx-badge <?php echo $d['efi_sandbox'] ? 'lvx-badge-warn' : 'lvx-badge-ok'; ?>"><?php echo $d['efi_sandbox'] ? 'SANDBOX' : 'PRODUCAO'; ?></span></td>
+                        </tr>
+                    </tbody>
+                </table>
+
                 <?php if (!$d['woocommerce_active']): ?>
                     <div class="lvx-notice lvx-notice-err"><strong>&#10060; WooCommerce nao esta ativo!</strong> O LimpVix-Core requer WooCommerce para processamento de pagamentos.</div>
-                <?php elseif (!$d['efi_active'] && !$d['mercadopago_active']): ?>
-                    <div class="lvx-notice lvx-notice-warn"><strong>&#9888; Nenhum gateway de pagamento ativo.</strong> Instale EFI Bank (recomendado) ou MercadoPago para processar pagamentos.</div>
+                <?php elseif (!$d['efi_configured']): ?>
+                    <div class="lvx-notice lvx-notice-err"><strong>&#10060; EFI Bank nao configurado.</strong> Configure Client ID, Client Secret e PIX Key nas configuracoes do plugin Gerencianet.</div>
+                <?php elseif ($d['efi_sandbox']): ?>
+                    <div class="lvx-notice lvx-notice-warn"><strong>&#9888; EFI Bank em modo SANDBOX.</strong> Pagamentos reais nao serao processados. Altere para producao quando pronto.</div>
                 <?php else: ?>
-                    <div class="lvx-notice lvx-notice-ok"><strong>&#9989; Gateway de pagamento configurado.</strong> <?php
-                        $gw = [];
-                        if ($d['efi_active']) $gw[] = 'EFI Bank v' . $d['efi_version'];
-                        if ($d['mercadopago_active']) $gw[] = 'MercadoPago v' . $d['mercadopago_version'];
-                        echo implode(' + ', $gw);
-                    ?></div>
+                    <div class="lvx-notice lvx-notice-ok"><strong>&#9989; EFI Bank configurado e em PRODUCAO.</strong> PIX cobranca e payouts ativos.</div>
                 <?php endif; ?>
             </div>
         </div>
@@ -484,33 +526,67 @@ class DependenciasTab implements SettingsTabInterface
     private function renderCommunicationSection(array $d): void
     {
         $providers = [
-            ['Twilio SMS/WhatsApp', $d['twilio_configured'], $d['twilio_enabled'], 'SMS + Verify OTP', 'limpvix-settings&tab=conexoes'],
-            ['NVoip', $d['nvoip_configured'], $d['nvoip_enabled'], 'OTP + WhatsApp BR', 'limpvix-settings&tab=conexoes'],
-            ['PPID (KYC)', $d['ppid_configured'], $d['ppid_enabled'], 'Verificacao identidade', 'limpvix-settings&tab=conexoes'],
+            [
+                'name' => 'Twilio SMS + Verify OTP',
+                'configured' => $d['twilio_configured'],
+                'enabled' => $d['twilio_enabled'],
+                'function' => 'SMS envio + OTP verificacao telefone',
+                'details' => array_filter([
+                    $d['twilio_configured'] ? 'SID: ' . substr($d['twilio_account_sid'], 0, 12) . '...' : null,
+                    !empty($d['twilio_verify_sid']) ? 'Verify: ' . substr($d['twilio_verify_sid'], 0, 12) . '...' : 'Verify SID: nao configurado',
+                    !empty($d['twilio_from_number']) ? 'From: ' . $d['twilio_from_number'] : null,
+                ]),
+            ],
+            [
+                'name' => 'NVoip',
+                'configured' => $d['nvoip_configured'],
+                'enabled' => $d['nvoip_enabled'],
+                'function' => 'OTP + WhatsApp BR (alternativo)',
+                'details' => array_filter([
+                    !empty($d['nvoip_number']) ? 'Numero: ' . $d['nvoip_number'] : null,
+                ]),
+            ],
+            [
+                'name' => 'PPID (KYC)',
+                'configured' => $d['ppid_configured'],
+                'enabled' => $d['ppid_enabled'],
+                'function' => 'Verificacao identidade profissional',
+                'details' => [],
+            ],
+            [
+                'name' => 'Firebase (FCM + Auth)',
+                'configured' => $d['firebase_configured'],
+                'enabled' => false,
+                'function' => 'Push notifications + Phone Auth OTP',
+                'details' => ['Pendente configuracao (contingencia: Twilio OTP)'],
+            ],
         ];
         ?>
         <div class="lvx-section">
             <div class="lvx-section-head">
-                <h3>&#128225; Providers de Comunicacao &amp; KYC</h3>
-                <span class="count"><?php echo $d['has_comm_provider'] ? '<span class="lvx-ok">ATIVO</span>' : '<span class="lvx-warn">NENHUM</span>'; ?></span>
+                <h3>&#128225; Providers de Comunicacao &amp; Verificacao</h3>
+                <span class="count"><?php echo $d['has_comm_provider'] ? '<span class="lvx-ok">ATIVO</span>' : '<span class="lvx-warn">NENHUM ATIVO</span>'; ?></span>
             </div>
             <div class="lvx-section-body">
                 <table class="lvx-tbl">
-                    <thead><tr><th style="width:36px;">OK</th><th>Provider</th><th>Configurado</th><th>Habilitado</th><th>Funcao</th></tr></thead>
+                    <thead><tr><th style="width:36px;">OK</th><th>Provider</th><th>Configurado</th><th>Habilitado</th><th>Funcao</th><th>Detalhes</th></tr></thead>
                     <tbody>
-                    <?php foreach ($providers as [$name, $configured, $enabled, $fn, $link]): ?>
+                    <?php foreach ($providers as $p): ?>
                         <tr>
-                            <td><?php echo ($configured && $enabled) ? '<span class="lvx-ok">&#9989;</span>' : ($configured ? '<span class="lvx-warn">&#9888;</span>' : '<span class="lvx-muted">&#9898;</span>'); ?></td>
-                            <td><strong><?php echo esc_html($name); ?></strong></td>
-                            <td><span class="lvx-badge <?php echo $configured ? 'lvx-badge-ok' : 'lvx-badge-neutral'; ?>"><?php echo $configured ? 'SIM' : 'NAO'; ?></span></td>
-                            <td><span class="lvx-badge <?php echo $enabled ? 'lvx-badge-ok' : ($configured ? 'lvx-badge-warn' : 'lvx-badge-neutral'); ?>"><?php echo $enabled ? 'SIM' : 'NAO'; ?></span></td>
-                            <td><?php echo esc_html($fn); ?></td>
+                            <td><?php echo ($p['configured'] && $p['enabled']) ? '<span class="lvx-ok">&#9989;</span>' : ($p['configured'] ? '<span class="lvx-warn">&#9888;</span>' : '<span class="lvx-muted">&#9898;</span>'); ?></td>
+                            <td><strong><?php echo esc_html($p['name']); ?></strong></td>
+                            <td><span class="lvx-badge <?php echo $p['configured'] ? 'lvx-badge-ok' : 'lvx-badge-neutral'; ?>"><?php echo $p['configured'] ? 'SIM' : 'NAO'; ?></span></td>
+                            <td><span class="lvx-badge <?php echo $p['enabled'] ? 'lvx-badge-ok' : ($p['configured'] ? 'lvx-badge-warn' : 'lvx-badge-neutral'); ?>"><?php echo $p['enabled'] ? 'SIM' : 'NAO'; ?></span></td>
+                            <td><?php echo esc_html($p['function']); ?></td>
+                            <td style="font-size:11px;color:#6b7280;"><?php echo esc_html(implode(' | ', $p['details'])); ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                 </table>
                 <?php if (!$d['has_comm_provider']): ?>
-                    <div class="lvx-notice lvx-notice-warn"><strong>&#9888; Nenhum provider de comunicacao ativo.</strong> Configure na aba <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=conexoes'); ?>">Conexoes</a>.</div>
+                    <div class="lvx-notice lvx-notice-warn"><strong>&#9888; Nenhum provider de comunicacao ativo.</strong> Configure Twilio na aba <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=conexoes'); ?>">Conexoes</a>.</div>
+                <?php elseif ($d['twilio_configured'] && $d['twilio_enabled']): ?>
+                    <div class="lvx-notice lvx-notice-ok"><strong>&#9989; Twilio SMS ativo.</strong> OTP via <?php echo !empty($d['twilio_verify_sid']) ? 'Twilio Verify' : 'Twilio (falta Verify SID)'; ?>. Cascata: Firebase OTP &rarr; Twilio Verify &rarr; permissivo.</div>
                 <?php endif; ?>
             </div>
         </div>
@@ -520,22 +596,40 @@ class DependenciasTab implements SettingsTabInterface
     private function renderFeatureFlagsSection(array $d): void
     {
         $enabled = count(array_filter($d['flags'], fn($f) => $f['value']));
+        $warnings = count(array_filter($d['flags'], fn($f) => !$f['value'] && ($f['recommended'] ?? false)));
         ?>
         <div class="lvx-section">
             <div class="lvx-section-head">
                 <h3>&#127987; Feature Flags</h3>
-                <span class="count"><?php echo $enabled; ?>/<?php echo count($d['flags']); ?> ativas</span>
+                <span class="count"><?php echo $enabled; ?>/<?php echo count($d['flags']); ?> ativas<?php if ($warnings): ?> &bull; <span style="color:#d97706;"><?php echo $warnings; ?> recomendadas OFF</span><?php endif; ?></span>
             </div>
             <div class="lvx-section-body">
                 <table class="lvx-tbl">
-                    <thead><tr><th style="width:36px;">ON</th><th>Flag</th><th>Categoria</th><th>Status</th></tr></thead>
+                    <thead><tr><th style="width:36px;">ON</th><th>Flag</th><th>Categoria</th><th>Descricao</th><th>Status</th></tr></thead>
                     <tbody>
                     <?php foreach ($d['flags'] as $f): ?>
                         <tr>
-                            <td><?php echo $f['value'] ? '<span class="lvx-ok">&#9989;</span>' : '<span class="lvx-muted">&#9898;</span>'; ?></td>
+                            <td><?php
+                                if ($f['value']) {
+                                    echo '<span class="lvx-ok">&#9989;</span>';
+                                } elseif ($f['recommended'] ?? false) {
+                                    echo '<span class="lvx-warn">&#9888;</span>';
+                                } else {
+                                    echo '<span class="lvx-muted">&#9898;</span>';
+                                }
+                            ?></td>
                             <td><code><?php echo esc_html($f['key']); ?></code></td>
                             <td><span class="lvx-badge lvx-badge-neutral"><?php echo esc_html($f['category']); ?></span></td>
-                            <td><span class="lvx-badge <?php echo $f['value'] ? 'lvx-badge-ok' : 'lvx-badge-neutral'; ?>"><?php echo $f['value'] ? 'ATIVA' : 'DESLIGADA'; ?></span></td>
+                            <td style="font-size:12px;color:#4b5563;"><?php echo esc_html($f['description']); ?></td>
+                            <td>
+                                <?php if ($f['value']): ?>
+                                    <span class="lvx-badge lvx-badge-ok">ATIVA</span>
+                                <?php elseif ($f['recommended'] ?? false): ?>
+                                    <span class="lvx-badge lvx-badge-warn">OFF &mdash; deveria estar ON</span>
+                                <?php else: ?>
+                                    <span class="lvx-badge lvx-badge-neutral">DESLIGADA</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -815,32 +909,39 @@ class DependenciasTab implements SettingsTabInterface
         $saved = get_option('limpvix_feature_flags', []);
         if (!is_array($saved)) $saved = [];
 
-        $categories = [
-            'core_enabled' => 'core',
-            'intercept_booking' => 'interception',
-            'persist_orders' => 'persistence',
-            'financial_workflow' => 'finance',
-            'payout_engine' => 'finance',
-            'admin_interface' => 'admin',
-            'briefing_enabled' => 'modules',
-            'auto_send_offers' => 'automation',
-            'audit_logging' => 'audit',
-            'notifications' => 'communication',
-            'rest_api' => 'api',
-            'admin_ui' => 'admin',
+        // Flag definitions: category, description, recommended ON
+        $definitions = [
+            'core_enabled'          => ['core',          'Habilita o nucleo do plugin LimpVix',                    true],
+            'persist_orders'        => ['persistence',   'Persiste pedidos no banco LimpVix (independente WC)',    true],
+            'financial_workflow'    => ['finance',        'Ativa FSM financeira (hold, approve, release, payout)', true],
+            'payout_engine'         => ['finance',        'Motor de repasse PIX para profissionais via EFI Bank',  true],
+            'admin_interface'       => ['admin',          'Habilita menus e paginas admin do LimpVix',             true],
+            'admin_ui'              => ['admin',          'Componentes UI modernos no painel admin',               true],
+            'audit_logging'         => ['audit',          'Registra eventos de auditoria (append-only log)',       true],
+            'notifications'         => ['communication',  'Habilita envio de SMS/Push/Email via providers',        true],
+            'external_integrations' => ['integrations',   'Permite chamadas a APIs externas (EFI, Twilio, PPID)', true],
+            'rest_api'              => ['api',            'Endpoints REST /limpvix/v1/* para apps e briefing',     true],
+            'briefing_enabled'      => ['modules',        'Formulario de briefing 10-steps para clientes',         true],
+            'auto_send_offers'      => ['automation',     'Envia ofertas automaticas aos profissionais apos match', true],
         ];
 
         $result = [];
         foreach ($saved as $key => $value) {
+            $def = $definitions[$key] ?? ['other', 'Flag sem descricao', false];
             $result[] = [
                 'key' => $key,
                 'value' => (bool) $value,
-                'category' => $categories[$key] ?? 'other',
+                'category' => $def[0],
+                'description' => $def[1],
+                'recommended' => $def[2],
             ];
         }
 
-        // Sort: enabled first, then by key
+        // Sort: warnings first (recommended but OFF), then enabled, then disabled
         usort($result, function ($a, $b) {
+            $aWarn = !$a['value'] && ($a['recommended'] ?? false) ? 0 : 1;
+            $bWarn = !$b['value'] && ($b['recommended'] ?? false) ? 0 : 1;
+            if ($aWarn !== $bWarn) return $aWarn <=> $bWarn;
             if ($a['value'] !== $b['value']) return $b['value'] <=> $a['value'];
             return strcmp($a['key'], $b['key']);
         });
@@ -913,9 +1014,9 @@ class DependenciasTab implements SettingsTabInterface
         $checks += 1;
         if ($d['has_comm_provider']) $passed += 1;
 
-        // Payment gateway
+        // Payment gateway (EFI Bank)
         $checks += 1;
-        if ($d['efi_active'] || $d['mercadopago_active']) $passed += 1;
+        if ($d['efi_configured']) $passed += 1;
 
         // Roles
         $checks += 1;
