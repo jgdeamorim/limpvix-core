@@ -89,6 +89,7 @@ class BriefingApiBootstrap
         $packageController = new PackageController($selectPackageUseCase);
         $serviceCatalogController = new ServiceCatalogController();
         $contractController = new ContractController([], null, $jwtMiddleware);
+        $pricingPreviewController = new PricingPreviewController();
 
         // 4. Registrar rotas dos controllers
         $schemaController->register();
@@ -98,6 +99,7 @@ class BriefingApiBootstrap
         $packageController->register();
         $serviceCatalogController->register();
         $contractController->register();
+        $pricingPreviewController->register();
 
         // 5. Log (debug)
         if (defined('WP_DEBUG') && WP_DEBUG) {
