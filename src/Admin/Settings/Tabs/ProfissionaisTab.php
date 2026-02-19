@@ -54,6 +54,10 @@ class ProfissionaisTab implements SettingsTabInterface
         $platformFeePercentage = \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::getFeePercentage();
         $allowProfessionalWithdrawal = get_option('limpvix_prof_allow_withdrawal', true);
 
+        // Geo-tier config (multiplicadores + taxas por tier IBGE)
+        $geoTierConfig = \LimpVix\Infrastructure\Configuration\GeoTierConfig::getAll();
+        $geoTierDefaults = \LimpVix\Infrastructure\Configuration\GeoTierConfig::getDefaults();
+
         // NOVO: Payouts baseados em Feedback
         $payout5StarsHoldHours = get_option('limpvix_prof_payout_5stars_hold', 0); // Instantâneo
         $payout4StarsHoldHours = get_option('limpvix_prof_payout_4stars_hold', 1); // 1 hora
@@ -110,6 +114,16 @@ class ProfissionaisTab implements SettingsTabInterface
                 floatval($_POST['platform_fee_percentage'])
             );
             update_option('limpvix_prof_allow_withdrawal', isset($_POST['allow_professional_withdrawal']));
+
+            // Geo-tier config (multiplicadores + taxas por tier IBGE)
+            $geoTiersSave = [];
+            foreach (\LimpVix\Infrastructure\Configuration\GeoTierConfig::VALID_TIERS as $tier) {
+                $geoTiersSave[$tier] = [
+                    'multiplier' => floatval($_POST["geo_multiplier_{$tier}"] ?? 1.0),
+                    'fee'        => floatval($_POST["geo_fee_{$tier}"] ?? 18.0),
+                ];
+            }
+            \LimpVix\Infrastructure\Configuration\GeoTierConfig::save($geoTiersSave);
 
             // Payouts baseados em Feedback (NOVO)
             update_option('limpvix_prof_payout_5stars_hold', intval($_POST['payout_5stars_hold']));
@@ -380,16 +394,104 @@ class ProfissionaisTab implements SettingsTabInterface
                     <table class="form-table">
                         <tr><th scope="row">Permitir Saque Manual:</th><td><label><input type="checkbox" name="allow_professional_withdrawal" value="1" <?php checked($allowProfessionalWithdrawal); ?>> Profissional pode solicitar saque a qualquer momento</label></td></tr>
                         <tr><th scope="row">Valor Mínimo de Saque:</th><td>R$ <input type="number" name="min_payout_amount" value="<?php echo esc_attr($minPayoutAmount); ?>" min="0" step="0.01" class="small-text"></td></tr>
-                        <tr><th scope="row">Taxa da Plataforma (Base):</th><td><input type="number" name="platform_fee_percentage" value="<?php echo esc_attr($platformFeePercentage); ?>" min="0" max="100" step="0.1" class="small-text"> %<p class="description"><strong>Taxa base retida pela plataforma.</strong> Dinâmica por geo-index IBGE:</p>
-                            <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; font-size: 12px;">
-                                <span style="background: #fee2e2; padding: 2px 8px; border-radius: 3px;">Vulnerável: 15%</span>
-                                <span style="background: #fef3c7; padding: 2px 8px; border-radius: 3px;">Popular: 17%</span>
-                                <span style="background: #e0f2fe; padding: 2px 8px; border-radius: 3px;">Médio: 20%</span>
-                                <span style="background: #dbeafe; padding: 2px 8px; border-radius: 3px;">Alto: 22%</span>
-                                <span style="background: #ede9fe; padding: 2px 8px; border-radius: 3px;">Premium: 25%</span>
-                            </div>
+                        <tr><th scope="row">Taxa da Plataforma (Base):</th><td><input type="number" name="platform_fee_percentage" value="<?php echo esc_attr($platformFeePercentage); ?>" min="0" max="100" step="0.1" class="small-text"> %<p class="description"><strong>Fallback quando geo-index IBGE nao esta disponivel.</strong> Quando o endereco do servico tem geo-index resolvido, as taxas por tier abaixo sao usadas.</p>
                         </td></tr>
                     </table>
+
+                    <!-- Calibracao por Geo-Index IBGE -->
+                    <?php
+                    $tierLabels = [
+                        'vulneravel' => ['label' => 'Vulneravel', 'color' => '#dc2626', 'bg' => '#fee2e2', 'range' => '< 0.30'],
+                        'popular'    => ['label' => 'Popular',    'color' => '#d97706', 'bg' => '#fef3c7', 'range' => '0.30 - 0.50'],
+                        'medio'      => ['label' => 'Medio',      'color' => '#0284c7', 'bg' => '#e0f2fe', 'range' => '0.50 - 0.70'],
+                        'alto'       => ['label' => 'Alto',        'color' => '#2563eb', 'bg' => '#dbeafe', 'range' => '0.70 - 0.85'],
+                        'premium'    => ['label' => 'Premium',    'color' => '#7c3aed', 'bg' => '#ede9fe', 'range' => '>= 0.85'],
+                    ];
+                    ?>
+                    <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                        <h4 style="margin: 0 0 4px;">Calibracao por Geo-Index IBGE <small style="font-weight:normal;color:#6b7280;">(dois lados: cliente + plataforma)</small></h4>
+                        <p style="margin:0 0 16px;font-size:12px;color:#6b7280;">
+                            <strong>Multiplicador:</strong> ajusta preco do servico para o cliente (ex: 1.30x = +30%).<br>
+                            <strong>Taxa:</strong> comissao retida pela plataforma no payout ao profissional.
+                        </p>
+                        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                            <thead>
+                                <tr style="border-bottom:2px solid #d8b4fe;">
+                                    <th style="text-align:left;padding:8px 10px;width:22%;">Tier</th>
+                                    <th style="text-align:left;padding:8px 10px;width:18%;">Indice IBGE</th>
+                                    <th style="text-align:center;padding:8px 10px;width:25%;">Multiplicador Preco<br><small style="color:#6b7280;font-weight:normal;">(lado cliente)</small></th>
+                                    <th style="text-align:center;padding:8px 10px;width:25%;">Taxa Plataforma<br><small style="color:#6b7280;font-weight:normal;">(lado profissional)</small></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($tierLabels as $tierKey => $tierMeta): ?>
+                                <tr style="border-bottom:1px solid #e9d5ff;">
+                                    <td style="padding:8px 10px;">
+                                        <span style="background:<?php echo $tierMeta['bg']; ?>;color:<?php echo $tierMeta['color']; ?>;padding:2px 10px;border-radius:4px;font-weight:600;">
+                                            <?php echo $tierMeta['label']; ?>
+                                        </span>
+                                    </td>
+                                    <td style="padding:8px 10px;color:#6b7280;"><?php echo $tierMeta['range']; ?></td>
+                                    <td style="text-align:center;padding:8px 10px;">
+                                        <input type="number" name="geo_multiplier_<?php echo $tierKey; ?>" value="<?php echo esc_attr($geoTierConfig[$tierKey]['multiplier']); ?>" min="0.50" max="2.00" step="0.05" class="small-text lvx-geo-input" data-tier="<?php echo $tierKey; ?>" data-field="multiplier" style="width:75px;text-align:center;font-size:14px;"> x
+                                    </td>
+                                    <td style="text-align:center;padding:8px 10px;">
+                                        <input type="number" name="geo_fee_<?php echo $tierKey; ?>" value="<?php echo esc_attr($geoTierConfig[$tierKey]['fee']); ?>" min="5" max="50" step="0.5" class="small-text lvx-geo-input" data-tier="<?php echo $tierKey; ?>" data-field="fee" style="width:75px;text-align:center;font-size:14px;"> %
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+
+                        <!-- Simulacao admin -->
+                        <div id="lvx-geo-sim" style="margin-top:14px;padding:12px;background:#f5f3ff;border-radius:6px;font-size:12px;color:#4c1d95;">
+                            <strong>Simulacao (servico base R$300):</strong>
+                            <span id="lvx-geo-sim-text">Selecione um tier para simular.</span>
+                        </div>
+
+                        <div style="margin-top:12px;text-align:right;">
+                            <button type="button" id="lvx-geo-restore" class="button button-secondary button-small">Restaurar Padrao</button>
+                        </div>
+                    </div>
+                    <script>
+                    (function(){
+                        var defaults = <?php echo json_encode($geoTierDefaults); ?>;
+                        var inputs = document.querySelectorAll('.lvx-geo-input');
+                        var simText = document.getElementById('lvx-geo-sim-text');
+
+                        function simulate(){
+                            var base = 300;
+                            var lines = [];
+                            var tiers = <?php echo json_encode(array_keys($tierLabels)); ?>;
+                            var labels = <?php echo json_encode(array_combine(array_keys($tierLabels), array_column($tierLabels, 'label'))); ?>;
+                            tiers.forEach(function(t){
+                                var mEl = document.querySelector('[name="geo_multiplier_'+t+'"]');
+                                var fEl = document.querySelector('[name="geo_fee_'+t+'"]');
+                                if(!mEl||!fEl) return;
+                                var m = parseFloat(mEl.value)||1.0;
+                                var f = parseFloat(fEl.value)||18.0;
+                                var total = (base * m).toFixed(2);
+                                var fee = (total * f / 100).toFixed(2);
+                                var net = (total - fee).toFixed(2);
+                                lines.push(labels[t]+': Cliente R$'+total+' | Plataforma R$'+fee+' ('+f+'%) | Profissional R$'+net);
+                            });
+                            simText.innerHTML = lines.join('<br>');
+                        }
+
+                        inputs.forEach(function(i){ i.addEventListener('input', simulate); });
+                        simulate();
+
+                        document.getElementById('lvx-geo-restore').addEventListener('click', function(){
+                            for(var t in defaults){
+                                var mEl = document.querySelector('[name="geo_multiplier_'+t+'"]');
+                                var fEl = document.querySelector('[name="geo_fee_'+t+'"]');
+                                if(mEl) mEl.value = defaults[t].multiplier;
+                                if(fEl) fEl.value = defaults[t].fee;
+                            }
+                            simulate();
+                        });
+                    })();
+                    </script>
                 </div>
             </div>
 

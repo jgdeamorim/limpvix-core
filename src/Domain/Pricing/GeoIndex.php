@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace LimpVix\Domain\Pricing;
 
+use LimpVix\Infrastructure\Configuration\GeoTierConfig;
+
 defined('ABSPATH') || exit;
 
 /**
@@ -58,14 +60,13 @@ final readonly class GeoIndex
     {
         $indice = (float) ($ibgeResult['indice'] ?? 0);
         $classificacao = self::classify($indice);
-        $thresholds = self::THRESHOLDS[$classificacao];
 
         return new self(
             municipio: $ibgeResult['municipio'] ?? 'Desconhecido',
             indice: $indice,
             classificacao: $classificacao,
-            multiplicador: $thresholds['multiplier'],
-            feePercentage: $thresholds['fee'],
+            multiplicador: GeoTierConfig::getMultiplier($classificacao),
+            feePercentage: GeoTierConfig::getFee($classificacao),
             pibPerCapita: isset($ibgeResult['pib_per_capita']) ? (float) $ibgeResult['pib_per_capita'] : null,
             populacao: isset($ibgeResult['populacao']) ? (int) $ibgeResult['populacao'] : null,
             densidade: isset($ibgeResult['densidade']) ? (float) $ibgeResult['densidade'] : null
@@ -112,7 +113,7 @@ final readonly class GeoIndex
     public static function getMultiplierForIndex(float $indice): float
     {
         $class = self::classify($indice);
-        return self::THRESHOLDS[$class]['multiplier'];
+        return GeoTierConfig::getMultiplier($class);
     }
 
     /**
@@ -124,7 +125,7 @@ final readonly class GeoIndex
     public static function getFeeForIndex(float $indice): float
     {
         $class = self::classify($indice);
-        return self::THRESHOLDS[$class]['fee'];
+        return GeoTierConfig::getFee($class);
     }
 
     /**
@@ -134,7 +135,16 @@ final readonly class GeoIndex
      */
     public static function getAllClassifications(): array
     {
-        return self::THRESHOLDS;
+        $config = GeoTierConfig::getAll();
+        $result = [];
+        foreach (self::THRESHOLDS as $class => $threshold) {
+            $result[$class] = [
+                'max' => $threshold['max'],
+                'multiplier' => $config[$class]['multiplier'],
+                'fee' => $config[$class]['fee'],
+            ];
+        }
+        return $result;
     }
 
     public function toArray(): array
