@@ -51,6 +51,7 @@ class FluxosTab implements SettingsTabInterface
 
         $this->renderStyles();
         $this->renderHeroCard($d);
+        $this->renderMacroFlowchart($d);
         $this->renderCommunicationSection($enabledFlows, $c1Timing);
         $this->renderOverviewTable($d);
 
@@ -200,6 +201,7 @@ class FluxosTab implements SettingsTabInterface
             'gaps' => [],
             'insights' => $this->buildInsights($contExDist, [
                 ['condition' => array_sum($contExDist) === 0 && array_sum($schedDist) === 0, 'type'=>'info', 'text'=>'Nenhum agendamento criado. Depende de contratos ativos com profissional alocado'],
+                ['condition' => true, 'type'=>'info', 'text'=>'Geocoding via BrasilAPI CEP v2 + cache 24h + fallback mapa local'],
             ]),
             'related' => ['Schedules: ' . array_sum($schedDist) . ', Allocations: ' . $this->tableCount($wpdb, 'professional_allocations')],
         ];
@@ -388,6 +390,7 @@ class FluxosTab implements SettingsTabInterface
             ],
             'insights' => $this->buildInsights($msgDist, [
                 ['condition' => true, 'type'=>'info', 'text'=>'Templates cadastrados: ' . $d['message_templates'] . ', Logs: ' . $msgLog . ', Flag notifications=' . (!empty($flags['notifications']) ? 'ON' : 'OFF')],
+                ['condition' => true, 'type'=>'info', 'text'=>'Push Notifications: FirebasePushProvider FCM (sendToUser / sendToDevice / sendToTopic)'],
             ]),
             'related' => [],
         ];
@@ -533,6 +536,54 @@ class FluxosTab implements SettingsTabInterface
             .limpvix-toggle input:checked + .limpvix-toggle-slider:before { transform: translateX(26px); }
 
             @media (max-width: 1200px) { .lvx-flx-qgrid { grid-template-columns: repeat(3, 1fr); } }
+
+            /* ═══ Macro Flowchart ═══ */
+            .lvx-flx-macro { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+            .lvx-flx-macro-header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+            .lvx-flx-macro-header h3 { margin: 0; font-size: 15px; font-weight: 600; color: #1f2937; }
+            .lvx-flx-macro-body { padding: 20px; }
+
+            .lvx-flx-macro-row { display: flex; align-items: stretch; gap: 0; justify-content: center; flex-wrap: nowrap; }
+            .lvx-flx-macro-row-reverse { flex-direction: row-reverse; }
+
+            .lvx-flx-macro-phase { flex: 1; min-width: 160px; max-width: 210px; border-radius: 8px; border: 2px solid #e5e7eb; background: #fff; overflow: hidden; transition: box-shadow .2s, border-color .2s; }
+            .lvx-flx-macro-phase:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+            .lvx-flx-macro-phase-green { border-color: #059669; }
+            .lvx-flx-macro-phase-blue { border-color: #3b82f6; }
+            .lvx-flx-macro-phase-yellow { border-color: #f59e0b; }
+
+            .lvx-flx-macro-phase-head { padding: 10px 12px 6px; text-align: center; }
+            .lvx-flx-macro-phase-head .phase-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+            .lvx-flx-macro-phase-head .phase-name { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #1f2937; }
+            .lvx-flx-macro-phase-head .phase-pct { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+            .lvx-flx-macro-phase-head .pct-green { background: #d1fae5; color: #065f46; }
+            .lvx-flx-macro-phase-head .pct-blue { background: #dbeafe; color: #1e40af; }
+            .lvx-flx-macro-phase-head .pct-yellow { background: #fef3c7; color: #92400e; }
+
+            .lvx-flx-macro-phase-details { padding: 6px 10px 10px; border-top: 1px solid #f3f4f6; }
+            .lvx-flx-macro-detail-item { font-size: 10px; color: #6b7280; line-height: 1.5; padding: 1px 0; display: flex; align-items: baseline; gap: 4px; }
+            .lvx-flx-macro-detail-item .di { color: #9ca3af; font-size: 9px; flex-shrink: 0; }
+
+            .lvx-flx-macro-arrow { display: flex; align-items: center; justify-content: center; font-size: 22px; color: #d1d5db; padding: 0 4px; flex-shrink: 0; }
+
+            .lvx-flx-macro-connector { display: flex; justify-content: flex-end; padding-right: 105px; }
+            .lvx-flx-macro-connector-arrow { font-size: 28px; color: #d1d5db; text-align: center; line-height: 1; padding: 4px 0; }
+
+            .lvx-flx-macro-comm { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+            .lvx-flx-macro-comm h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #334155; }
+            .lvx-flx-macro-comm-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+            .lvx-flx-macro-comm-item { font-size: 10px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 3px 8px; }
+
+            .lvx-flx-macro-legend { display: flex; align-items: center; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f3f4f6; font-size: 11px; color: #9ca3af; flex-wrap: wrap; }
+            .lvx-flx-macro-legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+            @media (max-width: 1200px) {
+                .lvx-flx-macro-row { flex-wrap: wrap; justify-content: center; gap: 8px; }
+                .lvx-flx-macro-row-reverse { flex-direction: row; }
+                .lvx-flx-macro-arrow { display: none; }
+                .lvx-flx-macro-connector { justify-content: center; padding-right: 0; }
+                .lvx-flx-macro-phase { min-width: 140px; }
+            }
         </style>
         <?php
     }
@@ -790,6 +841,226 @@ class FluxosTab implements SettingsTabInterface
                         &bull; <?php echo $r; ?>
                     <?php endforeach; ?>
                 </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // MACRO FLOWCHART — 10 Fases com Detalhes Operacionais
+    // ═════════════════════════════════════════════════════════════════
+
+    private function renderMacroFlowchart(array $d): void
+    {
+        $phases = [
+            1 => [
+                'icon' => '&#128203;', 'name' => 'BRIEFING',
+                'pct' => $d['flows']['briefing']['completeness'] ?? 98,
+                'details' => [
+                    'Formul&aacute;rio 10 steps din&acirc;mico',
+                    'PricingEngine SSOT: Steps A-J',
+                    'Pre&ccedil;o: R$15/m2 | M&iacute;n R$150 | Comercial +20%',
+                    'Pacotes: B&aacute;sico 0% | Padr&atilde;o +15% | Premium +30%',
+                    'OTP: Firebase &rarr; Twilio &rarr; permissivo',
+                    'Verifica&ccedil;&atilde;o telefone obrigat&oacute;ria',
+                ],
+            ],
+            2 => [
+                'icon' => '&#128179;', 'name' => 'PAGAMENTO',
+                'pct' => $d['flows']['order']['completeness'] ?? 98,
+                'details' => [
+                    'Gateway: EFI Bank PIX (cob + webhook)',
+                    'Recorr&ecirc;ncia on-demand: paga antecipado',
+                    'Semanal /4.33 | Quinzenal /2.16 | Mensal /1',
+                    'Retry: 3x (D+0, D+2, D+5) &rarr; pausa contrato',
+                    'Webhook: EfiBankWebhookController',
+                ],
+            ],
+            3 => [
+                'icon' => '&#128196;', 'name' => 'CONTRATO',
+                'pct' => $d['flows']['contract']['completeness'] ?? 100,
+                'details' => [
+                    'draft &rarr; pending_alloc &rarr; confirmed &rarr; active',
+                    'Ativa&ccedil;&atilde;o autom&aacute;tica ap&oacute;s aloca&ccedil;&atilde;o',
+                    'Recorr&ecirc;ncia: 3, 6, 12 meses ou indeterminado',
+                    'Renova&ccedil;&atilde;o via ProcessPaymentWebhook',
+                    'Cron: limpvix_check_contract_expiration',
+                ],
+            ],
+            4 => [
+                'icon' => '&#129309;', 'name' => 'MATCHING',
+                'pct' => $d['flows']['offer']['completeness'] ?? 100,
+                'details' => [
+                    'ProfessionalMatcher: 4 crit&eacute;rios',
+                    'Proximidade 40% (Haversine, max 20km)',
+                    'Disponibilidade 30% | Rating 20% | Carga 10%',
+                    'Aloca&ccedil;&atilde;o: 1-5 profissionais (Policy)',
+                    '&gt;5h=ceil(dur/300) | &gt;200m2=min 2 | Premium=min 2',
+                    'First-to-accept: oferta &rarr; aceita/rejeita/expira',
+                ],
+            ],
+            5 => [
+                'icon' => '&#128197;', 'name' => 'AGENDAMENTO',
+                'pct' => $d['flows']['scheduling']['completeness'] ?? 98,
+                'details' => [
+                    'Geocoding: BrasilAPI CEP v2 + cache 24h',
+                    'IBGE Index: PIB&times;0.6 + POP&times;0.2 + DENS&times;0.2',
+                    '5 tiers: Vulner&aacute;vel 0.85x &rarr; Premium 1.30x',
+                    'Taxa plataforma: 15% (base) a 25% (premium)',
+                    'Tolerance: duration/2 (min 30, max 120 min)',
+                    'Circuit breaker IBGE: 5 falhas/1h &rarr; 30min',
+                ],
+            ],
+            6 => [
+                'icon' => '&#128247;', 'name' => 'CHECK-IN',
+                'pct' => $d['flows']['execution']['completeness'] ?? 99,
+                'details' => [
+                    'Fotos OBRIGAT&Oacute;RIAS: TODOS c&ocirc;modos ANTES',
+                    'Valida&ccedil;&atilde;o: N fotos &ge; expectedRoomsCount',
+                    'V&iacute;deo EPI obrigat&oacute;rio (pesada/p&oacute;s-obra)',
+                    'Geofence: Haversine &lt; 300m | Janela &plusmn;15min',
+                    'P3: alerta atraso se sem check-in +15min',
+                ],
+            ],
+            7 => [
+                'icon' => '&#128295;', 'name' => 'EXECU&Ccedil;&Atilde;O',
+                'pct' => $d['flows']['execution']['completeness'] ?? 99,
+                'details' => [
+                    'Status: CHECKED_IN &rarr; IN_EXECUTION',
+                    'Evid&ecirc;ncias bidirecionais (prof + cliente)',
+                    'Categorias: location | issue',
+                    'Auto no-show: timer + score -0.5 + alert',
+                    'P2: lembrete pr&eacute;-servi&ccedil;o 2h antes (SMS)',
+                ],
+            ],
+            8 => [
+                'icon' => '&#9989;', 'name' => 'CHECK-OUT',
+                'pct' => $d['flows']['execution']['completeness'] ?? 99,
+                'details' => [
+                    'Fotos OBRIGAT&Oacute;RIAS: TODOS c&ocirc;modos DEPOIS',
+                    'Cross-check: mesmos c&ocirc;modos do check-in',
+                    'CHECK-OUT = VALIDA&Ccedil;&Atilde;O (sem estado separado)',
+                    'Status: IN_EXECUTION &rarr; CHECKED_OUT',
+                    'Inicia feedback window 48h',
+                ],
+            ],
+            9 => [
+                'icon' => '&#11088;', 'name' => 'FEEDBACK',
+                'pct' => $d['flows']['feedback']['completeness'] ?? 100,
+                'details' => [
+                    'Uber-style: rating 1-5&#9733; + coment&aacute;rio',
+                    'Lembretes: imediato + 12h + final',
+                    'Score: decay exponencial 0.95^dias',
+                    'Hold: &le;2&#9733; = on_hold + admin review',
+                    'C3: feedback p&oacute;s-servi&ccedil;o (WhatsApp)',
+                    'Admin: ApproveFeedback / RejectFeedback',
+                ],
+            ],
+            10 => [
+                'icon' => '&#128176;', 'name' => 'PAYOUT',
+                'pct' => $d['flows']['financial']['completeness'] ?? 100,
+                'details' => [
+                    'REGRA DE OURO: s&oacute; se CHECKED_OUT',
+                    'EFI Bank PIX Cash-Out: mTLS + OAuth2',
+                    'Hold: &le;2&#9733; bloqueia | 48h auto-release',
+                    'Split: total - taxa (15-25% por geo_index)',
+                    'Profissional recebe POR EXECU&Ccedil;&Atilde;O',
+                    'Notifica&ccedil;&atilde;o ao profissional ap&oacute;s payout',
+                ],
+            ],
+        ];
+
+        $row1 = [1, 2, 3, 4, 5];
+        $row2 = [6, 7, 8, 9, 10];
+
+        $avgPct = 0;
+        $phasesAbove90 = 0;
+        foreach ($phases as $p) {
+            $avgPct += $p['pct'];
+            if ($p['pct'] >= 90) $phasesAbove90++;
+        }
+        $avgPct = round($avgPct / count($phases));
+        ?>
+        <div class="lvx-flx-macro">
+            <div class="lvx-flx-macro-header">
+                <h3>&#127919; Fluxograma Macro &mdash; Briefing ao Payout</h3>
+                <span style="display:flex;gap:12px;align-items:center;">
+                    <span class="lvx-flx-cnt"><?php echo $phasesAbove90; ?>/10 fases &ge; 90%</span>
+                    <span class="lvx-flx-pct <?php echo $avgPct >= 100 ? 'lvx-flx-pct-100' : ($avgPct >= 90 ? 'lvx-flx-pct-high' : 'lvx-flx-pct-med'); ?>">Score ~<?php echo $avgPct; ?>%</span>
+                </span>
+            </div>
+            <div class="lvx-flx-macro-body">
+
+                <!-- Row 1: Fases 1-5 -->
+                <div class="lvx-flx-macro-row">
+                    <?php $i = 0; foreach ($row1 as $num):
+                        $p = $phases[$num];
+                        if ($i > 0): ?><div class="lvx-flx-macro-arrow">&#8594;</div><?php endif;
+                        $this->renderMacroPhase($p);
+                    $i++; endforeach; ?>
+                </div>
+
+                <!-- Connector ↓ -->
+                <div class="lvx-flx-macro-connector">
+                    <div class="lvx-flx-macro-connector-arrow">&#8595;</div>
+                </div>
+
+                <!-- Row 2: Fases 6-10 (reversed visually) -->
+                <div class="lvx-flx-macro-row lvx-flx-macro-row-reverse">
+                    <?php $i = 0; foreach ($row2 as $num):
+                        $p = $phases[$num];
+                        if ($i > 0): ?><div class="lvx-flx-macro-arrow">&#8592;</div><?php endif;
+                        $this->renderMacroPhase($p);
+                    $i++; endforeach; ?>
+                </div>
+
+                <!-- Communication card -->
+                <div class="lvx-flx-macro-comm">
+                    <h4>&#128225; Comunica&ccedil;&atilde;o Transversal (6 fluxos + Push)</h4>
+                    <div class="lvx-flx-macro-comm-grid">
+                        <span class="lvx-flx-macro-comm-item"><strong>C1</strong> Contato 3x (24/48/72h) &mdash; WhatsApp</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>C2</strong> Confirm. agendamento 24h &mdash; WhatsApp</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>C3</strong> Feedback p&oacute;s-servi&ccedil;o &mdash; WhatsApp</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>P1</strong> Oferta servi&ccedil;o &mdash; WhatsApp</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>P2</strong> Lembrete 2h antes &mdash; SMS</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>P3</strong> Alerta atraso +15min &mdash; WhatsApp</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>Push</strong> FCM: sendToUser / sendToDevice / sendToTopic</span>
+                        <span class="lvx-flx-macro-comm-item"><strong>Fila</strong> MessageQueueCron + retry 3x + limpeza di&aacute;ria</span>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="lvx-flx-macro-legend">
+                    <span><span class="lvx-flx-macro-legend-dot" style="background:#059669;"></span> 100% Completo</span>
+                    <span><span class="lvx-flx-macro-legend-dot" style="background:#3b82f6;"></span> 90-99%</span>
+                    <span><span class="lvx-flx-macro-legend-dot" style="background:#f59e0b;"></span> &lt; 90%</span>
+                    <span style="margin-left:auto;">Ref: FLUXOGRAMA v1.3.4 &bull; PricingEngine SSOT &bull; EFI Bank PIX &bull; 18/18 Sprint items</span>
+                </div>
+
+            </div>
+        </div>
+        <?php
+    }
+
+    private function renderMacroPhase(array $p): void
+    {
+        $pct = $p['pct'];
+        $colorClass = $pct >= 100 ? 'green' : ($pct >= 90 ? 'blue' : 'yellow');
+        $pctClass = $pct >= 100 ? 'pct-green' : ($pct >= 90 ? 'pct-blue' : 'pct-yellow');
+        ?>
+        <div class="lvx-flx-macro-phase lvx-flx-macro-phase-<?php echo $colorClass; ?>">
+            <div class="lvx-flx-macro-phase-head">
+                <span class="phase-icon"><?php echo $p['icon']; ?></span>
+                <span class="phase-name"><?php echo $p['name']; ?></span><br>
+                <span class="phase-pct <?php echo $pctClass; ?>"><?php echo $pct; ?>%</span>
+            </div>
+            <div class="lvx-flx-macro-phase-details">
+                <?php foreach ($p['details'] as $detail): ?>
+                    <div class="lvx-flx-macro-detail-item">
+                        <span class="di">&#9656;</span>
+                        <span><?php echo $detail; ?></span>
+                    </div>
+                <?php endforeach; ?>
             </div>
         </div>
         <?php
