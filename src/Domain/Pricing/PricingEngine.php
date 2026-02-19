@@ -39,17 +39,39 @@ final class PricingEngine
     public const COMMERCIAL_MULTIPLIER = 1.20;
 
     /**
-     * Cleaning type multipliers (time/complexity factor)
+     * Complexity multipliers (time/scope factor)
+     * New naming from Service Domain Refactor (FASE 4A)
+     * Includes legacy aliases for backward compatibility
      */
-    private const CLEANING_MULTIPLIERS = [
+    private const COMPLEXITY_MULTIPLIERS = [
+        // New slugs (from wp_limpvix_service_complexities)
         'standard' => 1.0,
-        'pre_move' => 1.3,
+        'detailed' => 1.3,
         'post_construction' => 1.8,
+        // Legacy alias
+        'pre_move' => 1.3,
     ];
 
     /**
-     * Package increase percentages
+     * Execution level multipliers (operational quality factor)
+     * New naming from Service Domain Refactor (FASE 4A)
+     * Includes legacy aliases for backward compatibility
      */
+    private const EXECUTION_LEVEL_MULTIPLIERS = [
+        // New slugs (from wp_limpvix_execution_levels)
+        'basic_execution' => 1.0,
+        'standard_execution' => 1.15,
+        'premium_execution' => 1.30,
+        // Legacy aliases (from old package_type)
+        'basic' => 1.0,
+        'standard' => 1.15,
+        'premium' => 1.30,
+    ];
+
+    /** @deprecated Use COMPLEXITY_MULTIPLIERS */
+    private const CLEANING_MULTIPLIERS = self::COMPLEXITY_MULTIPLIERS;
+
+    /** @deprecated Use EXECUTION_LEVEL_MULTIPLIERS */
     private const PACKAGE_PERCENTAGES = [
         'basic' => 0.0,
         'standard' => 0.15,
@@ -59,11 +81,17 @@ final class PricingEngine
     /**
      * Calculate price with full breakdown
      *
+     * Accepts both new and legacy parameter names:
+     * - complexity_slug OR cleaning_types (new preferred)
+     * - execution_level OR package_type (new preferred)
+     *
      * @param array $input {
      *   estimated_m2: float,
-     *   cleaning_types: string[] (standard, pre_move, post_construction),
+     *   complexity_slug: ?string (standard, detailed, post_construction) — NEW,
+     *   cleaning_types: ?string[] (standard, pre_move, post_construction) — LEGACY,
      *   additionals: array[] ({additional_id, price, quantity}),
-     *   package_type: string (basic, standard, premium),
+     *   execution_level: ?string (basic_execution, standard_execution, premium_execution) — NEW,
+     *   package_type: ?string (basic, standard, premium) — LEGACY,
      *   property_type: string (residential, commercial),
      *   geo_index: ?float (0-1, from IBGE - P0.4),
      *   geo_multiplier: ?float (0.85-1.30, from GeoIndex - P0.4),
@@ -74,13 +102,25 @@ final class PricingEngine
     public static function calculatePrice(array $input): array
     {
         $estimatedM2 = (float) ($input['estimated_m2'] ?? 0);
-        $cleaningTypes = $input['cleaning_types'] ?? ['standard'];
         $additionals = $input['additionals'] ?? [];
-        $packageType = $input['package_type'] ?? 'basic';
         $propertyType = $input['property_type'] ?? 'residential';
         $geoIndex = $input['geo_index'] ?? null;
         $geoMultiplier = $input['geo_multiplier'] ?? null;
         $frequency = $input['frequency'] ?? 'once';
+
+        // Resolve complexity: new param or legacy
+        $complexitySlug = $input['complexity_slug'] ?? null;
+        $cleaningTypes = $input['cleaning_types'] ?? ['standard'];
+        if ($complexitySlug) {
+            $cleaningTypes = [$complexitySlug];
+        }
+
+        // Resolve execution level: new param or legacy
+        $executionLevel = $input['execution_level'] ?? null;
+        $packageType = $input['package_type'] ?? 'basic';
+        if ($executionLevel) {
+            $packageType = $executionLevel;
+        }
 
         // 1. Price per m2 from WP options (SSOT)
         $pricePerM2 = self::getPricePerM2();
@@ -88,10 +128,10 @@ final class PricingEngine
         // 2. Base price
         $basePrice = $estimatedM2 * $pricePerM2;
 
-        // 3. Cleaning type adjustment (use highest multiplier if multiple)
+        // 3. Complexity adjustment (use highest multiplier if multiple)
         $cleaningMultiplier = 1.0;
         foreach ($cleaningTypes as $type) {
-            $mult = self::CLEANING_MULTIPLIERS[$type] ?? 1.0;
+            $mult = self::COMPLEXITY_MULTIPLIERS[$type] ?? 1.0;
             $cleaningMultiplier = max($cleaningMultiplier, $mult);
         }
         $cleaningAdjustment = $basePrice * ($cleaningMultiplier - 1.0);
@@ -105,8 +145,9 @@ final class PricingEngine
             $additionalsPrice += $price * $quantity;
         }
 
-        // 5. Package increase
-        $packagePercentage = self::PACKAGE_PERCENTAGES[$packageType] ?? 0.0;
+        // 5. Execution level / package increase
+        $executionMultiplier = self::EXECUTION_LEVEL_MULTIPLIERS[$packageType] ?? 1.0;
+        $packagePercentage = $executionMultiplier - 1.0; // 1.15 → 0.15
         $subtotalBeforePackage = $afterCleaning + $additionalsPrice;
         $packageIncrease = $subtotalBeforePackage * $packagePercentage;
 
@@ -159,11 +200,17 @@ final class PricingEngine
             'price_per_m2' => $pricePerM2,
             'estimated_m2' => $estimatedM2,
             'base_price' => round($basePrice, 2),
+            // Complexity (new) + legacy aliases
+            'complexity_slug' => $complexitySlug ?? ($cleaningTypes[0] ?? 'standard'),
+            'complexity_multiplier' => $cleaningMultiplier,
             'cleaning_types' => $cleaningTypes,
             'cleaning_multiplier' => $cleaningMultiplier,
             'cleaning_adjustment' => round($cleaningAdjustment, 2),
             'additionals_price' => round($additionalsPrice, 2),
             'additionals_count' => count($additionals),
+            // Execution level (new) + legacy aliases
+            'execution_level' => $executionLevel ?? $packageType,
+            'execution_level_multiplier' => $executionMultiplier,
             'package_type' => $packageType,
             'package_percentage' => $packagePercentage,
             'package_increase' => round($packageIncrease, 2),
@@ -203,20 +250,31 @@ final class PricingEngine
      *
      * @param float $estimatedM2
      * @param string $propertyType
-     * @param string $packageType
+     * @param string $packageType Legacy param (basic/standard/premium)
+     * @param string|null $executionLevel New param (basic_execution/standard_execution/premium_execution)
+     * @param string|null $complexitySlug New param (standard/detailed/post_construction)
      * @return float
      */
     public static function quickEstimate(
         float $estimatedM2,
         string $propertyType = 'residential',
-        string $packageType = 'basic'
+        string $packageType = 'basic',
+        ?string $executionLevel = null,
+        ?string $complexitySlug = null
     ): float {
-        $result = self::calculatePrice([
+        $input = [
             'estimated_m2' => $estimatedM2,
             'property_type' => $propertyType,
             'package_type' => $packageType,
-        ]);
+        ];
 
-        return $result['total_price'];
+        if ($executionLevel !== null) {
+            $input['execution_level'] = $executionLevel;
+        }
+        if ($complexitySlug !== null) {
+            $input['complexity_slug'] = $complexitySlug;
+        }
+
+        return self::calculatePrice($input)['total_price'];
     }
 }
