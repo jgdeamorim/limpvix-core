@@ -29,7 +29,6 @@ class ProfissionaisTab implements SettingsTabInterface
 
         $initialScore = get_option('limpvix_prof_initial_score', 80); // NOVO: Score inicial neutro
         $minScoreThreshold = get_option('limpvix_prof_min_score_threshold', 70);
-        $scoreCalculationMethod = get_option('limpvix_prof_score_calculation_method', 'weighted');
         $recentReviewsWeight = get_option('limpvix_prof_recent_reviews_weight', 70);
         $autoSuspendBelowScore = get_option('limpvix_prof_auto_suspend_below_score', 50);
 
@@ -40,13 +39,11 @@ class ProfissionaisTab implements SettingsTabInterface
         $offerAcceptanceToleranceMinutes = get_option('limpvix_prof_offer_acceptance_tolerance', 10); // NOVO
         $allowUnavailableStatus = get_option('limpvix_prof_allow_unavailable_status', true); // NOVO
 
-        $maxServiceRadius = get_option('limpvix_prof_max_service_radius', 50);
-        $geocodingService = get_option('limpvix_prof_geocoding_service', 'viacep'); // viacep, google, nominatim
+        $maxServiceRadius = get_option('limpvix_prof_max_service_radius', 20);
         $enableGpsTracking = get_option('limpvix_prof_enable_gps_tracking', false);
-        $proximityScoringWeight = get_option('limpvix_prof_proximity_scoring_weight', 30);
+        $proximityScoringWeight = get_option('limpvix_prof_proximity_scoring_weight', 40);
         $useZipCodeForMatching = get_option('limpvix_prof_use_zipcode_matching', true);
 
-        $payoutMode = get_option('limpvix_prof_payout_mode', 'immediate'); // immediate, on_demand
         $minPayoutAmount = get_option('limpvix_prof_min_payout_amount', 50.00);
         $platformFeePercentage = \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::getFeePercentage();
         $allowProfessionalWithdrawal = get_option('limpvix_prof_allow_withdrawal', true);
@@ -71,9 +68,8 @@ class ProfissionaisTab implements SettingsTabInterface
             update_option('limpvix_prof_background_check_use_mock', isset($_POST['background_check_use_mock']));
 
             // Score
-            update_option('limpvix_prof_initial_score', intval($_POST['initial_score'])); // NOVO
+            update_option('limpvix_prof_initial_score', intval($_POST['initial_score']));
             update_option('limpvix_prof_min_score_threshold', intval($_POST['min_score_threshold']));
-            update_option('limpvix_prof_score_calculation_method', sanitize_text_field($_POST['score_calculation_method']));
             update_option('limpvix_prof_recent_reviews_weight', intval($_POST['recent_reviews_weight']));
             update_option('limpvix_prof_auto_suspend_below_score', intval($_POST['auto_suspend_below_score']));
 
@@ -87,13 +83,11 @@ class ProfissionaisTab implements SettingsTabInterface
 
             // Geolocalização
             update_option('limpvix_prof_max_service_radius', intval($_POST['max_service_radius']));
-            update_option('limpvix_prof_geocoding_service', sanitize_text_field($_POST['geocoding_service']));
             update_option('limpvix_prof_enable_gps_tracking', isset($_POST['enable_gps_tracking']));
             update_option('limpvix_prof_proximity_scoring_weight', intval($_POST['proximity_scoring_weight']));
             update_option('limpvix_prof_use_zipcode_matching', isset($_POST['use_zipcode_matching']));
 
             // Payouts Gerais
-            update_option('limpvix_prof_payout_mode', sanitize_text_field($_POST['payout_mode']));
             update_option('limpvix_prof_min_payout_amount', floatval($_POST['min_payout_amount']));
             // Persistir taxa via SSOT — única chave canônica: limpvix_platform_fee_percentage
             \LimpVix\Infrastructure\Configuration\PlatformFeeConfig::setFeePercentage(
@@ -108,10 +102,8 @@ class ProfissionaisTab implements SettingsTabInterface
             update_option('limpvix_prof_payout_below3_hold', intval($_POST['payout_below3_hold']));
             update_option('limpvix_prof_allow_client_report', isset($_POST['allow_client_report']));
 
-            // Dual Mode Payouts (NOVO)
+            // Payouts EFI Bank PIX
             update_option('limpvix_payout_minimum_amount', floatval($_POST['payout_minimum_amount'] ?? 50));
-            update_option('limpvix_payout_default_method', sanitize_text_field($_POST['payout_default_method'] ?? 'pix_manual'));
-            update_option('limpvix_payout_pix_to_mp_requires_approval', isset($_POST['payout_pix_to_mp_requires_approval']));
             update_option('limpvix_payout_notify_admin_pix_pending', isset($_POST['payout_notify_admin_pix_pending']));
 
             // ── Feedback do Cliente
@@ -121,7 +113,7 @@ class ProfissionaisTab implements SettingsTabInterface
             update_option('limpvix_feedback_allow_edit_hours',     max(0, intval($_POST['feedback_allow_edit_hours'] ?? 24)));
 
             // ── CheckIn / CheckOut
-            update_option('limpvix_checkin_geofence_radius_m',    max(50, intval($_POST['checkin_geofence_radius_m'] ?? 300)));
+            update_option('limpvix_checkin_geofence_radius_m',    max(50, intval($_POST['checkin_geofence_radius_m'] ?? 150)));
             update_option('limpvix_checkin_time_tolerance_min',    max(0, intval($_POST['checkin_time_tolerance_min'] ?? 15)));
             update_option('limpvix_checkin_require_gps',           isset($_POST['checkin_require_gps']));
             update_option('limpvix_checkout_require_photo',        isset($_POST['checkout_require_photo']));
@@ -174,8 +166,8 @@ class ProfissionaisTab implements SettingsTabInterface
                             <div style="font-size: 13px; opacity: 0.9;">KYC Aprovado</div>
                         </div>
                         <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['mp_connected']; ?></div>
-                            <div style="font-size: 13px; opacity: 0.9;">MP OAuth Ativo</div>
+                            <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['pix_registered']; ?></div>
+                            <div style="font-size: 13px; opacity: 0.9;">PIX Cadastrado</div>
                         </div>
                         <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
                             <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $profStats['active']; ?></div>
@@ -186,8 +178,8 @@ class ProfissionaisTab implements SettingsTabInterface
                     <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; font-size: 13px;">
                             <div>
-                                <strong>Métodos de Payout:</strong><br>
-                                MP OAuth: <?php echo $profStats['mp_connected']; ?> | PIX Manual: <?php echo $profStats['pix_manual']; ?>
+                                <strong>Método de Payout:</strong><br>
+                                PIX Cadastrado: <?php echo $profStats['pix_registered']; ?> | Sem PIX: <?php echo max(0, $profStats['total'] - $profStats['pix_registered']); ?>
                             </div>
                             <div>
                                 <strong>Score Médio:</strong><br>
@@ -377,7 +369,7 @@ class ProfissionaisTab implements SettingsTabInterface
                     <table class="form-table">
                         <tr><th scope="row">Score Inicial do Profissional:</th><td><input type="number" name="initial_score" value="<?php echo esc_attr($initialScore); ?>" min="0" max="100" class="small-text"> pontos<p class="description"><strong>Pontuação inicial quando profissional se cadastra</strong><br>⚠️ <strong>IMPORTANTE:</strong> Deve ser MENOR que 100 para permitir crescimento! Recomendado: <strong>80 pontos</strong></p></td></tr>
                         <tr><th scope="row">Score Mínimo para Alocação:</th><td><input type="number" name="min_score_threshold" value="<?php echo esc_attr($minScoreThreshold); ?>" min="0" max="100" class="small-text"> pontos<p class="description">Pontuação mínima necessária para receber ofertas de trabalho (recomendado: 70)</p></td></tr>
-                        <tr><th scope="row">Método de Cálculo:</th><td><select name="score_calculation_method"><option value="average" <?php selected($scoreCalculationMethod, 'average'); ?>>Média Simples</option><option value="weighted" <?php selected($scoreCalculationMethod, 'weighted'); ?>>Média Ponderada (recentes têm mais peso)</option><option value="recent" <?php selected($scoreCalculationMethod, 'recent'); ?>>Apenas Avaliações Recentes</option></select><p class="description">Como calcular o score baseado nas avaliações</p></td></tr>
+                        <tr><th scope="row">Método de Cálculo:</th><td><span class="limpvix-badge limpvix-badge-success">Média Ponderada com Decay Exponencial</span><p class="description">Score = média ponderada com decay 0.95^dias (avaliações recentes pesam mais). Método fixo do sistema.</p></td></tr>
                         <tr><th scope="row">Peso de Avaliações Recentes:</th><td><input type="number" name="recent_reviews_weight" value="<?php echo esc_attr($recentReviewsWeight); ?>" min="0" max="100" class="small-text"> %<p class="description">Peso das últimas 10 avaliações no cálculo (apenas se método = ponderado)</p></td></tr>
                         <tr><th scope="row">Auto-Suspender Abaixo de:</th><td><input type="number" name="auto_suspend_below_score" value="<?php echo esc_attr($autoSuspendBelowScore); ?>" min="0" max="100" class="small-text"> pontos<p class="description">Suspender profissional automaticamente se score cair abaixo deste valor (0 = desabilitado)</p></td></tr>
                     </table>
@@ -407,11 +399,21 @@ class ProfissionaisTab implements SettingsTabInterface
                         <h4 style="margin-top: 0;">🇧🇷 Marketplace Nacional - Como Funciona o Matching</h4>
                         <p><strong>LimpVix opera em TODO O TERRITÓRIO BRASILEIRO</strong> - não há "localização padrão" fixa!</p>
                     </div>
+                    <div style="background: #f0fdf4; padding: 12px; border-left: 3px solid #22c55e; margin-bottom: 15px;">
+                        <strong>Algoritmo de Matching (ProfessionalMatcher):</strong>
+                        <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap; font-size: 13px;">
+                            <span style="background: #dcfce7; padding: 4px 10px; border-radius: 4px;">Proximidade <strong>40%</strong></span>
+                            <span style="background: #dbeafe; padding: 4px 10px; border-radius: 4px;">Disponibilidade <strong>30%</strong></span>
+                            <span style="background: #fef9c3; padding: 4px 10px; border-radius: 4px;">Rating <strong>20%</strong></span>
+                            <span style="background: #f3e8ff; padding: 4px 10px; border-radius: 4px;">Carga <strong>10%</strong></span>
+                        </div>
+                        <p style="font-size: 12px; color: #6b7280; margin: 8px 0 0;">Proximidade: Haversine linear decay (max <?php echo esc_html($maxServiceRadius); ?>km) | Carga max: 480min/dia | Alocação: 1-5 profissionais</p>
+                    </div>
                     <table class="form-table">
                         <tr><th scope="row">Matching por CEP:</th><td><label><input type="checkbox" name="use_zipcode_matching" value="1" <?php checked($useZipCodeForMatching); ?>> <strong>Habilitar matching automático por proximidade de CEP</strong></label><p class="description"><strong>✅ RECOMENDADO: Sempre habilitado para marketplace nacional</strong></p></td></tr>
-                        <tr><th scope="row">Serviço de Geocodificação:</th><td><select name="geocoding_service"><option value="viacep" <?php selected($geocodingService, 'viacep'); ?>>ViaCEP (Gratuito - RECOMENDADO)</option><option value="google" <?php selected($geocodingService, 'google'); ?>>Google Geocoding API (Pago - Mais preciso)</option><option value="nominatim" <?php selected($geocodingService, 'nominatim'); ?>>Nominatim OpenStreetMap (Gratuito)</option></select></td></tr>
-                        <tr><th scope="row">Raio Máximo de Atendimento:</th><td><input type="number" name="max_service_radius" value="<?php echo esc_attr($maxServiceRadius); ?>" min="1" max="500" class="small-text"> km<p class="description"><strong>Distância máxima (em linha reta) entre profissional e cliente</strong><br>Recomendado: <strong>50 km</strong> para grandes metrópoles</p></td></tr>
-                        <tr><th scope="row">Peso da Proximidade no Matching:</th><td><input type="number" name="proximity_scoring_weight" value="<?php echo esc_attr($proximityScoringWeight); ?>" min="0" max="100" class="small-text"> %<p class="description"><strong>Quanto a proximidade influencia na seleção do profissional</strong><br>Recomendado: <strong>30%</strong> (70% score + 30% proximidade)</p></td></tr>
+                        <tr><th scope="row">Geocodificação:</th><td><span class="limpvix-badge limpvix-badge-success">BrasilAPI CEP v2</span><p class="description">Geocoding via BrasilAPI CEP v2 + cache 24h + fallback mapa local IBGE. Serviço fixo do sistema.</p></td></tr>
+                        <tr><th scope="row">Raio Máximo de Atendimento:</th><td><input type="number" name="max_service_radius" value="<?php echo esc_attr($maxServiceRadius); ?>" min="1" max="100" class="small-text"> km<p class="description"><strong>Distância máxima (Haversine) entre profissional e cliente</strong><br>Padrão do sistema: <strong>20 km</strong> | Scoring: <=5km=40pts, <=10km=30pts, <=15km=20pts, <=20km=10pts</p></td></tr>
+                        <tr><th scope="row">Peso da Proximidade no Matching:</th><td><input type="number" name="proximity_scoring_weight" value="<?php echo esc_attr($proximityScoringWeight); ?>" min="0" max="100" class="small-text"> %<p class="description"><strong>Quanto a proximidade influencia na seleção do profissional</strong><br>Padrão do sistema: <strong>40%</strong> (AllocationPolicy + ProfessionalMatcher)</p></td></tr>
                         <tr><th scope="row">Rastreamento GPS em Tempo Real:</th><td><label><input type="checkbox" name="enable_gps_tracking" value="1" <?php checked($enableGpsTracking); ?>> Habilitar rastreamento GPS durante execução do serviço</label></td></tr>
                     </table>
                 </div>
@@ -426,22 +428,32 @@ class ProfissionaisTab implements SettingsTabInterface
                         <p><strong>Como marketplace de serviços, é CRÍTICO manter profissionais como AUTÔNOMOS.</strong></p>
                     </div>
 
-                    <!-- Dual Mode Payout Configuration -->
+                    <!-- EFI Bank PIX Payout Configuration -->
                     <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 30px;">
-                        <h4 style="margin-top: 0; border-bottom: 2px solid #0073aa; padding-bottom: 10px;">💳 Configuração de Dual Mode Payouts</h4>
+                        <h4 style="margin-top: 0; border-bottom: 2px solid #0073aa; padding-bottom: 10px;">🏦 EFI Bank PIX Cash-Out</h4>
+                        <div style="background: #f0fdf4; padding: 10px; border-left: 3px solid #22c55e; margin-bottom: 15px; font-size: 13px;">
+                            <strong>Modo:</strong> On-demand por execução (profissional recebe POR SERVIÇO, nunca salário fixo)<br>
+                            <strong>Gateway:</strong> EFI Bank PIX (mTLS + OAuth2, token cache 55min)<br>
+                            <strong>Regra de Ouro:</strong> Payout só executa se Execution.status === CHECKED_OUT
+                        </div>
                         <table class="form-table">
                             <tr><th scope="row">Valor Mínimo para Payout:</th><td>R$ <input type="number" name="payout_minimum_amount" value="<?php echo esc_attr(get_option('limpvix_payout_minimum_amount', 50)); ?>" min="1" step="0.01" class="small-text" style="width: 100px;"><p class="description">Payouts abaixo deste valor ficam acumulados até atingir o mínimo.</p></td></tr>
-                            <tr><th scope="row">Método Padrão para Novos Profissionais:</th><td><select name="payout_default_method"><option value="pix_manual" <?php selected(get_option('limpvix_payout_default_method', 'pix_manual'), 'pix_manual'); ?>>🏦 PIX Manual (Admin Processa)</option><option value="mp_oauth" <?php selected(get_option('limpvix_payout_default_method', 'pix_manual'), 'mp_oauth'); ?>>💳 MercadoPago OAuth (Automático)</option></select></td></tr>
-                            <tr><th scope="row">Mudança PIX → MercadoPago:</th><td><label><input type="checkbox" name="payout_pix_to_mp_requires_approval" value="1" <?php checked(get_option('limpvix_payout_pix_to_mp_requires_approval', 1)); ?>> Requer aprovação do admin</label></td></tr>
                             <tr><th scope="row">Notificar Admin sobre PIX Pendentes:</th><td><label><input type="checkbox" name="payout_notify_admin_pix_pending" value="1" <?php checked(get_option('limpvix_payout_notify_admin_pix_pending', 1)); ?>> Enviar email diário se houver PIX pendentes</label></td></tr>
                         </table>
                     </div>
 
                     <table class="form-table">
-                        <tr><th scope="row">Modo de Payout:</th><td><select name="payout_mode"><option value="immediate" <?php selected($payoutMode, 'immediate'); ?>>Imediato - Transferir assim que hold expirar (RECOMENDADO)</option><option value="on_demand" <?php selected($payoutMode, 'on_demand'); ?>>Sob Demanda - Profissional solicita quando quiser</option></select></td></tr>
                         <tr><th scope="row">Permitir Saque Manual:</th><td><label><input type="checkbox" name="allow_professional_withdrawal" value="1" <?php checked($allowProfessionalWithdrawal); ?>> Profissional pode solicitar saque a qualquer momento</label></td></tr>
                         <tr><th scope="row">Valor Mínimo de Saque:</th><td>R$ <input type="number" name="min_payout_amount" value="<?php echo esc_attr($minPayoutAmount); ?>" min="0" step="0.01" class="small-text"></td></tr>
-                        <tr><th scope="row">Taxa da Plataforma (Comissão):</th><td><input type="number" name="platform_fee_percentage" value="<?php echo esc_attr($platformFeePercentage); ?>" min="0" max="100" step="0.1" class="small-text"> %<p class="description"><strong>Percentual retido pela plataforma de cada serviço</strong></p></td></tr>
+                        <tr><th scope="row">Taxa da Plataforma (Base):</th><td><input type="number" name="platform_fee_percentage" value="<?php echo esc_attr($platformFeePercentage); ?>" min="0" max="100" step="0.1" class="small-text"> %<p class="description"><strong>Taxa base retida pela plataforma.</strong> Dinâmica por geo-index IBGE:</p>
+                            <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; font-size: 12px;">
+                                <span style="background: #fee2e2; padding: 2px 8px; border-radius: 3px;">Vulnerável: 15%</span>
+                                <span style="background: #fef3c7; padding: 2px 8px; border-radius: 3px;">Popular: 17%</span>
+                                <span style="background: #e0f2fe; padding: 2px 8px; border-radius: 3px;">Médio: 20%</span>
+                                <span style="background: #dbeafe; padding: 2px 8px; border-radius: 3px;">Alto: 22%</span>
+                                <span style="background: #ede9fe; padding: 2px 8px; border-radius: 3px;">Premium: 25%</span>
+                            </div>
+                        </td></tr>
                     </table>
                 </div>
             </div>
@@ -476,7 +488,7 @@ class ProfissionaisTab implements SettingsTabInterface
             $fbRequireEvidLt3    = get_option('limpvix_feedback_require_evidence_lt3', true);
             $fbAutoApproveDays   = get_option('limpvix_feedback_auto_approve_days', 7);
             $fbAllowEditHours    = get_option('limpvix_feedback_allow_edit_hours', 24);
-            $ciGeofence          = get_option('limpvix_checkin_geofence_radius_m', 300);
+            $ciGeofence          = get_option('limpvix_checkin_geofence_radius_m', 150);
             $ciTimeTol           = get_option('limpvix_checkin_time_tolerance_min', 15);
             $ciRequireGps        = get_option('limpvix_checkin_require_gps', true);
             $coRequirePhoto      = get_option('limpvix_checkout_require_photo', true);
@@ -605,39 +617,30 @@ class ProfissionaisTab implements SettingsTabInterface
             $table
         )) === $table;
 
+        $defaults = [
+            'total' => 0,
+            'verified' => 0,
+            'pix_registered' => 0,
+            'active' => 0,
+            'avg_score' => 0,
+        ];
+
         if (!$tableExists) {
-            return [
-                'total' => 0,
-                'verified' => 0,
-                'mp_connected' => 0,
-                'pix_manual' => 0,
-                'active' => 0,
-                'avg_score' => 0,
-            ];
+            return $defaults;
         }
 
         // Total de profissionais
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
 
         if ($total === 0) {
-            return [
-                'total' => 0,
-                'verified' => 0,
-                'mp_connected' => 0,
-                'pix_manual' => 0,
-                'active' => 0,
-                'avg_score' => 0,
-            ];
+            return $defaults;
         }
 
         // Verificados (KYC aprovado)
         $verified = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE is_verified = 1");
 
-        // MP OAuth conectados
-        $mp_connected = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE mp_oauth_status = 'connected'");
-
-        // PIX Manual (têm chave PIX mas não MP OAuth)
-        $pix_manual = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE pix_key IS NOT NULL AND pix_key != '' AND (mp_oauth_status IS NULL OR mp_oauth_status != 'connected')");
+        // PIX cadastrado (têm chave PIX)
+        $pix_registered = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE pix_key IS NOT NULL AND pix_key != ''");
 
         // Ativos (score >= mínimo e verificados)
         $minScore = get_option('limpvix_prof_min_score_threshold', 70);
@@ -655,8 +658,7 @@ class ProfissionaisTab implements SettingsTabInterface
         return [
             'total' => $total,
             'verified' => $verified,
-            'mp_connected' => $mp_connected,
-            'pix_manual' => $pix_manual,
+            'pix_registered' => $pix_registered,
             'active' => $active,
             'avg_score' => $avg_score,
         ];
