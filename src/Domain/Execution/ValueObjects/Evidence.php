@@ -19,6 +19,7 @@ namespace LimpVix\Domain\Execution\ValueObjects;
  * - epi_checkin: Vídeo selfie de EPI no check-in
  * - epi_checkout: Fotos de EPI no check-out
  * - location: Fotos/vídeos do local (before/after/during)
+ * - room: Fotos/vídeos de cômodos (P0.2 - antes/depois obrigatório)
  * - issue: Evidências de problemas reportados
  *
  * @package LimpVix\Domain\Execution\ValueObjects
@@ -32,6 +33,7 @@ final readonly class Evidence
     private const CATEGORY_EPI_CHECKIN = 'epi_checkin';
     private const CATEGORY_EPI_CHECKOUT = 'epi_checkout';
     private const CATEGORY_LOCATION = 'location';
+    private const CATEGORY_ROOM = 'room';
     private const CATEGORY_ISSUE = 'issue';
 
     private const STAGE_CHECK_IN = 'check_in';
@@ -52,6 +54,7 @@ final readonly class Evidence
      * @param int|null $uploadedBy User ID de quem fez upload
      * @param string|null $stage Estágio quando foi capturado
      * @param string $status Status de aprovação (default: pending)
+     * @param string|null $roomType Tipo de cômodo (P0.2: quarto_1, banheiro_1, sala, cozinha, etc.)
      * @throws \InvalidArgumentException Se tipo, URL ou category inválidos
      */
     public function __construct(
@@ -61,7 +64,8 @@ final readonly class Evidence
         public string $category = self::CATEGORY_LOCATION,
         public ?int $uploadedBy = null,
         public ?string $stage = null,
-        public string $status = self::STATUS_PENDING
+        public string $status = self::STATUS_PENDING,
+        public ?string $roomType = null
     ) {
         if (!in_array($type, [self::TYPE_PHOTO, self::TYPE_VIDEO], true)) {
             throw new \InvalidArgumentException(
@@ -77,6 +81,7 @@ final readonly class Evidence
             self::CATEGORY_EPI_CHECKIN,
             self::CATEGORY_EPI_CHECKOUT,
             self::CATEGORY_LOCATION,
+            self::CATEGORY_ROOM,
             self::CATEGORY_ISSUE
         ];
 
@@ -285,6 +290,77 @@ final readonly class Evidence
             $uploadedBy,
             $stage,
             self::STATUS_PENDING
+        );
+    }
+
+    /**
+     * Verifica se é evidência de cômodo
+     *
+     * @return bool
+     * @since P0.2
+     */
+    public function isRoom(): bool
+    {
+        return $this->category === self::CATEGORY_ROOM;
+    }
+
+    /**
+     * Factory: Criar evidência de cômodo no check-in (foto antes do serviço)
+     *
+     * P0.2: Fotos de todos os cômodos são obrigatórias em qualquer serviço.
+     *
+     * @param string $url URL da foto/vídeo
+     * @param string $roomType Tipo de cômodo (quarto_1, banheiro_1, sala, cozinha, etc.)
+     * @param int $uploadedBy Professional user ID
+     * @param \DateTimeImmutable|null $timestamp
+     * @return self
+     * @since P0.2
+     */
+    public static function roomCheckIn(
+        string $url,
+        string $roomType,
+        int $uploadedBy,
+        ?\DateTimeImmutable $timestamp = null
+    ): self {
+        return new self(
+            self::TYPE_PHOTO,
+            $url,
+            $timestamp ?? new \DateTimeImmutable(),
+            self::CATEGORY_ROOM,
+            $uploadedBy,
+            self::STAGE_CHECK_IN,
+            self::STATUS_PENDING,
+            $roomType
+        );
+    }
+
+    /**
+     * Factory: Criar evidência de cômodo no check-out (foto depois do serviço)
+     *
+     * P0.2: Fotos de todos os cômodos são obrigatórias em qualquer serviço.
+     *
+     * @param string $url URL da foto/vídeo
+     * @param string $roomType Tipo de cômodo (quarto_1, banheiro_1, sala, cozinha, etc.)
+     * @param int $uploadedBy Professional user ID
+     * @param \DateTimeImmutable|null $timestamp
+     * @return self
+     * @since P0.2
+     */
+    public static function roomCheckOut(
+        string $url,
+        string $roomType,
+        int $uploadedBy,
+        ?\DateTimeImmutable $timestamp = null
+    ): self {
+        return new self(
+            self::TYPE_PHOTO,
+            $url,
+            $timestamp ?? new \DateTimeImmutable(),
+            self::CATEGORY_ROOM,
+            $uploadedBy,
+            self::STAGE_CHECK_OUT,
+            self::STATUS_PENDING,
+            $roomType
         );
     }
 

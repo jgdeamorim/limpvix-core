@@ -2,11 +2,12 @@
 declare(strict_types=1);
 
 /**
- * PerformCheckIn - Use Case para realizar check-in (Sprint 1 - Dia 6 + GAP #1)
+ * PerformCheckIn - Use Case para realizar check-in (Sprint 1 + P0.2)
  *
  * RESPONSABILIDADE:
  * - Buscar Execution via Repository
  * - Validar EPI obrigatório (se professional.requiresEpi())
+ * - Validar fotos de cômodos (P0.2: obrigatório para qualquer serviço)
  * - Orquestrar Execution::checkIn()
  * - Persistir mudanças
  * - Retornar Result (não lança exceptions)
@@ -18,7 +19,7 @@ declare(strict_types=1);
  * - Validação EPI no Application Layer (cross-aggregate check)
  *
  * @package LimpVix\Application\UseCases\Execution
- * @since 0.12.0 (GAP #1 - EPI selfie validation)
+ * @since 0.12.0 (GAP #1 - EPI selfie validation), P0.2 (room evidence)
  */
 
 namespace LimpVix\Application\UseCases\Execution;
@@ -47,21 +48,24 @@ class PerformCheckIn
      * 1. Buscar Execution por UUID
      * 2. Buscar Professional para validar EPI (GAP #1)
      * 3. Validar EPI obrigatório se professional.requiresEpi()
-     * 4. Executar checkIn() (valida geo + time window internamente)
-     * 5. Persistir Execution
-     * 6. Retornar Result com status + SLA violations
+     * 4. Validar fotos de cômodos (P0.2 - WARN, não bloqueia ainda)
+     * 5. Executar checkIn() (valida geo + time window internamente)
+     * 6. Persistir Execution
+     * 7. Retornar Result com status + SLA violations + room warnings
      *
      * @param string $executionUuid UUID da Execution
      * @param GeoLocation $currentLocation Localização atual do profissional
      * @param \DateTimeImmutable $now Timestamp do check-in
      * @param EvidenceCollection|null $epiEvidences Evidências de EPI (vídeo selfie)
+     * @param EvidenceCollection|null $roomEvidence Fotos dos cômodos antes do serviço (P0.2)
      * @return Result<array, string>
      */
     public function execute(
         string $executionUuid,
         GeoLocation $currentLocation,
         \DateTimeImmutable $now,
-        ?EvidenceCollection $epiEvidences = null
+        ?EvidenceCollection $epiEvidences = null,
+        ?EvidenceCollection $roomEvidence = null
     ): Result {
         try {
             // 1. Buscar Execution
@@ -113,19 +117,40 @@ class PerformCheckIn
                 }
             }
 
-            // 4. Criar TimeWindow se necessário
+            // 4. Validar fotos de cômodos (P0.2)
+            // GAP G-EXEC-BRIEFING: Execution não sabe quantos cômodos o Briefing tem.
+            // Por agora: WARN se nenhuma foto de cômodo foi enviada (não bloqueia).
+            // Quando tivermos expected_rooms_count, tornar obrigatório.
+            $roomWarnings = [];
+            if ($roomEvidence === null || !$roomEvidence->hasRoomEvidences()) {
+                $roomWarnings[] = 'Room photos (before service) are required but none were provided. ' .
+                    'Please upload photos of each room before starting the service.';
+
+                error_log(sprintf(
+                    '[PerformCheckIn] WARNING: No room check-in photos for execution %s. ' .
+                    'GAP G-EXEC-BRIEFING: Cannot enforce room count without Briefing reference.',
+                    $executionUuid
+                ));
+            } else {
+                $roomCount = $roomEvidence->countUniqueRooms('check_in');
+                if ($roomCount < 1) {
+                    $roomWarnings[] = 'Room photos must have stage=check_in and a valid roomType.';
+                }
+            }
+
+            // 5. Criar TimeWindow se necessário
             $timeWindow = null;
             if ($execution->getScheduledStartTime() !== null) {
                 $timeWindow = new TimeWindow($execution->getScheduledStartTime());
             }
 
-            // 5. Executar check-in (Execution valida geo + time window)
+            // 6. Executar check-in (Execution valida geo + time window)
             $execution->checkIn($currentLocation, $timeWindow);
 
-            // 6. Persistir mudanças
+            // 7. Persistir mudanças
             $this->executionRepository->save($execution);
 
-            // 7. Retornar sucesso
+            // 8. Retornar sucesso
             return Result::ok([
                 'execution_uuid' => $execution->getExecutionUuid(),
                 'order_uuid' => $execution->getOrderUuid(),
@@ -139,6 +164,8 @@ class PerformCheckIn
                 'has_sla_violations' => $execution->hasSlaViolations(),
                 'epi_required' => $professional->requiresEpi(),
                 'epi_validated' => $professional->requiresEpi() && $epiEvidences !== null,
+                'room_evidence_count' => $roomEvidence?->countUniqueRooms('check_in') ?? 0,
+                'room_warnings' => $roomWarnings,
             ]);
 
         } catch (InvalidExecutionTransitionException $e) {

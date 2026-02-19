@@ -484,7 +484,7 @@ class ProfissionaisTab implements SettingsTabInterface
             $epMinPhotos         = get_option('limpvix_evidence_prof_min_photos', 2);
             $epMaxPhotos         = get_option('limpvix_evidence_prof_max_photos', 10);
             $epMaxMb             = get_option('limpvix_evidence_prof_max_mb', 20);
-            $epAllowVideo        = get_option('limpvix_evidence_prof_allow_video', false);
+            $epAllowVideo        = get_option('limpvix_evidence_prof_allow_video', true);
             $ecRequired          = get_option('limpvix_evidence_client_required', false);
             $ecMinPhotos         = get_option('limpvix_evidence_client_min_photos', 0);
             $ecAllowDispute      = get_option('limpvix_evidence_client_allow_dispute', true);

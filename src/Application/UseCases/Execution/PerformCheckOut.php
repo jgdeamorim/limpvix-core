@@ -65,14 +65,30 @@ class PerformCheckOut
                 ));
             }
 
-            // 2. Executar check-out + validação (P0.1: checkout = validation)
+            // 2. Validar fotos de cômodos no check-out (P0.2)
+            // GAP G-EXEC-BRIEFING: Mesmo problema do check-in - não sabe quantos cômodos.
+            // WARN por agora, não bloqueia.
+            $roomWarnings = [];
+            $roomCheckOutCount = $evidence->countUniqueRooms('check_out');
+            if ($roomCheckOutCount < 1) {
+                $roomWarnings[] = 'Room photos (after service) are required but none were detected. ' .
+                    'Please ensure check-out evidence includes photos of each room with category=room and stage=check_out.';
+
+                error_log(sprintf(
+                    '[PerformCheckOut] WARNING: No room check-out photos for execution %s. ' .
+                    'GAP G-EXEC-BRIEFING: Cannot enforce room count without Briefing reference.',
+                    $executionUuid
+                ));
+            }
+
+            // 3. Executar check-out + validação (P0.1: checkout = validation)
             // Execution::checkOut() agora valida evidência e inicia feedback window
             $execution->checkOut($currentLocation, $evidence);
 
-            // 3. Persistir mudanças
+            // 4. Persistir mudanças
             $this->executionRepository->save($execution);
 
-            // 4. Retornar sucesso com dados de validação (absorvido do ValidateExecution)
+            // 5. Retornar sucesso com dados de validação (absorvido do ValidateExecution)
             return Result::ok([
                 'execution_uuid' => $execution->getExecutionUuid(),
                 'order_uuid' => $execution->getOrderUuid(),
@@ -87,6 +103,8 @@ class PerformCheckOut
                 'has_photos' => $evidence->hasPhotos(),
                 'has_videos' => $evidence->hasVideos(),
                 'has_evidence' => true,
+                'room_evidence_count' => $roomCheckOutCount,
+                'room_warnings' => $roomWarnings,
                 'duration_minutes' => $execution->getDurationMinutes(),
                 'sla_violations' => $execution->getSlaViolations(),
                 'has_sla_violations' => $execution->hasSlaViolations(),

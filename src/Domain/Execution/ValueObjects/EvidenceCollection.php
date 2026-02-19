@@ -71,6 +71,16 @@ final readonly class EvidenceCollection
     }
 
     /**
+     * Verifica se a coleção está vazia
+     *
+     * @return bool
+     */
+    public function isEmpty(): bool
+    {
+        return empty($this->evidences);
+    }
+
+    /**
      * Verifica se tem pelo menos uma foto
      *
      * @return bool
@@ -234,6 +244,79 @@ final readonly class EvidenceCollection
             }
         }
         return true;
+    }
+
+    /**
+     * Filtra evidências de cômodos
+     *
+     * @return array<Evidence>
+     * @since P0.2
+     */
+    public function roomEvidences(): array
+    {
+        return array_filter(
+            $this->evidences,
+            fn(Evidence $e) => $e->isRoom()
+        );
+    }
+
+    /**
+     * Filtra evidências de cômodos no check-in
+     *
+     * @return array<Evidence>
+     * @since P0.2
+     */
+    public function roomCheckInEvidences(): array
+    {
+        return array_filter(
+            $this->evidences,
+            fn(Evidence $e) => $e->isRoom() && $e->stage === 'check_in'
+        );
+    }
+
+    /**
+     * Filtra evidências de cômodos no check-out
+     *
+     * @return array<Evidence>
+     * @since P0.2
+     */
+    public function roomCheckOutEvidences(): array
+    {
+        return array_filter(
+            $this->evidences,
+            fn(Evidence $e) => $e->isRoom() && $e->stage === 'check_out'
+        );
+    }
+
+    /**
+     * Verifica se tem evidências de cômodos
+     *
+     * @return bool
+     * @since P0.2
+     */
+    public function hasRoomEvidences(): bool
+    {
+        return !empty($this->roomEvidences());
+    }
+
+    /**
+     * Conta cômodos únicos cobertos nas evidências
+     *
+     * @param string|null $stage Filtrar por stage (check_in, check_out)
+     * @return int
+     * @since P0.2
+     */
+    public function countUniqueRooms(?string $stage = null): int
+    {
+        $rooms = [];
+        foreach ($this->evidences as $e) {
+            if ($e->isRoom() && $e->roomType !== null) {
+                if ($stage === null || $e->stage === $stage) {
+                    $rooms[$e->roomType] = true;
+                }
+            }
+        }
+        return count($rooms);
     }
 
     /**
