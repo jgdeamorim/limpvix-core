@@ -390,17 +390,18 @@ class BriefingSnapshot
         $requiredProfessionalsCount = $allocation->getRequiredCount();
         $requiresMultipleProfessionals = $allocation->requiresMultiple();
 
-        // Pricing breakdown
-        $pricePerM2 = (float) get_option('limpvix_briefing_price_per_m2', 15.0);
-        $basePrice = $estimatedM2 * $pricePerM2;
-
-        $packagesPrice = 0.0;
-        $totalPrice = $basePrice;
-
-        if ($package) {
-            $totalPrice = $package->calculateFinalPrice($basePrice);
-            $packagesPrice = $totalPrice - $basePrice;
+        // P0.3: Pricing via PricingEngine SSOT
+        $packageType = $package ? $package->getType()->getValue() : 'basic';
+        $propertyType = 'residential';
+        if (method_exists($briefing, 'getPropertyType') && $briefing->getPropertyType()) {
+            $propertyType = $briefing->getPropertyType()->isCommercial() ? 'commercial' : 'residential';
         }
+
+        $pricingResult = \LimpVix\Domain\Pricing\PricingEngine::calculatePrice([
+            'estimated_m2' => $estimatedM2,
+            'package_type' => $packageType,
+            'property_type' => $propertyType,
+        ]);
 
         return [
             'estimated_m2' => $estimatedM2,
@@ -412,11 +413,15 @@ class BriefingSnapshot
             'requires_multiple_professionals' => $requiresMultipleProfessionals,
             'required_professionals_count' => $requiredProfessionalsCount,
             'pricing_breakdown' => [
-                'base_price' => $basePrice,
-                'package_increase' => $packagesPrice,
-                'total_price' => $totalPrice,
-                'package_type' => $package ? $package->getType()->getValue() : null,
+                'base_price' => $pricingResult['base_price'],
+                'package_increase' => $pricingResult['package_increase'],
+                'commercial_adjustment' => $pricingResult['commercial_adjustment'],
+                'total_price' => $pricingResult['total_price'],
+                'package_type' => $packageType,
                 'package_percentage' => $package ? $package->getPercentageDisplay() : '0%',
+                'platform_fee_pct' => $pricingResult['platform_fee_pct'],
+                'platform_fee' => $pricingResult['platform_fee'],
+                'professional_net' => $pricingResult['professional_net'],
             ],
         ];
     }

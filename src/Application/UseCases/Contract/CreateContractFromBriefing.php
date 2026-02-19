@@ -223,11 +223,20 @@ class CreateContractFromBriefing
             return (float) $briefingData['estimated_price'];
         }
 
-        // Calcular baseado em m² e tipo
+        // P0.3: Delegar para PricingEngine SSOT
         $m2 = (float) ($briefingData['total_m2'] ?? 0);
-        $pricePerM2 = 15.00; // Default R$ 15/m²
+        $propertyType = $briefingData['property_type'] ?? 'residential';
+        $packageType = $briefingData['package_type'] ?? 'basic';
+        $frequency = $briefingData['frequency'] ?? 'once';
 
-        return round($m2 * $pricePerM2, 2);
+        $result = \LimpVix\Domain\Pricing\PricingEngine::calculatePrice([
+            'estimated_m2' => $m2,
+            'property_type' => $propertyType,
+            'package_type' => $packageType,
+            'frequency' => $frequency,
+        ]);
+
+        return $result['total_price'];
     }
 
     /**

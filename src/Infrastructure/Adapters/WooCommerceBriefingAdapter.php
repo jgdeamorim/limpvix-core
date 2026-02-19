@@ -38,15 +38,8 @@ class WooCommerceBriefingAdapter
      */
     private const PRODUCT_PREFIX = 'briefing-';
 
-    /**
-     * @var float Preço base por m² (em R$)
-     */
-    private const PRICE_PER_M2 = 15.00;
-
-    /**
-     * @var float Preço mínimo (em R$)
-     */
-    private const MINIMUM_PRICE = 150.00;
+    // P0.3: PRICE_PER_M2 removido - agora via PricingEngine SSOT
+    // P0.3: MINIMUM_PRICE removido - agora via PricingEngine::MINIMUM_PRICE
 
     /**
      * Criar produto virtual para Briefing
@@ -220,8 +213,7 @@ class WooCommerceBriefingAdapter
     /**
      * Calcular preço baseado nas métricas do Briefing
      *
-     * Fórmula: (m² × PREÇO_POR_M2) + ajustes
-     * Mínimo: R$ 150,00
+     * P0.3: Delega para PricingEngine (SSOT)
      *
      * @param Briefing $briefing
      * @return float Preço em R$
@@ -231,22 +223,16 @@ class WooCommerceBriefingAdapter
         $metrics = $briefing->getMetrics();
 
         if ($metrics === null) {
-            return self::MINIMUM_PRICE;
+            return \LimpVix\Domain\Pricing\PricingEngine::MINIMUM_PRICE;
         }
 
-        // Preço base: m² × valor por m²
-        $basePrice = $metrics->getM2() * self::PRICE_PER_M2;
+        $result = \LimpVix\Domain\Pricing\PricingEngine::calculatePrice([
+            'estimated_m2' => $metrics->getM2(),
+            'property_type' => $briefing->getPropertyType()->isCommercial() ? 'commercial' : 'residential',
+            'package_type' => $briefing->getPackage() ? $briefing->getPackage()->getType()->getValue() : 'basic',
+        ]);
 
-        // Ajuste por tipo de propriedade (comercial +20%)
-        if ($briefing->getPropertyType()->isCommercial()) {
-            $basePrice *= 1.20;
-        }
-
-        // Garantir preço mínimo
-        $finalPrice = max($basePrice, self::MINIMUM_PRICE);
-
-        // Arredondar para 2 decimais
-        return round($finalPrice, 2);
+        return $result['total_price'];
     }
 
     /**
