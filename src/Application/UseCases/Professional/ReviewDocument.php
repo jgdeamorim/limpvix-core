@@ -44,8 +44,10 @@ final class ReviewDocument
         // Save
         $savedDocument = $this->documentRepository->save($document);
 
-        // TODO: Dispatch event DocumentApproved for notifications
-        // do_action('limpvix_document_approved', $documentId, $document->getProfessionalId(), $reviewerId);
+        // Dispatch event DocumentApproved for notifications
+        if (function_exists('do_action')) {
+            do_action('limpvix_document_approved', $documentId, $document->getProfessionalId(), $reviewerId);
+        }
 
         return $savedDocument;
     }
@@ -79,8 +81,10 @@ final class ReviewDocument
         // Save
         $savedDocument = $this->documentRepository->save($document);
 
-        // TODO: Dispatch event DocumentRejected for notifications
-        // do_action('limpvix_document_rejected', $documentId, $document->getProfessionalId(), $reviewerId, $reason);
+        // Dispatch event DocumentRejected for notifications
+        if (function_exists('do_action')) {
+            do_action('limpvix_document_rejected', $documentId, $document->getProfessionalId(), $reviewerId, $reason);
+        }
 
         return $savedDocument;
     }

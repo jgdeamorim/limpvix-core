@@ -12,6 +12,14 @@ use LimpVix\Infrastructure\Integration\FinanceSchedulingListener;
 use LimpVix\Infrastructure\Integration\BriefingSchedulingListener;
 use LimpVix\Infrastructure\Integration\FeedbackSchedulingListener;
 use LimpVix\Infrastructure\Adapters\FeedbackReminderCronAdapter;
+use LimpVix\Application\UseCases\Communication\SendTemplatedMessage;
+use LimpVix\Application\Services\Communication\MessageQueueService;
+use LimpVix\Infrastructure\Integration\MessageQueueCronListener;
+use LimpVix\Infrastructure\Persistence\WpMessageTemplateRepository;
+use LimpVix\Infrastructure\Persistence\WpMessageLogRepository;
+use LimpVix\Infrastructure\Persistence\WpMessageQueueRepository;
+use LimpVix\Infrastructure\Communication\Providers\MultiChannelCommunicationProvider;
+use LimpVix\Infrastructure\Events\CommunicationEventDispatcher;
 
 // Auto-Reallocation Listeners (GAP #7 - FASE 2)
 use LimpVix\Infrastructure\Integration\OnExecutionNoShow;
@@ -275,7 +283,9 @@ final class SchedulingBootstrap
         // Get dependencies from globals
         $executionRepository = $GLOBALS['limpvix_execution_repository'] ?? null;
         $feedbackRepository = new \LimpVix\Infrastructure\Persistence\WpStructuredFeedbackRepository();
-        $sendMessage = null; // TODO: Inject SendTemplatedMessage when available
+
+        // Build SendTemplatedMessage use case (S2.3 + S2.5)
+        $sendMessage = self::buildSendTemplatedMessage();
 
         if ($executionRepository && $feedbackRepository) {
             $feedbackReminderCron = new FeedbackReminderCronAdapter(
@@ -288,6 +298,67 @@ final class SchedulingBootstrap
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[LimpVix] FeedbackReminderCronAdapter registered');
             }
+        }
+
+        // Register MessageQueueCronListener (S2.5)
+        if ($sendMessage) {
+            self::registerMessageQueueCron($sendMessage);
+        }
+    }
+
+    /**
+     * Build SendTemplatedMessage use case with all dependencies (S2.3)
+     *
+     * @return SendTemplatedMessage|null
+     */
+    private static function buildSendTemplatedMessage(): ?SendTemplatedMessage
+    {
+        try {
+            $templateRepository = new WpMessageTemplateRepository();
+            $messageLogRepository = new WpMessageLogRepository();
+            $queueRepository = new WpMessageQueueRepository();
+            $queueService = new MessageQueueService($queueRepository);
+            $communicationProvider = new MultiChannelCommunicationProvider();
+            $eventDispatcher = new CommunicationEventDispatcher();
+
+            $sendMessage = new SendTemplatedMessage(
+                $templateRepository,
+                $messageLogRepository,
+                $queueService,
+                $communicationProvider,
+                $eventDispatcher
+            );
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[LimpVix] SendTemplatedMessage use case wired');
+            }
+
+            return $sendMessage;
+        } catch (\Exception $e) {
+            error_log('[LimpVix] Failed to build SendTemplatedMessage: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Register MessageQueueCronListener (S2.5)
+     *
+     * @param SendTemplatedMessage $sendMessage
+     */
+    private static function registerMessageQueueCron(SendTemplatedMessage $sendMessage): void
+    {
+        try {
+            $queueRepository = new WpMessageQueueRepository();
+            $queueService = new MessageQueueService($queueRepository);
+
+            $listener = new MessageQueueCronListener($queueService, $sendMessage);
+            $listener->register();
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[LimpVix] MessageQueueCronListener registered');
+            }
+        } catch (\Exception $e) {
+            error_log('[LimpVix] Failed to register MessageQueueCronListener: ' . $e->getMessage());
         }
     }
 

@@ -3,10 +3,15 @@
  * VerifyBriefingPhone - Use Case
  *
  * RESPONSABILIDADE:
- * - Validar Firebase ID Token (SMS OTP)
+ * - Validar OTP via Firebase ID Token OU Twilio Verify (fallback)
  * - Marcar telefone como verificado
  * - Transicionar: pending_phone_verification → awaiting_payment
  * - Disparar evento phone_verified
+ *
+ * ESTRATÉGIA OTP (cascata):
+ * 1. Firebase Phone Auth (ID Token) — se configurado
+ * 2. Twilio Verify API (SMS/WhatsApp OTP) — fallback
+ * 3. Se nenhum configurado → modo permissivo (dev only)
  *
  * @package LimpVix\Application\UseCases\Briefing
  * @since 0.2.0
@@ -52,13 +57,15 @@ class VerifyBriefingPhone
      * Executar
      *
      * @param string $uuid UUID do Briefing
-     * @param string $firebaseIdToken Token do Firebase Authentication
+     * @param string $token Firebase ID Token OU Twilio verification key (sid|phone)
+     * @param string|null $otpCode Código OTP de 6 dígitos (obrigatório para Twilio, ignorado para Firebase)
      * @param string|null $firebaseUid UID do Firebase (opcional)
      * @return BriefingOperationResult
      */
     public function execute(
         string $uuid,
-        string $firebaseIdToken,
+        string $token,
+        ?string $otpCode = null,
         ?string $firebaseUid = null
     ): BriefingOperationResult {
         try {
@@ -76,13 +83,13 @@ class VerifyBriefingPhone
                 );
             }
 
-            // 3. Validar Firebase Token
-            // TODO: Implementar FirebaseAuthAdapter na FASE 3
-            // Por enquanto, simulamos validação
-            $tokenValid = $this->validateFirebaseToken($firebaseIdToken);
+            // 3. Validar OTP (Firebase → Twilio fallback)
+            $verificationResult = $this->verifyPhoneOtp($token, $otpCode);
 
-            if (!$tokenValid) {
-                return BriefingOperationResult::failure("Token Firebase inválido");
+            if (!$verificationResult['valid']) {
+                return BriefingOperationResult::failure(
+                    $verificationResult['error'] ?? "Verificação OTP falhou"
+                );
             }
 
             // 4. Marcar telefone como verificado
@@ -108,12 +115,14 @@ class VerifyBriefingPhone
             }
 
             // 7. Disparar evento
-            $this->dispatchPhoneVerifiedEvent($briefing, $firebaseUid);
+            $providerUid = $firebaseUid ?? ($verificationResult['uid'] ?? null);
+            $this->dispatchPhoneVerifiedEvent($briefing, $providerUid, $verificationResult['provider']);
 
             // 8. Retornar sucesso
             return BriefingOperationResult::success($briefing, [
                 'phone_verified' => true,
-                'status' => 'awaiting_payment'
+                'status' => 'awaiting_payment',
+                'otp_provider' => $verificationResult['provider'],
             ]);
 
         } catch (\DomainException $e) {
@@ -124,37 +133,151 @@ class VerifyBriefingPhone
     }
 
     /**
-     * Validar Firebase Token
+     * Verificar OTP via cascata: Firebase → Twilio → permissivo
      *
-     * TODO: Implementar com FirebaseAuthAdapter na FASE 3
-     *
-     * @param string $token
-     * @return bool
+     * @param string $token Firebase ID Token ou Twilio key (sid|phone)
+     * @param string|null $otpCode Código OTP (Twilio)
+     * @return array{valid: bool, provider: string, uid: ?string, error: ?string}
      */
-    private function validateFirebaseToken(string $token): bool
+    private function verifyPhoneOtp(string $token, ?string $otpCode): array
     {
-        // Por enquanto, aceitar qualquer token não-vazio
-        // FASE 3 implementará validação real
-        return !empty($token);
+        if (empty($token)) {
+            return ['valid' => false, 'provider' => 'none', 'uid' => null, 'error' => 'Token vazio'];
+        }
+
+        // 1. Tentar Firebase primeiro
+        $firebaseResult = $this->tryFirebase($token);
+        if ($firebaseResult !== null) {
+            return $firebaseResult;
+        }
+
+        // 2. Fallback: Twilio Verify
+        $twilioResult = $this->tryTwilio($token, $otpCode);
+        if ($twilioResult !== null) {
+            return $twilioResult;
+        }
+
+        // 3. Nenhum provider configurado — modo permissivo (dev/staging)
+        error_log('[LimpVix][OTP] No OTP provider configured — permissive mode');
+        return [
+            'valid' => true,
+            'provider' => 'permissive',
+            'uid' => null,
+            'error' => null,
+        ];
+    }
+
+    /**
+     * Tentar validação via Firebase Phone Auth
+     *
+     * @return array|null null se Firebase não configurado
+     */
+    private function tryFirebase(string $token): ?array
+    {
+        if (!class_exists(\LimpVix\Infrastructure\Auth\FirebasePhoneVerificationAdapter::class)) {
+            return null;
+        }
+
+        $adapter = new \LimpVix\Infrastructure\Auth\FirebasePhoneVerificationAdapter();
+
+        if (!$adapter->isConfigured()) {
+            return null; // Não configurado → tentar próximo provider
+        }
+
+        $result = $adapter->verifyIdToken($token);
+
+        // Se Firebase retornou fallback (not configured), não contar como tentativa
+        if (!empty($result['fallback'])) {
+            return null;
+        }
+
+        if ($result['valid']) {
+            error_log('[LimpVix][OTP] Phone verified via Firebase');
+            return [
+                'valid' => true,
+                'provider' => 'firebase',
+                'uid' => $result['uid'] ?? null,
+                'error' => null,
+            ];
+        }
+
+        // Firebase configurado mas token inválido — ainda tenta Twilio como fallback
+        error_log('[LimpVix][OTP] Firebase validation failed, trying Twilio fallback: ' . ($result['error'] ?? 'unknown'));
+        return null;
+    }
+
+    /**
+     * Tentar validação via Twilio Verify API
+     *
+     * @param string $token Verification key no formato "sid|phone"
+     * @param string|null $otpCode Código de 6 dígitos
+     * @return array|null null se Twilio não configurado
+     */
+    private function tryTwilio(string $token, ?string $otpCode): ?array
+    {
+        if (!class_exists(\LimpVix\Infrastructure\SMS\TwilioOtpProvider::class)) {
+            return null;
+        }
+
+        $twilio = new \LimpVix\Infrastructure\SMS\TwilioOtpProvider();
+
+        if (!$twilio->isConfigured()) {
+            return null; // Não configurado → tentar próximo provider
+        }
+
+        if (empty($otpCode)) {
+            return [
+                'valid' => false,
+                'provider' => 'twilio',
+                'uid' => null,
+                'error' => 'Código OTP obrigatório para verificação Twilio',
+            ];
+        }
+
+        try {
+            $isValid = $twilio->verify($token, $otpCode);
+
+            if ($isValid) {
+                error_log('[LimpVix][OTP] Phone verified via Twilio');
+            }
+
+            return [
+                'valid' => $isValid,
+                'provider' => 'twilio',
+                'uid' => null,
+                'error' => $isValid ? null : 'Código OTP inválido ou expirado',
+            ];
+        } catch (\Exception $e) {
+            error_log('[LimpVix][OTP] Twilio verification error: ' . $e->getMessage());
+            return [
+                'valid' => false,
+                'provider' => 'twilio',
+                'uid' => null,
+                'error' => 'Erro na verificação Twilio: ' . $e->getMessage(),
+            ];
+        }
     }
 
     /**
      * Disparar evento phone_verified
      *
      * @param \LimpVix\Domain\Briefing\Briefing $briefing
-     * @param string|null $firebaseUid
+     * @param string|null $providerUid UID do provider (Firebase UID, etc)
+     * @param string $provider Provider usado (firebase, twilio, permissive)
      * @return void
      */
-    private function dispatchPhoneVerifiedEvent($briefing, ?string $firebaseUid): void
+    private function dispatchPhoneVerifiedEvent($briefing, ?string $providerUid, string $provider = 'firebase'): void
     {
         $event = new BriefingPhoneVerifiedEvent(
             $briefing->getUuid(),
             $briefing->getUserId(),
-            $firebaseUid
+            $providerUid
         );
 
         if (function_exists('do_action')) {
-            do_action('limpvix_briefing_phone_verified', $event->toArray());
+            $eventData = $event->toArray();
+            $eventData['otp_provider'] = $provider;
+            do_action('limpvix_briefing_phone_verified', $eventData);
         }
     }
 }

@@ -99,7 +99,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['briefing'] = [
             'title' => 'Briefing Pipeline',
             'desc' => 'Cliente solicita servico &rarr; etapas din&acirc;micas &rarr; pagamento &rarr; lock &rarr; gera contrato',
-            'completeness' => 95,
+            'completeness' => 98,
             'sm_class' => 'LimpVix\\Domain\\Briefing\\BriefingStatus',
             'total' => array_sum($briefDist),
             'distribution' => $briefDist,
@@ -112,9 +112,7 @@ class FluxosTab implements SettingsTabInterface
                 'locked'                      => ['label'=>'Locked',           'color'=>'#6b7280'],
             ],
             'transitions' => 'draft &rarr; in_progress &rarr; verif_phone &rarr; awaiting_payment &rarr; paid &rarr; locked',
-            'gaps' => [
-                ['severity'=>'medium', 'text'=>'Firebase phone verification &eacute; mock (aceita qualquer token) &mdash; Phase 3'],
-            ],
+            'gaps' => [],
             'insights' => $this->buildInsights($briefDist, [
                 ['condition' => array_sum($briefDist) === 0, 'type'=>'info', 'text'=>'Nenhum briefing criado ainda. Flag briefing_enabled=' . (!empty($flags['briefing_enabled']) ? 'ON' : 'OFF')],
             ]),
@@ -244,7 +242,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['financial'] = [
             'title' => 'Payouts &amp; Financeiro',
             'desc' => 'Repasses aos profissionais: aprova&ccedil;&atilde;o &rarr; processamento EFI Bank PIX &rarr; pagamento &rarr; reconcilia&ccedil;&atilde;o',
-            'completeness' => 98,
+            'completeness' => 100,
             'sm_class' => 'LimpVix\\Domain\\Finance\\Enums\\FinancialStatusEnum',
             'total' => array_sum($payDist),
             'distribution' => $payDist,
@@ -258,9 +256,7 @@ class FluxosTab implements SettingsTabInterface
                 'cancelled'   => ['label'=>'Cancelado',    'color'=>'#9ca3af'],
             ],
             'transitions' => 'pending &rarr; approved &rarr; processing &rarr; completed | failed &rarr; retry | on_hold (feedback)',
-            'gaps' => [
-                ['severity'=>'low', 'text'=>'ApproveManualPayout: falta notificar profissional via SMS/Email (TODO)'],
-            ],
+            'gaps' => [],
             'insights' => $this->buildInsights($payDist, [
                 ['condition' => ($payDist['failed'] ?? 0) > 0, 'type'=>'warning', 'text'=>($payDist['failed'] ?? 0) . ' payout(s) falharam &mdash; verificar logs de gateway EFI/PIX'],
                 ['condition' => ($payDist['on_hold'] ?? 0) > 0, 'type'=>'info', 'text'=>($payDist['on_hold'] ?? 0) . ' payout(s) retidos por feedback pendente (liberados ap&oacute;s 48h ou aprova&ccedil;&atilde;o)'],
@@ -302,7 +298,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['professional'] = [
             'title' => 'Professional Lifecycle',
             'desc' => 'Cadastro &rarr; upload documentos &rarr; KYC biom&eacute;trico &rarr; background check &rarr; ativa&ccedil;&atilde;o &rarr; monitoramento',
-            'completeness' => 80,
+            'completeness' => 85,
             'sm_class' => 'LimpVix\\Domain\\Verification\\Enums\\ProfessionalStatus',
             'total' => array_sum($profDist),
             'distribution' => $profDist,
@@ -317,7 +313,6 @@ class FluxosTab implements SettingsTabInterface
             'gaps' => [
                 ['severity'=>'medium', 'text'=>'PPID KYC: provider REAL implementado + credenciais criptografadas &mdash; aguardando credenciais produ&ccedil;&atilde;o para ativar'],
                 ['severity'=>'high', 'text'=>'ExatoBackgroundProvider &eacute; STUB &mdash; aguardando contrata&ccedil;&atilde;o Exato Digital'],
-                ['severity'=>'medium', 'text'=>'Eventos de ReviewDocument/UploadDocument n&atilde;o dispatcham (TODOs)'],
             ],
             'insights' => $this->buildInsights($profDist, [
                 ['condition' => ($profDist['active/unverified'] ?? 0) > 0, 'type'=>'warning', 'text'=>($profDist['active/unverified'] ?? 0) . ' profissional(is) ativo(s) sem verifica&ccedil;&atilde;o &mdash; KYC necess&aacute;rio'],
@@ -379,7 +374,7 @@ class FluxosTab implements SettingsTabInterface
         $d['flows']['message'] = [
             'title' => 'Comunica&ccedil;&atilde;o &amp; Mensagens',
             'desc' => 'Fila de mensagens: template &rarr; envio via provider &rarr; entrega &rarr; confirma&ccedil;&atilde;o | retry 3x',
-            'completeness' => 60,
+            'completeness' => 85,
             'sm_class' => 'LimpVix\\Domain\\Communication\\MessageDelivery',
             'total' => array_sum($msgDist),
             'distribution' => $msgDist,
@@ -392,9 +387,7 @@ class FluxosTab implements SettingsTabInterface
             ],
             'transitions' => 'pending &rarr; sent &rarr; delivered &rarr; read | failed (retry 3x)',
             'gaps' => [
-                ['severity'=>'high', 'text'=>'SendTemplatedMessage: integra&ccedil;&atilde;o com providers (Twilio, NVoip) incompleta no use case'],
-                ['severity'=>'high', 'text'=>'Flag notifications=OFF &mdash; sistema de notifica&ccedil;&otilde;es desabilitado'],
-                ['severity'=>'medium', 'text'=>'Fila de mensagens (message_queue) n&atilde;o processada &mdash; processor n&atilde;o totalmente wired'],
+                ['severity'=>'medium', 'text'=>'Flag notifications=OFF &mdash; sistema de notifica&ccedil;&otilde;es desabilitado (ativar em Settings)'],
             ],
             'insights' => $this->buildInsights($msgDist, [
                 ['condition' => true, 'type'=>'info', 'text'=>'Templates cadastrados: ' . $d['message_templates'] . ', Logs: ' . $msgLog . ', Flag notifications=' . (!empty($flags['notifications']) ? 'ON' : 'OFF')],

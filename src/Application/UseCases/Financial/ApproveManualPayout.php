@@ -240,7 +240,15 @@ final class ApproveManualPayout
             wp_mail($creator->user_email, $subject, $message);
         }
 
-        // TODO: Notify professional via SMS/Email
+        // Notify professional via event (SMS/Email via listeners)
+        if (function_exists('do_action')) {
+            do_action('limpvix_payout_approved', [
+                'payout_id' => $payout_id,
+                'professional_id' => $payout['professional_id'],
+                'net_amount' => $payout['net_amount'],
+                'approved_by' => $approved_by,
+            ]);
+        }
     }
 
     /**

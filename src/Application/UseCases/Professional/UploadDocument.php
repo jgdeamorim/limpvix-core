@@ -86,8 +86,10 @@ final class UploadDocument
         // Save to database
         $savedDocument = $this->documentRepository->save($document);
 
-        // TODO: Dispatch event DocumentUploaded for notifications
-        // do_action('limpvix_document_uploaded', $savedDocument->getId(), $command->professionalId);
+        // Dispatch event DocumentUploaded for notifications
+        if (function_exists('do_action')) {
+            do_action('limpvix_document_uploaded', $savedDocument->getId(), $command->professionalId);
+        }
 
         return $savedDocument;
     }

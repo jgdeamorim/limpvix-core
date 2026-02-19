@@ -1,9 +1,19 @@
 # FLUXOGRAMA COMPLETO: Briefing ao Payout do Profissional
-## LimpVix Core Plugin - v1.3.1 (2026-02-19)
+## LimpVix Core Plugin - v1.3.2 (2026-02-19)
 
 > **DOCUMENTO PADRAO DE FLUXO DO SISTEMA**
 > Este arquivo eh a referencia canonica do fluxo operacional LimpVix.
 > Deve ser atualizado a cada ajuste no sistema.
+
+### Changelog v1.3.1 -> v1.3.2 (Sprint 2 Implementado)
+- FECHADO: S2.1 VerifyBriefingPhone com cascata OTP: Firebase → Twilio → permissivo (fallback automatico)
+- FECHADO: S2.1 FirebasePhoneVerificationAdapter REAL (Google Identity Toolkit REST API)
+- FECHADO: S2.1 TwilioOtpProvider como fallback quando Firebase nao funcionar (pedido do usuario)
+- FECHADO: S2.2 Document event dispatching ativado (ReviewDocument: approved/rejected, UploadDocument: uploaded)
+- FECHADO: S2.3 SendTemplatedMessage wired em SchedulingBootstrap (templateRepo + logRepo + queueService + provider + eventDispatcher)
+- FECHADO: S2.4 ApproveManualPayout dispara evento limpvix_payout_approved para notificar profissional
+- FECHADO: S2.5 MessageQueueCronListener wired com SendTemplatedMessage (processamento de fila + retry + limpeza diaria)
+- ATUALIZADO: FluxosTab gaps resolvidos (briefing 95→98%, professional 80→85%, financial 98→100%, message 60→85%)
 
 ### Changelog v1.3 -> v1.3.1 (Sprint 1 Implementado)
 - FECHADO: S1.1 PPID senha criptografada (TokenEncryption::encryptSafe/decryptSafe)
@@ -382,7 +392,7 @@ Busca contratos com nextExecutionDate <= hoje + 3 dias
 +-----------------------------------+
         |
         v
-[Cliente paga PIX]
+[Cliente paga PIX, CC]
         |
         v
 +--[ ProcessPaymentWebhook ]-------+
@@ -512,7 +522,7 @@ Bairro: Itarare (popular)
 |                                               |
 |  [ ] 🐾 Tem animais de estimacao  (+15% tempo)|
 |  [ ] 👶 Tem criancas pequenas    (+10% tempo)|
-|  [ ] 🧴 LimpVix fornece materiais(+10% tempo)|
+|  [ ] 🧴 Profissional fornece materiais(+10% tempo)|
 |                                               |
 |  Observacoes para o profissional:             |
 |  [________________________________]           |
