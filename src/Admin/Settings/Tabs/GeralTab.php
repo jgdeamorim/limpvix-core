@@ -12,11 +12,31 @@ class GeralTab implements SettingsTabInterface
 {
     public function getSlug(): string { return 'geral'; }
     public function getLabel(): string { return 'Geral'; }
-    public function getIcon(): string { return '🏠'; }
+    public function getIcon(): string { return '&#x1F3E0;'; }
 
     public function handleSave(): void
     {
-        // Feature flags são processadas dentro do render() via POST inline
+        if (!isset($_POST['limpvix_save_geral_settings'])) {
+            return;
+        }
+        if (!check_admin_referer('limpvix_geral_settings')) {
+            return;
+        }
+
+        // Identidade
+        update_option('limpvix_company_name', sanitize_text_field($_POST['company_name'] ?? 'LimpVix'));
+        update_option('limpvix_operational_email', sanitize_email($_POST['operational_email'] ?? get_option('admin_email')));
+
+        // Enforcement toggles
+        update_option('limpvix_enforce_geofence_checkin', isset($_POST['enforce_geofence_checkin']) ? '1' : '0');
+        update_option('limpvix_enforce_geofence_checkout', isset($_POST['enforce_geofence_checkout']) ? '1' : '0');
+        update_option('limpvix_enforce_room_photos', isset($_POST['enforce_room_photos']) ? '1' : '0');
+
+        // Seguranca
+        update_option('limpvix_phone_verification_exempt_admin', isset($_POST['phone_verification_exempt_admin']) ? '1' : '0');
+
+        wp_redirect(admin_url('admin.php?page=limpvix-settings&tab=geral&updated=1'));
+        exit;
     }
 
     public function render(): void
@@ -33,7 +53,7 @@ class GeralTab implements SettingsTabInterface
                 $flags->enable('payout_engine');
                 $flags->enable('admin_interface');
                 $flags->enable('audit_logging');
-                echo '<div class="notice notice-success is-dismissible"><p><strong>✅ Todos os motores foram habilitados com sucesso!</strong> A página será recarregada.</p></div>';
+                echo '<div class="notice notice-success is-dismissible"><p><strong>&#x2705; Todos os motores foram habilitados com sucesso!</strong> A p&aacute;gina ser&aacute; recarregada.</p></div>';
                 echo '<script>setTimeout(function(){ window.location.reload(); }, 2000);</script>';
             } elseif (isset($_POST['toggle_flag'])) {
                 $flag_name = sanitize_text_field($_POST['toggle_flag']);
@@ -41,10 +61,10 @@ class GeralTab implements SettingsTabInterface
 
                 if ($current_value) {
                     $flags->disable($flag_name);
-                    echo '<div class="notice notice-warning is-dismissible"><p><strong>⚠️ Feature "' . esc_html($flag_name) . '" desabilitada.</strong></p></div>';
+                    echo '<div class="notice notice-warning is-dismissible"><p><strong>&#x26A0;&#xFE0F; Feature &quot;' . esc_html($flag_name) . '&quot; desabilitada.</strong></p></div>';
                 } else {
                     $flags->enable($flag_name);
-                    echo '<div class="notice notice-success is-dismissible"><p><strong>✅ Feature "' . esc_html($flag_name) . '" habilitada.</strong></p></div>';
+                    echo '<div class="notice notice-success is-dismissible"><p><strong>&#x2705; Feature &quot;' . esc_html($flag_name) . '&quot; habilitada.</strong></p></div>';
                 }
                 echo '<script>setTimeout(function(){ window.location.reload(); }, 1500);</script>';
             }
@@ -52,6 +72,7 @@ class GeralTab implements SettingsTabInterface
 
         // Buscar estatísticas dinâmicas do sistema
         $stats = $this->calculateDashboardStats();
+        $pluginVersion = defined('LIMPVIX_VERSION') ? LIMPVIX_VERSION : '0.0.0';
         ?>
 
         <!-- DASHBOARD DE STATUS DO SISTEMA -->
@@ -63,7 +84,7 @@ class GeralTab implements SettingsTabInterface
                             <?php echo $stats['status_icon']; ?> LimpVix Core - <?php echo esc_html($stats['status_message']); ?>
                         </h2>
                         <p style="color: #f0f0f0; margin: 0; font-size: 14px;">
-                            Versão 1.0.0 | Sprint Final - <?php echo date('Y-m-d'); ?> | Branch: sprint-final-100-percent
+                            Vers&atilde;o <?php echo esc_html($pluginVersion); ?> | <?php echo date('Y-m-d'); ?>
                         </p>
                     </div>
                     <div style="text-align: right;">
@@ -86,10 +107,10 @@ class GeralTab implements SettingsTabInterface
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
                         <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['test_count']; ?></div>
-                        <div style="font-size: 13px; opacity: 0.9;">Testes Unitários</div>
+                        <div style="font-size: 13px; opacity: 0.9;">Testes Unit&aacute;rios</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 8px; text-align: center; backdrop-filter: blur(10px);">
-                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['is_go_live_ready'] ? '✓' : '⚠️'; ?></div>
+                        <div style="font-size: 32px; font-weight: bold; margin-bottom: 5px;"><?php echo $stats['is_go_live_ready'] ? '&#x2713;' : '&#x26A0;'; ?></div>
                         <div style="font-size: 13px; opacity: 0.9;"><?php echo esc_html($stats['go_live_status']); ?></div>
                     </div>
                 </div>
@@ -97,7 +118,7 @@ class GeralTab implements SettingsTabInterface
                 <!-- GAPs Implementados -->
                 <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
                     <h3 style="color: white; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
-                        <?php echo $stats['fluxos']['gaps_implemented'] === $stats['fluxos']['gaps_total'] ? '✅' : '⚠️'; ?> GAPs P0 e P1 - <?php echo $stats['fluxos']['gaps_implemented']; ?>/<?php echo $stats['fluxos']['gaps_total']; ?> Implementados
+                        <?php echo $stats['fluxos']['gaps_implemented'] === $stats['fluxos']['gaps_total'] ? '&#x2705;' : '&#x26A0;'; ?> GAPs P0 e P1 - <?php echo $stats['fluxos']['gaps_implemented']; ?>/<?php echo $stats['fluxos']['gaps_total']; ?> Implementados
                     </h3>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
                         <?php
@@ -133,7 +154,7 @@ class GeralTab implements SettingsTabInterface
                                 $implemented = class_exists($gap['use_case']);
                             }
 
-                            $statusIcon = $implemented ? '✅' : '❌';
+                            $statusIcon = $implemented ? '&#x2705;' : '&#x274C;';
                             $statusText = $implemented ? 'Implementado' : 'Pendente';
                             ?>
                             <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
@@ -152,23 +173,17 @@ class GeralTab implements SettingsTabInterface
                         <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=fluxos'); ?>"
                            class="button button-primary"
                            style="background: white; color: #667eea; border: none; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                            📊 Ver Dashboard de Fluxos
-                        </a>
-                        <a href="https://github.com/jgdeamorim/limpvix-core/tree/sprint-final-100-percent"
-                           target="_blank"
-                           class="button"
-                           style="background: rgba(255,255,255,0.2); color: white; border: none; backdrop-filter: blur(10px);">
-                            🌿 Ver Branch no GitHub
+                            <span class="dashicons dashicons-chart-bar" style="margin-top: 3px;"></span> Ver Dashboard de Fluxos
                         </a>
                         <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=dependencias'); ?>"
                            class="button"
                            style="background: rgba(255,255,255,0.2); color: white; border: none; backdrop-filter: blur(10px);">
-                            🔗 Verificar Dependências
+                            <span class="dashicons dashicons-admin-links" style="margin-top: 3px;"></span> Verificar Depend&ecirc;ncias
                         </a>
                         <a href="<?php echo admin_url('admin.php?page=limpvix-sync-validator'); ?>"
                            class="button"
                            style="background: rgba(255,255,255,0.2); color: white; border: none; backdrop-filter: blur(10px);">
-                            🔍 Validar Integridade
+                            <span class="dashicons dashicons-search" style="margin-top: 3px;"></span> Validar Integridade
                         </a>
                     </div>
                 </div>
@@ -180,34 +195,34 @@ class GeralTab implements SettingsTabInterface
             <div class="limpvix-card-header">
                 <h3>
                     <span class="dashicons dashicons-book"></span>
-                    📚 Documentação e Recursos
+                    Documenta&ccedil;&atilde;o e Recursos
                 </h3>
-                <p>Guias, documentação técnica e recursos do sistema</p>
+                <p>Guias, documenta&ccedil;&atilde;o t&eacute;cnica e recursos do sistema</p>
             </div>
             <div class="limpvix-card-body">
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
                     <!-- Documentação -->
                     <div style="padding: 15px; background: #f8f9fa; border-radius: 6px;">
-                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;">📖 Documentação</h4>
+                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;"><span class="dashicons dashicons-media-document"></span> Documenta&ccedil;&atilde;o</h4>
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
-                            <li style="margin-bottom: 8px;">
-                                Sprint Final - 100% Completude (docs/)
-                            </li>
                             <li style="margin-bottom: 8px;">
                                 Changelog Detalhado
                             </li>
                             <li style="margin-bottom: 8px;">
                                 README do Plugin
                             </li>
+                            <li style="margin-bottom: 8px;">
+                                Arquitetura DDD + Clean Architecture
+                            </li>
                         </ul>
                     </div>
 
                     <!-- API e Testes -->
                     <div style="padding: 15px; background: #f8f9fa; border-radius: 6px;">
-                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;">🧪 Testes e API</h4>
+                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;"><span class="dashicons dashicons-admin-tools"></span> Testes e API</h4>
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
                             <li style="margin-bottom: 8px;">
-                                <strong><?php echo $stats['test_count']; ?> testes unitários</strong> (<?php echo $stats['test_count'] > 0 ? '100% passing' : 'nenhum teste encontrado'; ?>)
+                                <strong><?php echo $stats['test_count']; ?> testes unit&aacute;rios</strong> (<?php echo $stats['test_count'] > 0 ? '100% passing' : 'nenhum teste encontrado'; ?>)
                             </li>
                             <li style="margin-bottom: 8px;">
                                 REST API: <code>/wp-json/limpvix/v1/</code>
@@ -220,7 +235,7 @@ class GeralTab implements SettingsTabInterface
 
                     <!-- Sistema -->
                     <div style="padding: 15px; background: #f8f9fa; border-radius: 6px;">
-                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;">⚙️ Sistema</h4>
+                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;"><span class="dashicons dashicons-admin-generic"></span> Sistema</h4>
                         <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
                             <li style="margin-bottom: 8px;">
                                 <strong>Arquitetura:</strong> DDD + Clean Architecture
@@ -237,13 +252,13 @@ class GeralTab implements SettingsTabInterface
 
                 <!-- Status de Implementação -->
                 <div style="margin-top: 20px; padding: 15px; background: <?php echo $stats['is_go_live_ready'] ? '#d4edda' : '#fff3cd'; ?>; border-left: 4px solid <?php echo $stats['is_go_live_ready'] ? '#28a745' : '#ffc107'; ?>; border-radius: 4px;">
-                    <h4 style="margin: 0 0 10px 0; color: <?php echo $stats['is_go_live_ready'] ? '#155724' : '#856404'; ?>;">🎯 Status de Implementação</h4>
+                    <h4 style="margin: 0 0 10px 0; color: <?php echo $stats['is_go_live_ready'] ? '#155724' : '#856404'; ?>;">Status de Implementa&ccedil;&atilde;o</h4>
                     <div style="font-size: 13px; color: <?php echo $stats['is_go_live_ready'] ? '#155724' : '#856404'; ?>; line-height: 1.6;">
-                        <strong><?php echo $stats['fluxos']['operational_complete'] === $stats['fluxos']['operational_total'] ? '✅' : '⚠️'; ?> Fluxos Operacionais:</strong> <?php echo $stats['fluxos']['operational_complete']; ?>/<?php echo $stats['fluxos']['operational_total']; ?> completos (<?php echo round(($stats['fluxos']['operational_complete'] / $stats['fluxos']['operational_total']) * 100); ?>%)<br>
-                        <strong><?php echo $stats['test_count'] > 0 ? '✅' : '⚠️'; ?> Cobertura de Testes:</strong> Domain layer com <?php echo $stats['test_count']; ?> testes<br>
-                        <strong>✅ REST API:</strong> Endpoints completos para executions, issues, evidences<br>
-                        <strong>✅ Event Listeners:</strong> Event-driven architecture implementada<br>
-                        <strong>✅ Validações:</strong> Geofence, time window, EPI, evidências categorizadas
+                        <strong><?php echo $stats['fluxos']['operational_complete'] === $stats['fluxos']['operational_total'] ? '&#x2705;' : '&#x26A0;'; ?> Fluxos Operacionais:</strong> <?php echo $stats['fluxos']['operational_complete']; ?>/<?php echo $stats['fluxos']['operational_total']; ?> completos (<?php echo round(($stats['fluxos']['operational_complete'] / $stats['fluxos']['operational_total']) * 100); ?>%)<br>
+                        <strong><?php echo $stats['test_count'] > 0 ? '&#x2705;' : '&#x26A0;'; ?> Cobertura de Testes:</strong> Domain layer com <?php echo $stats['test_count']; ?> testes<br>
+                        <strong>&#x2705; REST API:</strong> Endpoints completos para executions, issues, evidences<br>
+                        <strong>&#x2705; Event Listeners:</strong> Event-driven architecture implementada<br>
+                        <strong>&#x2705; Valida&ccedil;&otilde;es:</strong> Geofence, time window, EPI, evid&ecirc;ncias categorizadas
                     </div>
                 </div>
             </div>
@@ -265,28 +280,28 @@ class GeralTab implements SettingsTabInterface
                     $all_flags = $flags->getAll();
                     $important_flags = [
                         "core_enabled" => [
-                            "label" => "🔥 Core LimpVix (MASTER)",
+                            "label" => "Core LimpVix (MASTER)",
                             "description" => "Habilita TODOS os componentes do sistema"
                         ],
                         "briefing_enabled" => [
-                            "label" => "Módulo Briefing",
-                            "description" => "Sistema de briefing e cotação"
+                            "label" => "M&oacute;dulo Briefing",
+                            "description" => "Sistema de briefing e cota&ccedil;&atilde;o"
                         ],
                         "financial_workflow" => [
                             "label" => "Workflow Financeiro",
-                            "description" => "Fluxo de pagamentos e cobranças"
+                            "description" => "Fluxo de pagamentos e cobran&ccedil;as"
                         ],
                         "payout_engine" => [
                             "label" => "Motor de Payouts",
-                            "description" => "Cálculo e processamento de repasses"
+                            "description" => "C&aacute;lculo e processamento de repasses"
                         ],
                         "admin_interface" => [
                             "label" => "Interface Admin",
-                            "description" => "Menus e páginas administrativas"
+                            "description" => "Menus e p&aacute;ginas administrativas"
                         ],
                         "audit_logging" => [
                             "label" => "Logs de Auditoria",
-                            "description" => "Registro de todas as ações"
+                            "description" => "Registro de todas as a&ccedil;&otilde;es"
                         ],
                     ];
 
@@ -303,18 +318,18 @@ class GeralTab implements SettingsTabInterface
                     <?php if (!$all_enabled): ?>
                     <!-- Botão Habilitar Todos -->
                     <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107;">
-                        <p style="margin: 0 0 10px 0;"><strong>⚠️ Alguns motores estão desabilitados</strong></p>
-                        <p style="margin: 0 0 10px 0; font-size: 13px;">Para ativar todas as funcionalidades do LimpVix Core, clique no botão abaixo:</p>
+                        <p style="margin: 0 0 10px 0;"><strong>&#x26A0; Alguns motores est&atilde;o desabilitados</strong></p>
+                        <p style="margin: 0 0 10px 0; font-size: 13px;">Para ativar todas as funcionalidades do LimpVix Core, clique no bot&atilde;o abaixo:</p>
                         <form method="post" style="margin: 0;">
                             <?php wp_nonce_field('limpvix_save_feature_flags', 'limpvix_feature_flags_nonce'); ?>
                             <button type="submit" name="enable_all_motors" class="button button-primary" style="background: #28a745; border-color: #28a745;">
-                                ⚡ Habilitar Todos os Motores
+                                <span class="dashicons dashicons-controls-play" style="margin-top: 3px;"></span> Habilitar Todos os Motores
                             </button>
                         </form>
                     </div>
                     <?php else: ?>
                     <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745;">
-                        <p style="margin: 0;"><strong>✅ Todos os motores estão habilitados!</strong> Sistema funcionando em capacidade total.</p>
+                        <p style="margin: 0;"><strong>&#x2705; Todos os motores est&atilde;o habilitados!</strong> Sistema funcionando em capacidade total.</p>
                     </div>
                     <?php endif; ?>
 
@@ -323,15 +338,15 @@ class GeralTab implements SettingsTabInterface
                             <tr>
                                 <th>Funcionalidade</th>
                                 <th style="text-align: center;">Status</th>
-                                <th style="text-align: center; width: 150px;">Ação</th>
+                                <th style="text-align: center; width: 150px;">A&ccedil;&atilde;o</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($important_flags as $flag => $info): ?>
                             <tr>
                                 <td>
-                                    <strong><?php echo esc_html($info['label']); ?></strong>
-                                    <br><small style="color: #666;"><?php echo esc_html($info['description']); ?></small>
+                                    <strong><?php echo $info['label']; ?></strong>
+                                    <br><small style="color: #666;"><?php echo $info['description']; ?></small>
                                 </td>
                                 <td style="text-align: center;">
                                     <?php if (isset($all_flags[$flag]) && $all_flags[$flag]): ?>
@@ -346,11 +361,11 @@ class GeralTab implements SettingsTabInterface
                                         <input type="hidden" name="toggle_flag" value="<?php echo esc_attr($flag); ?>">
                                         <?php if (isset($all_flags[$flag]) && $all_flags[$flag]): ?>
                                             <button type="submit" class="button button-small" title="Desabilitar">
-                                                ❌ Desabilitar
+                                                &#x274C; Desabilitar
                                             </button>
                                         <?php else: ?>
                                             <button type="submit" class="button button-small button-primary" title="Habilitar">
-                                                ✅ Habilitar
+                                                &#x2705; Habilitar
                                             </button>
                                         <?php endif; ?>
                                     </form>
@@ -369,17 +384,23 @@ class GeralTab implements SettingsTabInterface
                         <span class="dashicons dashicons-heart"></span>
                         Health Check
                     </h3>
-                    <p>Status e saúde do sistema</p>
+                    <p>Status e sa&uacute;de do sistema</p>
                 </div>
                 <div class="limpvix-card-body">
                     <?php
                     $kernel = \LimpVix\Core\Kernel::getInstance();
                     $health = $kernel->healthCheck();
+                    $cronHealth = $this->getCronJobsHealth();
+                    $scheduledCrons = count(array_filter($cronHealth, fn($c) => $c['scheduled']));
+                    $totalCrons = count($cronHealth);
+                    $customTables = $this->countCustomTables();
+                    $coreFlag = (new \LimpVix\Core\FeatureFlags())->isEnabled('core_enabled');
+                    $nativeModulesActive = $coreFlag && $scheduledCrons > 0;
                     ?>
                     <table class="limpvix-table">
                         <tbody>
                             <tr>
-                                <td><strong>Versão do Plugin</strong></td>
+                                <td><strong>Vers&atilde;o do Plugin</strong></td>
                                 <td>
                                     <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($health["version"]); ?></span>
                                 </td>
@@ -390,22 +411,245 @@ class GeralTab implements SettingsTabInterface
                                     <?php if ($health["booted"]): ?>
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Inicializado</span>
                                     <?php else: ?>
-                                        <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Não inicializado</span>
+                                        <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">N&atilde;o inicializado</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
-                                <td><strong>Módulos Nativos</strong></td>
+                                <td><strong>M&oacute;dulos Nativos</strong></td>
                                 <td>
-                                    <?php if (false): /* agendador externo removido */ ?>
+                                    <?php if ($nativeModulesActive): ?>
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
                                     <?php else: ?>
                                         <span class="limpvix-badge limpvix-badge-danger limpvix-badge-dot">Inativo</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
+                            <tr>
+                                <td><strong>Cron Jobs</strong></td>
+                                <td>
+                                    <?php if ($scheduledCrons === $totalCrons): ?>
+                                        <span class="limpvix-badge limpvix-badge-success"><?php echo $scheduledCrons; ?>/<?php echo $totalCrons; ?> agendados</span>
+                                    <?php elseif ($scheduledCrons > 0): ?>
+                                        <span class="limpvix-badge limpvix-badge-warning"><?php echo $scheduledCrons; ?>/<?php echo $totalCrons; ?> agendados</span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-danger">0/<?php echo $totalCrons; ?> agendados</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tabelas Custom</strong></td>
+                                <td>
+                                    <span class="limpvix-badge limpvix-badge-info"><?php echo $customTables; ?> tabelas</span>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONFIGURAÇÕES OPERACIONAIS (NOVA SEÇÃO EDITÁVEL) -->
+        <form method="post" style="margin-top: 20px;">
+            <?php wp_nonce_field('limpvix_geral_settings'); ?>
+            <input type="hidden" name="limpvix_save_geral_settings" value="1">
+
+            <?php if (isset($_GET['updated'])): ?>
+                <div class="notice notice-success is-dismissible" style="margin-bottom: 15px;">
+                    <p><strong>&#x2705; Configura&ccedil;&otilde;es operacionais salvas com sucesso!</strong></p>
+                </div>
+            <?php endif; ?>
+
+            <div class="limpvix-card" style="margin-bottom: 20px;">
+                <div class="limpvix-card-header">
+                    <h3>
+                        <span class="dashicons dashicons-admin-settings"></span>
+                        Configura&ccedil;&otilde;es Operacionais
+                    </h3>
+                    <p>Par&acirc;metros operacionais do sistema &mdash; usados por dom&iacute;nio e infraestrutura</p>
+                </div>
+                <div class="limpvix-card-body">
+                    <?php
+                    $companyName = get_option('limpvix_company_name', 'LimpVix');
+                    $operationalEmail = get_option('limpvix_operational_email', get_option('admin_email'));
+                    $enforceGeoCheckin = (bool) get_option('limpvix_enforce_geofence_checkin', true);
+                    $enforceGeoCheckout = (bool) get_option('limpvix_enforce_geofence_checkout', true);
+                    $enforceRoomPhotos = (bool) get_option('limpvix_enforce_room_photos', true);
+                    $phoneExemptAdmin = (bool) get_option('limpvix_phone_verification_exempt_admin', false);
+                    ?>
+
+                    <!-- Identidade -->
+                    <h4 style="margin: 0 0 15px 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                        <span class="dashicons dashicons-building" style="color: #667eea;"></span> Identidade
+                    </h4>
+                    <table class="limpvix-table" style="margin-bottom: 25px;">
+                        <tbody>
+                            <tr>
+                                <td style="width: 250px;"><strong>Nome da Empresa</strong>
+                                    <br><small style="color: #666;">Usado em notifica&ccedil;&otilde;es ao cliente (CustomerNotifier)</small>
+                                </td>
+                                <td>
+                                    <input type="text" name="company_name" value="<?php echo esc_attr($companyName); ?>"
+                                           class="regular-text" style="width: 300px;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>E-mail Operacional</strong>
+                                    <br><small style="color: #666;">Usado na cria&ccedil;&atilde;o de agendamentos (ScheduleCreationListener)</small>
+                                </td>
+                                <td>
+                                    <input type="email" name="operational_email" value="<?php echo esc_attr($operationalEmail); ?>"
+                                           class="regular-text" style="width: 300px;">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Enforcement -->
+                    <h4 style="margin: 0 0 15px 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                        <span class="dashicons dashicons-shield" style="color: #e74c3c;"></span> Enforcement &mdash; Regras de Campo
+                    </h4>
+                    <table class="limpvix-table" style="margin-bottom: 25px;">
+                        <tbody>
+                            <tr>
+                                <td style="width: 250px;"><strong>Geofence no Check-in</strong>
+                                    <br><small style="color: #666;">Profissional deve estar dentro do raio para check-in</small>
+                                </td>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="enforce_geofence_checkin" value="1"
+                                               <?php checked($enforceGeoCheckin); ?>>
+                                        Ativo
+                                    </label>
+                                    <span class="limpvix-badge limpvix-badge-<?php echo $enforceGeoCheckin ? 'success' : 'gray'; ?>" style="margin-left: 10px;">
+                                        <?php echo $enforceGeoCheckin ? 'Obrigat&oacute;rio' : 'Desativado'; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Geofence no Check-out</strong>
+                                    <br><small style="color: #666;">Profissional deve estar dentro do raio para check-out</small>
+                                </td>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="enforce_geofence_checkout" value="1"
+                                               <?php checked($enforceGeoCheckout); ?>>
+                                        Ativo
+                                    </label>
+                                    <span class="limpvix-badge limpvix-badge-<?php echo $enforceGeoCheckout ? 'success' : 'gray'; ?>" style="margin-left: 10px;">
+                                        <?php echo $enforceGeoCheckout ? 'Obrigat&oacute;rio' : 'Desativado'; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fotos de C&ocirc;modos Obrigat&oacute;rias</strong>
+                                    <br><small style="color: #666;">Exige fotos de todos os c&ocirc;modos antes de finalizar</small>
+                                </td>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="enforce_room_photos" value="1"
+                                               <?php checked($enforceRoomPhotos); ?>>
+                                        Ativo
+                                    </label>
+                                    <span class="limpvix-badge limpvix-badge-<?php echo $enforceRoomPhotos ? 'success' : 'gray'; ?>" style="margin-left: 10px;">
+                                        <?php echo $enforceRoomPhotos ? 'Obrigat&oacute;rio' : 'Desativado'; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Segurança -->
+                    <h4 style="margin: 0 0 15px 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                        <span class="dashicons dashicons-lock" style="color: #f39c12;"></span> Seguran&ccedil;a
+                    </h4>
+                    <table class="limpvix-table" style="margin-bottom: 15px;">
+                        <tbody>
+                            <tr>
+                                <td style="width: 250px;"><strong>Admin Isento de OTP</strong>
+                                    <br><small style="color: #666;">Admins n&atilde;o passam por verifica&ccedil;&atilde;o telef&ocirc;nica (PhoneVerificationMiddleware)</small>
+                                </td>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" name="phone_verification_exempt_admin" value="1"
+                                               <?php checked($phoneExemptAdmin); ?>>
+                                        Ativo
+                                    </label>
+                                    <span class="limpvix-badge limpvix-badge-<?php echo $phoneExemptAdmin ? 'warning' : 'success'; ?>" style="margin-left: 10px;">
+                                        <?php echo $phoneExemptAdmin ? 'Admins isentos' : 'Todos verificam'; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="padding: 12px 15px; background: #e8f4fd; border-left: 4px solid #2196F3; border-radius: 4px; margin-bottom: 15px;">
+                        <strong><span class="dashicons dashicons-info" style="color: #2196F3;"></span> Importante:</strong>
+                        Estas configura&ccedil;&otilde;es controlam o comportamento operacional do sistema.
+                        Altera&ccedil;&otilde;es de enforcement afetam check-in/check-out dos profissionais em campo.
+                    </div>
+
+                    <button type="submit" class="button button-primary button-large">
+                        <span class="dashicons dashicons-saved" style="margin-top: 5px;"></span>
+                        Salvar Configura&ccedil;&otilde;es Operacionais
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- SAÚDE DOS CRON JOBS (NOVA SEÇÃO) -->
+        <div class="limpvix-card" style="margin-bottom: 20px;">
+            <div class="limpvix-card-header">
+                <h3>
+                    <span class="dashicons dashicons-clock"></span>
+                    Sa&uacute;de dos Cron Jobs
+                </h3>
+                <p><?php echo $scheduledCrons; ?>/<?php echo $totalCrons; ?> cron jobs agendados</p>
+            </div>
+            <div class="limpvix-card-body">
+                <table class="limpvix-table">
+                    <thead>
+                        <tr>
+                            <th>Hook</th>
+                            <th style="text-align: center;">Frequ&ecirc;ncia</th>
+                            <th style="text-align: center;">Status</th>
+                            <th style="text-align: center;">Pr&oacute;ximo Run</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($cronHealth as $cron): ?>
+                        <tr>
+                            <td>
+                                <code style="font-size: 12px;"><?php echo esc_html($cron['hook']); ?></code>
+                                <br><small style="color: #666;"><?php echo esc_html($cron['description']); ?></small>
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="limpvix-badge limpvix-badge-info"><?php echo esc_html($cron['frequency']); ?></span>
+                            </td>
+                            <td style="text-align: center;">
+                                <?php if ($cron['scheduled']): ?>
+                                    <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Agendado</span>
+                                <?php else: ?>
+                                    <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">N&atilde;o agendado</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="text-align: center;">
+                                <?php if ($cron['next_run']): ?>
+                                    <small><?php echo esc_html($cron['next_run']); ?></small>
+                                <?php else: ?>
+                                    <small style="color: #999;">&mdash;</small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <div style="padding: 12px 15px; background: #f8f9fa; border-left: 4px solid #6c757d; border-radius: 4px; margin-top: 15px;">
+                    <strong><span class="dashicons dashicons-info"></span></strong>
+                    Cron jobs s&atilde;o gerenciados automaticamente pelo plugin.
+                    Se algum n&atilde;o est&aacute; agendado, verifique se o m&oacute;dulo correspondente est&aacute; ativo nas Feature Flags acima.
+                    <br><small>Configura&ccedil;&otilde;es detalhadas de cron est&atilde;o em <a href="<?php echo admin_url('admin.php?page=limpvix-settings&tab=cron'); ?>"><strong>Cron</strong></a> tab.</small>
                 </div>
             </div>
         </div>
@@ -417,7 +661,7 @@ class GeralTab implements SettingsTabInterface
                 <div class="limpvix-card-header">
                     <h3>
                         <span class="dashicons dashicons-admin-plugins"></span>
-                        Módulos do Sistema
+                        M&oacute;dulos do Sistema
                     </h3>
                     <p>Componentes carregados e funcionais</p>
                 </div>
@@ -425,10 +669,10 @@ class GeralTab implements SettingsTabInterface
                     <?php
                     $modules = [
                         'Briefing' => class_exists('LimpVix\\Core\\BriefingBootstrap') && method_exists('LimpVix\\Core\\BriefingBootstrap', 'isInitialized') ? \LimpVix\Core\BriefingBootstrap::isInitialized() : false,
-                        'Comunicação (Settings)' => true, // Moved to Settings tab (ONDA 2)
+                        'Comunica&ccedil;&atilde;o' => class_exists('LimpVix\\Infrastructure\\Communication\\CommunicationBootstrap'),
                         'Financeiro' => class_exists('LimpVix\\Domain\\Finance\\LedgerEntry'),
                         'Feedback' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\FeedbackManagementPage'),
-                        'Fluxos (Settings)' => true, // Moved to Settings tab (ONDA 2)
+                        'Fluxos' => class_exists('LimpVix\\Admin\\Settings\\Tabs\\FluxosTab'),
                         'Templates' => class_exists('LimpVix\\Infrastructure\\Admin\\Pages\\MessageTemplatesAdminPage'),
                     ];
                     ?>
@@ -436,7 +680,7 @@ class GeralTab implements SettingsTabInterface
                         <tbody>
                             <?php foreach ($modules as $name => $active): ?>
                             <tr>
-                                <td><strong><?php echo esc_html($name); ?></strong></td>
+                                <td><strong><?php echo $name; ?></strong></td>
                                 <td style="text-align: right;">
                                     <?php if ($active): ?>
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Ativo</span>
@@ -456,42 +700,40 @@ class GeralTab implements SettingsTabInterface
                 <div class="limpvix-card-header">
                     <h3>
                         <span class="dashicons dashicons-chart-bar"></span>
-                        Estatísticas Gerais
+                        Estat&iacute;sticas Gerais
                     </h3>
                     <p>Resumo de dados do sistema</p>
                 </div>
                 <div class="limpvix-card-body">
                     <?php
                     global $wpdb;
+                    $prefix = $wpdb ? $wpdb->prefix : 'wp_';
 
-                    // Contar briefings
-                    $briefings_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_briefings");
+                    // Contar briefings (com check de tabela)
+                    $briefings_count = $this->safeTableCount($prefix . 'limpvix_briefings');
 
                     // Contar mensagens (últimos 30 dias)
-                    $messages_count = $wpdb->get_var(
-                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_messages
-                         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    $messages_count = $this->safeTableCount(
+                        $prefix . 'limpvix_messages',
+                        "created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
                     );
 
                     // Contar pedidos WooCommerce (últimos 30 dias)
-                    $orders_count = $wpdb->get_var(
-                        "SELECT COUNT(*) FROM {$wpdb->prefix}posts
-                         WHERE post_type = 'shop_order'
-                         AND post_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    $orders_count = $this->safeTableCount(
+                        $prefix . 'posts',
+                        "post_type = 'shop_order' AND post_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
                     );
 
                     // Contar Feedbacks Negativos C2 (final_score < 4, últimos 30 dias)
-                    $feedbacks_c2_count = $wpdb->get_var(
-                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_structured_feedbacks
-                         WHERE final_score IS NOT NULL
-                         AND final_score < 4.00
-                         AND submitted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                    $feedbacks_c2_count = $this->safeTableCount(
+                        $prefix . 'limpvix_structured_feedbacks',
+                        "final_score IS NOT NULL AND final_score < 4.00 AND submitted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
                     );
 
                     // Contar entradas ledger (últimos 7 dias)
-                    $ledger_count = $wpdb->get_var(
-                        "SELECT COUNT(*) FROM {$wpdb->prefix}limpvix_financial_ledger
-                         WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+                    $ledger_count = $this->safeTableCount(
+                        $prefix . 'limpvix_financial_ledger',
+                        "occurred_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
                     );
                     ?>
                     <table class="limpvix-table">
@@ -499,35 +741,55 @@ class GeralTab implements SettingsTabInterface
                             <tr>
                                 <td><strong>Briefings (total)</strong></td>
                                 <td style="text-align: right;">
-                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($briefings_count ?: 0); ?></span>
+                                    <?php if ($briefings_count !== null): ?>
+                                        <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($briefings_count); ?></span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray">&mdash;</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
                                 <td><strong>Mensagens (30 dias)</strong></td>
                                 <td style="text-align: right;">
-                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($messages_count ?: 0); ?></span>
+                                    <?php if ($messages_count !== null): ?>
+                                        <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($messages_count); ?></span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray">&mdash;</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
                                 <td><strong>Pedidos (30 dias)</strong></td>
                                 <td style="text-align: right;">
-                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($orders_count ?: 0); ?></span>
+                                    <?php if ($orders_count !== null): ?>
+                                        <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($orders_count); ?></span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray">&mdash;</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
                                 <td><strong>Feedbacks C2 (30 dias)</strong></td>
                                 <td style="text-align: right;">
-                                    <?php if ($feedbacks_c2_count > 0): ?>
-                                        <span class="limpvix-badge limpvix-badge-warning"><?php echo number_format($feedbacks_c2_count); ?></span>
+                                    <?php if ($feedbacks_c2_count !== null): ?>
+                                        <?php if ($feedbacks_c2_count > 0): ?>
+                                            <span class="limpvix-badge limpvix-badge-warning"><?php echo number_format($feedbacks_c2_count); ?></span>
+                                        <?php else: ?>
+                                            <span class="limpvix-badge limpvix-badge-success">0</span>
+                                        <?php endif; ?>
                                     <?php else: ?>
-                                        <span class="limpvix-badge limpvix-badge-success"><?php echo number_format($feedbacks_c2_count ?: 0); ?></span>
+                                        <span class="limpvix-badge limpvix-badge-gray">&mdash;</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
                             <tr>
                                 <td><strong>Eventos Ledger (7 dias)</strong></td>
                                 <td style="text-align: right;">
-                                    <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($ledger_count ?: 0); ?></span>
+                                    <?php if ($ledger_count !== null): ?>
+                                        <span class="limpvix-badge limpvix-badge-info"><?php echo number_format($ledger_count); ?></span>
+                                    <?php else: ?>
+                                        <span class="limpvix-badge limpvix-badge-gray">&mdash;</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         </tbody>
@@ -543,9 +805,9 @@ class GeralTab implements SettingsTabInterface
                 <div class="limpvix-card-header">
                     <h3>
                         <span class="dashicons dashicons-cloud"></span>
-                        Integrações Externas
+                        Integra&ccedil;&otilde;es Externas
                     </h3>
-                    <p>Status das conexões com serviços externos</p>
+                    <p>Status das conex&otilde;es com servi&ccedil;os externos</p>
                 </div>
                 <div class="limpvix-card-body">
                     <?php
@@ -554,7 +816,7 @@ class GeralTab implements SettingsTabInterface
                         'Firebase' => FirebaseSettings::isConfigured(),
                         'NVoip OTP' => NVoipSettings::isConnected(),
                         'Google Business' => GoogleBusinessSettings::isConnected(),
-                        'Mercado Pago' => \LimpVix\Admin\Settings\MercadoPagoDetector::isOfficialPluginConnected(),
+                        'EFI Bank' => \LimpVix\Admin\Settings\EfiBankSettings::getConfigStatus()['configured'],
                         'WooCommerce' => class_exists('WooCommerce'),
                     ];
                     ?>
@@ -567,7 +829,7 @@ class GeralTab implements SettingsTabInterface
                                     <?php if ($configured): ?>
                                         <span class="limpvix-badge limpvix-badge-success limpvix-badge-dot">Configurado</span>
                                     <?php else: ?>
-                                        <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">Não configurado</span>
+                                        <span class="limpvix-badge limpvix-badge-gray limpvix-badge-dot">N&atilde;o configurado</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -584,7 +846,7 @@ class GeralTab implements SettingsTabInterface
                         <span class="dashicons dashicons-admin-tools"></span>
                         Ambiente e Performance
                     </h3>
-                    <p>Informações técnicas do servidor</p>
+                    <p>Informa&ccedil;&otilde;es t&eacute;cnicas do servidor</p>
                 </div>
                 <div class="limpvix-card-body">
                     <?php
@@ -687,8 +949,8 @@ class GeralTab implements SettingsTabInterface
             'status_message' => $completionPercentage >= 100
                 ? 'Sistema 100% Operacional'
                 : "Sistema {$completionPercentage}% Operacional",
-            'status_icon' => $completionPercentage >= 100 ? '🎉' : '⚠️',
-            'go_live_status' => $isGoLiveReady ? '✓ Go-Live Ready' : '⚠️ Em Desenvolvimento',
+            'status_icon' => $completionPercentage >= 100 ? '&#x1F389;' : '&#x26A0;',
+            'go_live_status' => $isGoLiveReady ? 'Go-Live Ready' : 'Em Desenvolvimento',
         ];
     }
 
@@ -825,5 +1087,93 @@ class GeralTab implements SettingsTabInterface
             'gaps_implemented' => $gapsImplemented,
             'gaps_total' => $gapsTotal,
         ];
+    }
+
+    /**
+     * Get health status of all plugin cron jobs
+     */
+    private function getCronJobsHealth(): array
+    {
+        $hooks = [
+            'limpvix_reconcile_payouts' => ['frequency' => '6h', 'description' => 'Reconciliacao de payouts com EFI Bank'],
+            'limpvix_charge_recurring_payments' => ['frequency' => 'Diario', 'description' => 'Cobranca de pagamentos recorrentes'],
+            'limpvix_process_review_timer' => ['frequency' => 'Horario', 'description' => 'Timer de review de feedback'],
+            'limpvix_process_payout_batch' => ['frequency' => 'Horario', 'description' => 'Processamento de batch de payouts'],
+            'limpvix_sync_payouts' => ['frequency' => '15min', 'description' => 'Sincronizacao de payouts'],
+            'limpvix_retry_failed_payouts' => ['frequency' => '2x/dia', 'description' => 'Retry de payouts com falha'],
+            'limpvix_clean_message_queue' => ['frequency' => 'Diario', 'description' => 'Limpeza da fila de mensagens'],
+            'limpvix_check_contract_expiration' => ['frequency' => 'Diario', 'description' => 'Verificacao de contratos expirados'],
+            'limpvix_contracts_daily_check' => ['frequency' => 'Diario', 'description' => 'Check diario de contratos'],
+            'limpvix_contracts_weekly_briefing' => ['frequency' => 'Semanal', 'description' => 'Briefing semanal de contratos'],
+            'limpvix_payment_authorization_timeout' => ['frequency' => 'Horario', 'description' => 'Timeout de autorizacao de pagamento'],
+            'limpvix_fallback_send_offers' => ['frequency' => 'Horario', 'description' => 'Envio de ofertas (fallback)'],
+            'limpvix_send_feedback_reminders' => ['frequency' => 'Horario', 'description' => 'Lembretes de feedback'],
+            'limpvix_mp_periodic_sync' => ['frequency' => '5min', 'description' => 'Sync periodico Mercado Pago'],
+        ];
+
+        $results = [];
+        foreach ($hooks as $hook => $info) {
+            $next = wp_next_scheduled($hook);
+            $results[] = [
+                'hook' => $hook,
+                'frequency' => $info['frequency'],
+                'description' => $info['description'],
+                'scheduled' => $next !== false,
+                'next_run' => $next ? wp_date('Y-m-d H:i:s', $next) : null,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * Count custom LimpVix tables in the database
+     */
+    private function countCustomTables(): int
+    {
+        global $wpdb;
+        if (!$wpdb) {
+            return 0;
+        }
+        $result = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name LIKE %s",
+                DB_NAME,
+                $wpdb->prefix . 'limpvix_%'
+            )
+        );
+        return (int) ($result ?: 0);
+    }
+
+    /**
+     * Safe count with table existence check
+     *
+     * @return int|null null if table doesn't exist
+     */
+    private function safeTableCount(string $table, ?string $where = null): ?int
+    {
+        global $wpdb;
+        if (!$wpdb) {
+            return null;
+        }
+
+        // Check table exists
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = %s AND table_name = %s",
+            DB_NAME,
+            $table
+        ));
+
+        if (!$exists) {
+            return null;
+        }
+
+        $sql = "SELECT COUNT(*) FROM `{$table}`";
+        if ($where) {
+            $sql .= " WHERE {$where}";
+        }
+
+        $count = $wpdb->get_var($sql);
+        return $count !== null ? (int) $count : 0;
     }
 }
