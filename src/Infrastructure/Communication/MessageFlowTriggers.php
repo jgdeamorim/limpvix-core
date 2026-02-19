@@ -12,7 +12,6 @@ namespace LimpVix\Infrastructure\Communication;
 use LimpVix\Domain\Communication\MessageTemplates;
 use LimpVix\Infrastructure\GoogleBusiness\GoogleBusinessReviewHelper;
 use LimpVix\Infrastructure\Communication\Providers\TwilioSmsProvider;
-use LimpVix\Infrastructure\Communication\Providers\WhatsApp360DialogProvider;
 use LimpVix\Infrastructure\Communication\Repositories\MessageRepository;
 
 defined('ABSPATH') || exit;
@@ -429,30 +428,9 @@ final class MessageFlowTriggers
         string $orderUuid,
         int $recipientId
     ): bool {
-        if (!class_exists('LimpVix\\Infrastructure\\Communication\\Providers\\WhatsApp360DialogProvider')) {
-            return false;
-        }
-
-        $repository = new MessageRepository();
-        $provider = new WhatsApp360DialogProvider($repository);
-
-        if (!$provider->isConfigured()) {
-            return false;
-        }
-
-        // Formatar telefone
-        $phone = preg_replace('/[^0-9]/', '', $phone);
-
-        // Enviar
-        $result = $provider->sendTemplate(
-            $phone,
-            $templateName,
-            $parameters,
-            $orderUuid,
-            $recipientId,
-            1
-        );
-
-        return $result['success'] ?? false;
+        // WhatsApp: fallback para SMS via Twilio
+        error_log('[LimpVix] WhatsApp solicitado, enviando via SMS (fallback)');
+        $message = implode(' ', array_column($parameters, 'text'));
+        return self::sendViaSMS($phone, $message, $orderUuid, $recipientId);
     }
 }

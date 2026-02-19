@@ -5,7 +5,7 @@
  * RESPONSABILIDADE:
  * - Menu principal: LimpVix (position 3, abaixo de Dashboard)
  * - Sistema de abas: Conexões | Briefing | Scheduling
- * - Aba Conexões: Firebase, Google Meu Negócio, NVoip OTP, 360Dialog
+ * - Aba Conexões: Firebase, Google Meu Negócio, NVoip OTP, Twilio
  * - Aba Briefing: Gerenciador Profissional Completo
  * - Aba Scheduling: Configurações de agendamento e profissionais
  *

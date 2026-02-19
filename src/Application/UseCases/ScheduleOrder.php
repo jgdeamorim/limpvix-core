@@ -32,20 +32,18 @@ namespace LimpVix\Application\UseCases;
 use LimpVix\Domain\Order\Order;
 use LimpVix\Domain\Order\OrderStatus;
 use LimpVix\Domain\Order\OrderPolicy;
+use LimpVix\Domain\Order\OrderRepositoryInterface;
 
 defined('ABSPATH') || exit;
 
 class ScheduleOrder
 {
-    /**
-     * TODO: Dependências a serem injetadas via construtor:
-     * - OrderRepository
-     * - SchedulingAdapter
-     * - EventDispatcher
-     * - Logger
-     *
-     * Por enquanto, deixamos como placeholder
-     */
+    private ?OrderRepositoryInterface $orderRepository;
+
+    public function __construct(?OrderRepositoryInterface $orderRepository = null)
+    {
+        $this->orderRepository = $orderRepository;
+    }
 
     /**
      * Executa o use case
@@ -65,20 +63,21 @@ class ScheduleOrder
         // 3. CRIAR entidade Order (ainda em memória)
         $order = $this->createOrder($data);
 
-        // 4. CRIAR agendamento LimpVix (via scheduling adapter)
-        // TODO: Implementar quando Adapter estiver pronto
-        // $appointmentId = $this->schedulingAdapter->createAppointment($data);
-        // $order->schedule($appointmentId);
+        // 4. PERSISTIR OS via repository
+        if ($this->orderRepository) {
+            $this->orderRepository->save($order);
+        }
 
-        // 5. PERSISTIR OS
-        // TODO: Implementar quando Repository estiver pronto
-        // $this->orderRepository->save($order);
+        // 5. DISPARAR evento de domínio via WordPress action
+        do_action('limpvix_order_scheduled', [
+            'order_id'    => $order->getId(),
+            'order_uuid'  => method_exists($order, 'getUuid') ? $order->getUuid() : '',
+            'customer_id' => $order->getCustomerId(),
+            'service_id'  => $order->getServiceId(),
+            'scheduled_at' => $order->getScheduledAt()->format('Y-m-d H:i:s'),
+        ]);
 
-        // 6. DISPARAR evento de domínio
-        // TODO: Implementar event dispatcher
-        // $this->eventDispatcher->dispatch(new OrderScheduled($order));
-
-        // 7. LOG de auditoria
+        // 6. LOG de auditoria
         $this->logAudit('ORDER_SCHEDULED', [
             'order_id' => $order->getId(),
             'customer_id' => $order->getCustomerId(),

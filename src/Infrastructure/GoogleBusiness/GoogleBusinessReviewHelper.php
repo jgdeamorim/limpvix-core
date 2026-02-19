@@ -205,24 +205,7 @@ final class GoogleBusinessReviewHelper
         string $orderUuid,
         int $customerId
     ): bool {
-        // Verificar se provider de WhatsApp está disponível
-        if (!class_exists('LimpVix\\Infrastructure\\Communication\\Providers\\WhatsApp360DialogProvider')) {
-            return false;
-        }
-
-        $repository = new \LimpVix\Infrastructure\Communication\Repositories\MessageRepository();
-        $provider = new \LimpVix\Infrastructure\Communication\Providers\WhatsApp360DialogProvider($repository);
-
-        if (!$provider->isConfigured()) {
-            return false;
-        }
-
-        // Enviar mensagem de texto (não template)
-        // NOTA: Para texto livre, pode ser necessário usar SMS
-        // WhatsApp Business API exige templates pré-aprovados
-        // Alternativa: criar template específico para review
-
-        // Por enquanto, usar SMS como fallback
+        // Enviar via SMS (provider principal ativo)
         return self::sendViaSms($phone, $message, $orderUuid, $customerId);
     }
 

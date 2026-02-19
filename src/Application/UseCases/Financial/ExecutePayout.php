@@ -38,13 +38,19 @@ defined('ABSPATH') || exit;
 
 class ExecutePayout
 {
+    private ?\LimpVix\Infrastructure\Database\TransactionManager $transactionManager;
+
     public function __construct(
         private ExecutionRepositoryInterface $executionRepository,
         private PayoutProviderInterface $payoutProvider,
         private PayoutRepositoryInterface $payoutRepository,
         private FeedbackRepositoryInterface $feedbackRepository, // Flow 4.4 integration
-        private ProfessionalRepositoryInterface $professionalRepository
-    ) {}
+        private ProfessionalRepositoryInterface $professionalRepository,
+        ?\LimpVix\Infrastructure\Database\TransactionManager $transactionManager = null
+    ) {
+        // S3-TXMGR: DI with fallback to global for backward compatibility
+        $this->transactionManager = $transactionManager ?? ($GLOBALS['limpvix_transaction_manager'] ?? null);
+    }
 
     /**
      * Executar payout com validação Golden Rule + Feedback hold
@@ -135,7 +141,7 @@ class ExecutePayout
                     // Calcular tempo restante até expiração
                     $hoursRemaining = round(($holdExpiry->getTimestamp() - $now->getTimestamp()) / 3600, 1);
 
-                    $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+                    $transactionManager = $this->transactionManager;
 
                     if ($transactionManager) {
                         $transactionManager->beginTransaction();
@@ -216,7 +222,7 @@ class ExecutePayout
             }
 
             // 6. Provider sucedeu - agora persistir resultado no banco (TRANSAÇÃO)
-            $transactionManager = $GLOBALS['limpvix_transaction_manager'] ?? null;
+            $transactionManager = $this->transactionManager;
 
             if (!$transactionManager) {
                 // CRITICAL: Provider já executou, mas não podemos persistir

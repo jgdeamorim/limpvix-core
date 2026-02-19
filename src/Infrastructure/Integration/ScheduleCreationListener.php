@@ -96,33 +96,73 @@ class ScheduleCreationListener
         }
     }
 
-        private function createAppointment($briefing): int
+    private function createAppointment($briefing): int
     {
-        // Placeholder: criar agendamento simulado
-
         global $wpdb;
 
-        // Dados do agendamento
-        $data = [
-            'briefing_uuid' => $briefing->getUuid(),
-            'user_id' => $briefing->getUserId(),
-            'order_id' => $briefing->getOrderId(),
-            'service_duration' => $briefing->getMetrics()->getTotalMinutes(),
-            'property_type' => $briefing->getPropertyType()->getValue(),
-            'frequency_type' => $briefing->getFrequency() ? $briefing->getFrequency()->getType() : 'avulso',
-            'status' => 'scheduled',
-            'created_at' => current_time('mysql')
-        ];
+        $table = $wpdb->prefix . 'limpvix_contract_executions';
 
-        // TODO: Usar LimpVix Scheduling API
-        // Por enquanto, apenas simular criação
-        $appointmentId = rand(1000, 9999); // Mock
+        // Resolve contract_id from briefing order
+        $contractId = 0;
+        $orderId = $briefing->getOrderId();
+        if ($orderId) {
+            $contractId = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}limpvix_contracts WHERE briefing_uuid = %s LIMIT 1",
+                $briefing->getUuid()
+            ));
+        }
+
+        // Calculate scheduled date (next available based on frequency)
+        $scheduledDate = current_time('Y-m-d');
+        $frequency = $briefing->getFrequency();
+        if ($frequency && !$frequency->isAvulso()) {
+            // For recurring: schedule 3 days out to allow matching
+            $scheduledDate = (new \DateTimeImmutable('+3 days'))->format('Y-m-d');
+        }
+
+        // Calculate execution value from briefing metrics
+        $executionValue = null;
+        if ($briefing->getMetrics() && method_exists($briefing->getMetrics(), 'getTotalPrice')) {
+            $executionValue = $briefing->getMetrics()->getTotalPrice();
+        }
+
+        $inserted = $wpdb->insert($table, [
+            'contract_id'     => $contractId,
+            'briefing_uuid'   => $briefing->getUuid(),
+            'schedule_uuid'   => wp_generate_uuid4(),
+            'scheduled_date'  => $scheduledDate,
+            'status'          => 'scheduled',
+            'execution_value' => $executionValue,
+            'notes'           => sprintf(
+                'Auto-created from briefing. Duration: %d min, Type: %s',
+                $briefing->getMetrics()->getTotalMinutes(),
+                $briefing->getPropertyType()->getValue()
+            ),
+        ]);
+
+        if ($inserted === false) {
+            throw new \RuntimeException(
+                'Failed to create appointment: ' . $wpdb->last_error
+            );
+        }
+
+        $appointmentId = (int) $wpdb->insert_id;
+
+        // Fire execution scheduled event
+        do_action('limpvix_execution_scheduled', [
+            'execution_id'  => $appointmentId,
+            'contract_id'   => $contractId,
+            'briefing_uuid' => $briefing->getUuid(),
+            'scheduled_date' => $scheduledDate,
+            'trigger'       => 'briefing_locked',
+        ]);
 
         $this->logInfo(sprintf(
-            'Agendamento criado (mock): ID=%d, Duração=%d min, Tipo=%s',
+            'Agendamento criado: ID=%d, Contract=%d, Duração=%d min, Data=%s',
             $appointmentId,
-            $data['service_duration'],
-            $data['frequency_type']
+            $contractId,
+            $briefing->getMetrics()->getTotalMinutes(),
+            $scheduledDate
         ));
 
         return $appointmentId;
@@ -137,21 +177,51 @@ class ScheduleCreationListener
      */
     private function setupRecurrence(int $appointmentId, $briefing): void
     {
+        global $wpdb;
+
         $frequency = $briefing->getFrequency();
+        $type = $frequency->getType(); // 'weekly', 'biweekly', 'monthly'
+        $executionsPerPeriod = $frequency->getExecutionsPerPeriod();
+        $table = $wpdb->prefix . 'limpvix_contract_executions';
 
-        $recurrenceData = [
-            'appointment_id' => $appointmentId,
-            'type' => $frequency->getType(), // 'weekly' ou 'monthly'
-            'executions_per_period' => $frequency->getExecutionsPerPeriod(),
-            'start_date' => current_time('Y-m-d'),
-            'end_date' => null // Indeterminado (até cancelamento)
-        ];
+        // Resolve contract_id from the first execution
+        $contractId = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT contract_id FROM {$table} WHERE id = %d",
+            $appointmentId
+        ));
 
-        // TODO: Configurar recorrência no LimpVix
+        // Calculate interval between executions
+        $intervalDays = match ($type) {
+            'weekly' => 7,
+            'biweekly' => 14,
+            'monthly' => 30,
+            default => 7,
+        };
+
+        // Pre-create next 4 recurring executions
+        $baseDate = new \DateTimeImmutable(current_time('Y-m-d'));
+        $executionsCreated = 0;
+
+        for ($i = 1; $i <= 4; $i++) {
+            $scheduledDate = $baseDate->modify('+' . ($intervalDays * $i) . ' days');
+
+            $wpdb->insert($table, [
+                'contract_id'    => $contractId,
+                'briefing_uuid'  => $briefing->getUuid(),
+                'schedule_uuid'  => wp_generate_uuid4(),
+                'scheduled_date' => $scheduledDate->format('Y-m-d'),
+                'status'         => 'pending',
+                'notes'          => sprintf('Recurring execution #%d (%s)', $i, $type),
+            ]);
+
+            if ($wpdb->insert_id) {
+                $executionsCreated++;
+            }
+        }
+
         $this->logInfo(sprintf(
-            'Recorrência configurada: Tipo=%s, Execuções=%dx',
-            $recurrenceData['type'],
-            $recurrenceData['executions_per_period']
+            'Recorrência configurada: Tipo=%s, %d execuções futuras criadas (intervalo %dd)',
+            $type, $executionsCreated, $intervalDays
         ));
     }
 

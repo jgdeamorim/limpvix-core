@@ -1,4 +1,10 @@
 <?php
+// Security: Block direct HTTP access (allow CLI only)
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Direct access not allowed.');
+}
+
 /**
  * Migration 027 — Payout Dual-Mode Fields
  * Executar: docker exec limpvix_wordpress_clean php /var/www/html/wp-content/plugins/limpvix-core/database-migrations/run-027-migration.php

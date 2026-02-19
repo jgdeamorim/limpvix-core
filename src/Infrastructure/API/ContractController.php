@@ -44,6 +44,7 @@ class ContractController
     private ContractRepositoryInterface $repository;
     private array $useCases;
     private AuthorizationService $authService;
+    private ?JwtAuthMiddleware $jwtMiddleware = null;
 
     /**
      * Construtor com Dependency Injection

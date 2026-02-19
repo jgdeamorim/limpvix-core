@@ -104,7 +104,11 @@ class AdapterBootstrap
         $this->registry->add($feedbackAdapter, 'customer_feedback');
         $this->registry->add($timerAdapter, 'review_timer');
 
-        // Guard: WooCommerce deve estar ativo para os adapters de pagamento
+        // ✅ FLOW 4.4: Register event listener for payout hold release (unconditional)
+        // Payout hold/release works independently of WooCommerce — EFI Bank PIX is the primary provider
+        ReleasePayoutHoldOnFeedbackApproved::register($payoutRepo, $executePayout);
+
+        // Guard: WooCommerce deve estar ativo para os adapters de pagamento WC
         if (!class_exists('WooCommerce')) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[LimpVix] WooCommerce não está ativo — adapters de pagamento WC não registrados.');
@@ -118,9 +122,6 @@ class AdapterBootstrap
             $this->registry->add($wooCommerceAdapter, 'woocommerce_payment');
             $this->registry->add($wooCommerceStatusSync, 'woocommerce_status_sync');
             $this->registry->add($automaticPayoutDispatcher, 'automatic_payout');
-
-            // ✅ FLOW 4.4: Register event listener for payout hold release
-            ReleasePayoutHoldOnFeedbackApproved::register($payoutRepo, $executePayout);
         }
 
         // 6. Registrar todos os hooks
@@ -157,6 +158,55 @@ class AdapterBootstrap
                 $reconciliation->approvePayout($orderId, $finalScore);
             }
         });
+
+        // ✅ S2-HOLD-PREEMPTIVE: Preemptive payout hold on bad feedback
+        // When feedback is submitted with rating ≤ 2, immediately mark any pending
+        // payout as preemptive_hold (before ExecutePayout even runs)
+        add_action('limpvix_feedback_submitted', function (array $eventData) use ($payoutRepo) {
+            $orderUuid = $eventData['order_uuid'] ?? '';
+            $finalScore = (int) round($eventData['final_score'] ?? 0);
+
+            if (empty($orderUuid) || $finalScore > 2) {
+                return; // Only preemptive hold for ratings ≤ 2
+            }
+
+            global $wpdb;
+            $orderId = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}limpvix_orders WHERE uuid = %s",
+                $orderUuid
+            ));
+
+            if ($orderId <= 0) {
+                return;
+            }
+
+            // Find pending/scheduled payout for this order
+            $payoutId = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}limpvix_payouts WHERE order_id = %d AND status IN ('pending', 'scheduled')",
+                $orderId
+            ));
+
+            if ($payoutId > 0) {
+                $payoutRepo->updateStatus($payoutId, 'on_hold');
+                error_log(sprintf(
+                    '[S2-HOLD-PREEMPTIVE] Payout #%d placed on preemptive hold: feedback rating %d/5 for order #%d',
+                    $payoutId,
+                    $finalScore,
+                    $orderId
+                ));
+
+                do_action('limpvix_admin_notification', [
+                    'type' => 'warning',
+                    'title' => 'Payout Bloqueado Preventivamente',
+                    'message' => sprintf(
+                        'Payout #%d foi bloqueado preventivamente porque o cliente deu nota %d/5. Revisão admin necessária.',
+                        $payoutId,
+                        $finalScore
+                    ),
+                    'source' => 'PreemptivePayoutHold',
+                ]);
+            }
+        }, 5); // Priority 5 = before the general feedback handler (priority 10)
     }
 
     public function getRegistry(): AdapterRegistry

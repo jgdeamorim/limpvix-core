@@ -494,8 +494,8 @@ final class ProfessionalOAuthController extends WP_REST_Controller
         $wpdb->update(
             $table,
             [
-                'mp_access_token' => $tokenData['access_token'], // TODO: Criptografar
-                'mp_refresh_token' => $tokenData['refresh_token'], // TODO: Criptografar
+                'mp_access_token' => \LimpVix\Infrastructure\Security\TokenEncryption::encryptSafe($tokenData['access_token']),
+                'mp_refresh_token' => \LimpVix\Infrastructure\Security\TokenEncryption::encryptSafe($tokenData['refresh_token']),
                 'mp_user_id' => $tokenData['user_id'],
                 'mp_public_key' => $tokenData['public_key'],
                 'mp_oauth_connected_at' => current_time('mysql'),

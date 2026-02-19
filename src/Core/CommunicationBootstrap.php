@@ -55,7 +55,7 @@ class CommunicationBootstrap
         $eventDispatcher = new CommunicationEventDispatcher();
 
         // 4. Registrar Use Cases
-        // MultiChannelCommunicationProvider adapta TwilioSms + WhatsApp360Dialog
+        // MultiChannelCommunicationProvider adapta TwilioSms + Email
         // para a CommunicationProviderInterface unificada
         $communicationProvider = new \LimpVix\Infrastructure\Communication\Providers\MultiChannelCommunicationProvider();
 

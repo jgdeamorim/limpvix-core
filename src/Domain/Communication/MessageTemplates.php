@@ -150,11 +150,11 @@ final class MessageTemplates
     }
 
     // ========================================
-    // TEMPLATES WHATSAPP (360Dialog)
+    // TEMPLATES WHATSAPP (pré-aprovados)
     // ========================================
 
     /**
-     * Template WhatsApp D+1 (pré-aprovado no 360Dialog)
+     * Template WhatsApp D+1 (pré-aprovado)
      *
      * Nome: feedback_limpvix_d1
      * Parâmetros: {{1}} = nome, {{2}} = url
@@ -177,7 +177,7 @@ final class MessageTemplates
     }
 
     /**
-     * Template WhatsApp D+3 (pré-aprovado no 360Dialog)
+     * Template WhatsApp D+3 (pré-aprovado)
      *
      * Nome: feedback_limpvix_d3
      * Parâmetros: {{1}} = nome, {{2}} = url
@@ -200,7 +200,7 @@ final class MessageTemplates
     }
 
     /**
-     * Template WhatsApp Google Review (criar no 360Dialog)
+     * Template WhatsApp Google Review
      *
      * Nome: google_review_limpvix
      * Parâmetros: {{1}} = nome, {{2}} = url

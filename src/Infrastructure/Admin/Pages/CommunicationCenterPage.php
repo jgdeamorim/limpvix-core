@@ -58,19 +58,17 @@ class CommunicationCenterPage
                     </div>
                 </div>
 
-                <div class="limpvix-stat-card" style="background: #fff; border-left: 4px solid <?php echo $providers['360dialog']['connected'] ? '#10b981' : '#ef4444'; ?>; padding: 16px; border-radius: 4px;">
+                <div class="limpvix-stat-card" style="background: #fff; border-left: 4px solid #9ca3af; padding: 16px; border-radius: 4px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="font-size: 32px;">💬</div>
                         <div style="flex: 1;">
-                            <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">360Dialog WhatsApp</div>
+                            <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">WhatsApp</div>
                             <div style="font-size: 18px; font-weight: bold; color: #1f2937;">
-                                <?php echo $providers['360dialog']['connected'] ? '✅ Conectado' : '❌ Não configurado'; ?>
+                                ⏳ Pendente (Twilio WhatsApp futuro)
                             </div>
-                            <?php if ($providers['360dialog']['connected']): ?>
-                                <div style="color: #6b7280; font-size: 12px; margin-top: 4px;">
-                                    API Key configurada
-                                </div>
-                            <?php endif; ?>
+                            <div style="color: #6b7280; font-size: 12px; margin-top: 4px;">
+                                Fallback ativo via SMS
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -307,15 +305,10 @@ class CommunicationCenterPage
     private function getProvidersStatus(): array
     {
         $twilio_settings = get_option('limpvix_twilio_settings', []);
-        $dialog_settings = get_option('limpvix_360dialog_settings', []);
-
         return [
             'twilio' => [
                 'connected' => !empty($twilio_settings['account_sid']) && !empty($twilio_settings['auth_token']),
                 'from_number' => $twilio_settings['from_number'] ?? '',
-            ],
-            '360dialog' => [
-                'connected' => !empty($dialog_settings['api_key']),
             ],
             'system_active' => (bool) get_option('limpvix_comm_active', true),
             'staff_notifications' => (bool) get_option('limpvix_notify_staff_enabled', true),

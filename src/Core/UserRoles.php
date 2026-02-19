@@ -24,8 +24,9 @@ defined("ABSPATH") || exit;
 final class UserRoles
 {
     /** Meta keys para escopo geográfico */
-    public const META_UF   = 'limpvix_user_uf';
-    public const META_ZONA = 'limpvix_user_zona';
+    public const META_UF         = 'limpvix_user_uf';
+    public const META_ZONA       = 'limpvix_user_zona';
+    public const META_MUNICIPIO  = 'limpvix_user_municipio';
 
     /**
      * Registrar custom roles no WordPress
@@ -38,6 +39,7 @@ final class UserRoles
         self::registerGerenteNacionalRole();
         self::registerGerenteEstadualRole();
         self::registerGerenteRegionalRole();
+        self::registerGerenteMunicipalRole();
         self::registerFinanceiroRole();
     }
 
@@ -52,6 +54,7 @@ final class UserRoles
         remove_role("limpvix_gerente_nacional");
         remove_role("limpvix_gerente_estadual");
         remove_role("limpvix_gerente_regional");
+        remove_role("limpvix_gerente_municipal");
         remove_role("limpvix_financeiro");
     }
 
@@ -199,6 +202,26 @@ final class UserRoles
     }
 
     /**
+     * Registrar role de Gerente Municipal (G-GERENTE-MUNICIPAL)
+     * Escopo: Município (via meta limpvix_user_municipio) | Pode: visualizar, resolver feedbacks/evidências do município
+     */
+    private static function registerGerenteMunicipalRole(): void
+    {
+        add_role(
+            "limpvix_gerente_municipal",
+            __("Gerente Municipal LimpVix", "limpvix-core"),
+            [
+                "read"                       => true,
+                "limpvix_finance_view"        => true,
+                "limpvix_view_payouts"        => true,
+                "limpvix_view_feedback"       => true,
+                "limpvix_resolve_feedback"    => true,
+                "limpvix_review_evidence"     => true,
+            ]
+        );
+    }
+
+    /**
      * Registrar role de Financeiro
      * Escopo: configurável | Pode: autorizar e processar pagamentos
      */
@@ -287,7 +310,7 @@ final class UserRoles
         if (!$user) {
             return false;
         }
-        $managerRoles = ["limpvix_gerente_nacional", "limpvix_gerente_estadual", "limpvix_gerente_regional"];
+        $managerRoles = ["limpvix_gerente_nacional", "limpvix_gerente_estadual", "limpvix_gerente_regional", "limpvix_gerente_municipal"];
         return !empty(array_intersect($managerRoles, (array) $user->roles));
     }
 
@@ -324,6 +347,9 @@ final class UserRoles
         }
         if (in_array("limpvix_gerente_regional", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
             return "gerente_regional";
+        }
+        if (in_array("limpvix_gerente_municipal", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
+            return "gerente_municipal";
         }
         if (in_array("limpvix_financeiro", (array) (get_user_by("id", $userId)->roles ?? []), true)) {
             return "financeiro";
@@ -364,15 +390,66 @@ final class UserRoles
     }
 
     /**
+     * Obter Município do usuário (escopo geográfico — G-GERENTE-MUNICIPAL)
+     *
+     * @return string|null Ex: "Vitória", "Vila Velha"
+     */
+    public static function getUserMunicipio(int $userId): ?string
+    {
+        $municipio = get_user_meta($userId, self::META_MUNICIPIO, true);
+        return !empty($municipio) ? sanitize_text_field($municipio) : null;
+    }
+
+    /**
      * Definir escopo geográfico do usuário
      *
-     * @param string $uf   Ex: "SP"
-     * @param string $zona Ex: "Zona Sul" (vazio = toda a UF)
+     * @param string $uf        Ex: "SP"
+     * @param string $zona      Ex: "Zona Sul" (vazio = toda a UF)
+     * @param string $municipio Ex: "Vitória" (vazio = toda a zona/UF)
      */
-    public static function setUserScope(int $userId, string $uf, string $zona = ''): void
+    public static function setUserScope(int $userId, string $uf, string $zona = '', string $municipio = ''): void
     {
         update_user_meta($userId, self::META_UF, strtoupper(sanitize_text_field($uf)));
         update_user_meta($userId, self::META_ZONA, sanitize_text_field($zona));
+        update_user_meta($userId, self::META_MUNICIPIO, sanitize_text_field($municipio));
+    }
+
+    /**
+     * Verificar se usuário tem acesso ao município informado (G-GERENTE-MUNICIPAL)
+     * Admin, Nacional e Estadual (mesma UF) têm escopo universal
+     */
+    public static function hasAccessToMunicipality(int $userId, string $municipio, string $uf = ''): bool
+    {
+        if (self::isAdmin($userId)) {
+            return true;
+        }
+
+        $roles = (array) (get_user_by("id", $userId)->roles ?? []);
+
+        if (in_array("limpvix_gerente_nacional", $roles, true)) {
+            return true;
+        }
+
+        // Estadual: access to all municipalities in their UF
+        if (in_array("limpvix_gerente_estadual", $roles, true)) {
+            return empty($uf) || self::hasAccessToUf($userId, $uf);
+        }
+
+        // Regional: access to municipalities in their zone
+        if (in_array("limpvix_gerente_regional", $roles, true)) {
+            return empty($uf) || self::hasAccessToUf($userId, $uf);
+        }
+
+        // Municipal: only their specific municipality
+        if (in_array("limpvix_gerente_municipal", $roles, true)) {
+            $userMunicipio = self::getUserMunicipio($userId);
+            if ($userMunicipio === null) {
+                return false;
+            }
+            return mb_strtolower($municipio) === mb_strtolower($userMunicipio);
+        }
+
+        return false;
     }
 
     /**
@@ -400,6 +477,7 @@ final class UserRoles
             'limpvix_gerente_nacional'  => 'Gerente Nacional',
             'limpvix_gerente_estadual'  => 'Gerente Estadual',
             'limpvix_gerente_regional'  => 'Gerente Regional',
+            'limpvix_gerente_municipal' => 'Gerente Municipal',
             'limpvix_financeiro'        => 'Financeiro',
         ];
     }

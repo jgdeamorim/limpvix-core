@@ -29,15 +29,24 @@ class MessageFlowsAdminPage
             wp_die('Sem permissão');
         }
 
-        // Buscar configurações atuais
-        $active_flows = get_option('limpvix_active_flows', [
-            'C1' => true,
-            'C2' => true, // sempre true (forçado)
-            'C3' => true,
-            'P1' => true,
-            'P2' => true,
-            'P3' => true,
-        ]);
+        // G-FLUXOS: Unified config key (reads limpvix_enabled_flows, falls back to limpvix_active_flows)
+        $active_flows = get_option('limpvix_enabled_flows', null);
+        if ($active_flows === null) {
+            $active_flows = get_option('limpvix_active_flows', [
+                'C1' => true, 'c1' => true,
+                'C2' => true, 'c2' => true,
+                'C3' => true, 'c3' => true,
+                'P1' => true, 'p1' => true,
+                'P2' => true, 'p2' => true,
+                'P3' => true, 'p3' => true,
+            ]);
+        }
+        // Normalize keys to uppercase for this page
+        $normalized = [];
+        foreach ($active_flows as $k => $v) {
+            $normalized[strtoupper($k)] = $v;
+        }
+        $active_flows = $normalized;
 
         $timing_config = get_option('limpvix_feedback_timing', [
             'C1_attempt1' => 24,   // D+1
@@ -196,7 +205,13 @@ class MessageFlowsAdminPage
             'P3' => !empty($_POST['flow_P3']),
         ];
 
-        update_option('limpvix_active_flows', $active_flows);
+        // G-FLUXOS: Write to unified key (both uppercase and lowercase)
+        $lowered = [];
+        foreach ($active_flows as $k => $v) {
+            $lowered[strtolower($k)] = $v;
+        }
+        update_option('limpvix_enabled_flows', array_merge($active_flows, $lowered));
+        delete_option('limpvix_active_flows'); // Remove legacy key
 
         // Atualizar timing C1
         $timing_config = [

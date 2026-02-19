@@ -153,7 +153,8 @@ class PricingPreviewController
     private function lookupGeoCache(string $zipCode): ?array
     {
         $cleanCep = preg_replace('/\D/', '', $zipCode);
-        $cached = get_transient("limpvix_ibge_cep_{$cleanCep}");
+        // S2-CACHE-KEY: Fixed to match IBGEAreaIndexService cache key
+        $cached = get_transient("limpvix_geo_index_{$cleanCep}");
 
         if ($cached !== false) {
             return $cached;

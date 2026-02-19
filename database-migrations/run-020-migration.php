@@ -1,4 +1,10 @@
 <?php
+// Security: Block direct HTTP access (allow CLI only)
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Direct access not allowed.');
+}
+
 /**
  * Migration Runner 020 - Add KYC Fields to Professionals
  *

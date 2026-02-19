@@ -1,4 +1,10 @@
 <?php
+// Security: Block direct HTTP access (allow CLI only)
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Direct access not allowed.');
+}
+
 // Bootstrap WordPress
 $wp_load = dirname(__FILE__) . '/../../../../wp-load.php';
 require_once $wp_load;

@@ -12,6 +12,7 @@ namespace LimpVix\Application\UseCases\Briefing;
 use LimpVix\Domain\Professional\ProfessionalRepositoryInterface;
 use LimpVix\Domain\Contract\ContractRepositoryInterface;
 use LimpVix\Domain\Contract\ContractId;
+use LimpVix\Application\Services\Matching\ProfessionalMatcher;
 
 defined('ABSPATH') || exit;
 
@@ -19,15 +20,18 @@ final class SendOffers
 {
     private ProfessionalRepositoryInterface $professionalRepo;
     private ContractRepositoryInterface $contractRepo;
+    private ProfessionalMatcher $matcher;
     private \wpdb $wpdb;
 
     public function __construct(
         ProfessionalRepositoryInterface $professionalRepo,
-        ContractRepositoryInterface $contractRepo
+        ContractRepositoryInterface $contractRepo,
+        ?ProfessionalMatcher $matcher = null
     ) {
         global $wpdb;
         $this->professionalRepo = $professionalRepo;
         $this->contractRepo = $contractRepo;
+        $this->matcher = $matcher ?? new ProfessionalMatcher();
         $this->wpdb = $wpdb;
     }
 
@@ -197,13 +201,10 @@ final class SendOffers
     }
 
     /**
-     * Score and rank professionals based on multiple criteria
+     * Score and rank professionals using unified ProfessionalMatcher (G-MATCHING-DUAL)
      *
-     * Scoring system (0-100 points):
-     * - Proximity: 40 points (closer is better)
-     * - Professional score: 30 points
-     * - Acceptance rate: 20 points
-     * - Experience (completed services): 10 points
+     * Delegates to ProfessionalMatcher for consistent scoring across
+     * SendOffers (async) and AllocationEngine (sync).
      */
     private function scoreAndRankProfessionals(
         array $professionals,
@@ -213,73 +214,32 @@ final class SendOffers
         $scored = [];
 
         foreach ($professionals as $professional) {
-            $score = 0.0;
-
-            // 1. Proximity score (0-40 points)
-            $distance = $this->calculateDistance(
+            $distance = ProfessionalMatcher::haversineDistance(
                 $targetLat,
                 $targetLng,
                 $professional->getServiceRegion()->getCenterLatitude(),
                 $professional->getServiceRegion()->getCenterLongitude()
             );
 
-            // Max points at 0km, 0 points at 20km+
-            $proximityScore = max(0, 40 - ($distance * 2));
-            $score += $proximityScore;
-
-            // 2. Professional score (0-30 points)
-            $profScore = $professional->getScore(); // 0-100
-            $score += ($profScore / 100) * 30;
-
-            // 3. Acceptance rate (0-20 points)
-            $acceptanceRate = $professional->getAcceptanceRate(); // 0.0-1.0
-            $score += $acceptanceRate * 20;
-
-            // 4. Experience (0-10 points)
-            $completedServices = $professional->getCompletedServices();
-            $experienceScore = min(10, $completedServices / 10); // 10 services = 1 point
-            $score += $experienceScore;
+            $matchScore = $this->matcher->calculateScore(
+                distanceKm: $distance,
+                professionalScore: (float) $professional->getScore(),
+                acceptanceRate: $professional->getAcceptanceRate(),
+                averageRating: $professional->getAverageRating(),
+                completedServices: $professional->getCompletedServices()
+            );
 
             $scored[] = [
                 'professional' => $professional,
-                'match_score' => round($score, 2),
-                'distance_km' => round($distance, 2),
-                'breakdown' => [
-                    'proximity' => round($proximityScore, 2),
-                    'professional_score' => round(($profScore / 100) * 30, 2),
-                    'acceptance_rate' => round($acceptanceRate * 20, 2),
-                    'experience' => round($experienceScore, 2),
-                ]
+                'match_score' => $matchScore->total,
+                'distance_km' => $matchScore->distanceKm,
+                'breakdown' => $matchScore->toArray(),
             ];
         }
 
-        // Sort by match_score DESC
         usort($scored, fn($a, $b) => $b['match_score'] <=> $a['match_score']);
 
         return $scored;
-    }
-
-    /**
-     * Calculate distance between two points using Haversine formula
-     */
-    private function calculateDistance(
-        float $lat1,
-        float $lng1,
-        float $lat2,
-        float $lng2
-    ): float {
-        $earthRadius = 6371; // km
-
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-
-        $a = sin($dLat / 2) * sin($dLat / 2) +
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($dLng / 2) * sin($dLng / 2);
-
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-
-        return $earthRadius * $c;
     }
 
     /**

@@ -142,11 +142,24 @@ class Execution
     {
         $this->guardTransition(ExecutionStatusEnum::CHECKED_IN);
         
-        // Validar geofence
+        // Validar geofence (S2-GEO-CHECKIN: configurable block)
         if ($this->serviceLocation !== null) {
             $distance = $geo->distanceTo($this->serviceLocation);
             if ($distance > $this->geofenceRadiusMeters) {
                 $this->slaViolations[] = SlaViolation::outOfGeofence($distance);
+
+                $enforceGeoCheckin = (bool) get_option('limpvix_enforce_geofence_checkin', true);
+                if ($enforceGeoCheckin) {
+                    throw InvalidExecutionTransitionException::forbidden(
+                        $this->status,
+                        ExecutionStatusEnum::CHECKED_IN,
+                        sprintf(
+                            'Check-in blocked: Professional is %.0fm from service location (limit: %dm). Must be within geofence.',
+                            $distance,
+                            $this->geofenceRadiusMeters
+                        )
+                    );
+                }
             }
         }
         
@@ -209,6 +222,28 @@ class Execution
             );
         }
 
+        // S1-CHECKOUT-GEO: Validate geofence at checkout (same as check-in)
+        if ($this->serviceLocation !== null) {
+            $distance = $geo->distanceTo($this->serviceLocation);
+            $enforceGeoCheckout = (bool) get_option('limpvix_enforce_geofence_checkout', true);
+
+            if ($distance > $this->geofenceRadiusMeters) {
+                $this->slaViolations[] = SlaViolation::outOfGeofence($distance);
+
+                if ($enforceGeoCheckout) {
+                    throw InvalidExecutionTransitionException::forbidden(
+                        $this->status,
+                        ExecutionStatusEnum::CHECKED_OUT,
+                        sprintf(
+                            'Check-out blocked: Professional is %.0fm from service location (limit: %dm). Must be within geofence to complete.',
+                            $distance,
+                            $this->geofenceRadiusMeters
+                        )
+                    );
+                }
+            }
+        }
+
         $this->guardTransition(ExecutionStatusEnum::CHECKED_OUT);
 
         $this->status = ExecutionStatusEnum::CHECKED_OUT;
@@ -216,10 +251,22 @@ class Execution
         $this->checkOutGeo = $geo;
         $this->evidence = $evidence;
 
-        // P1.4: Validate room evidence count against expected rooms
+        // S2-ROOM-PHOTOS: Validate room evidence count against expected rooms
         if ($this->expectedRoomsCount > 0) {
             $actualRooms = $evidence->countUniqueRooms('check_out');
+            $enforceRoomPhotos = (bool) get_option('limpvix_enforce_room_photos', true);
+
             if ($actualRooms < $this->expectedRoomsCount) {
+                if ($enforceRoomPhotos) {
+                    throw InvalidExecutionTransitionException::forbidden(
+                        $this->status,
+                        ExecutionStatusEnum::CHECKED_OUT,
+                        sprintf(
+                            'Room photos required: %d/%d rooms documented at check-out',
+                            $actualRooms, $this->expectedRoomsCount
+                        )
+                    );
+                }
                 error_log(sprintf(
                     '[LimpVix] WARN: Execution %s checkout with %d/%d room photos',
                     $this->executionUuid, $actualRooms, $this->expectedRoomsCount

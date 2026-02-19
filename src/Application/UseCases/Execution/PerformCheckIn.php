@@ -117,22 +117,29 @@ class PerformCheckIn
                 }
             }
 
-            // 4. Validar fotos de cômodos (P0.2)
-            // GAP G-EXEC-BRIEFING: Execution não sabe quantos cômodos o Briefing tem.
-            // Por agora: WARN se nenhuma foto de cômodo foi enviada (não bloqueia).
-            // Quando tivermos expected_rooms_count, tornar obrigatório.
+            // 4. Validar fotos de cômodos (S2-ROOM-PHOTOS: BLOCK when rooms > 0)
             $roomWarnings = [];
-            if ($roomEvidence === null || !$roomEvidence->hasRoomEvidences()) {
-                $roomWarnings[] = 'Room photos (before service) are required but none were provided. ' .
-                    'Please upload photos of each room before starting the service.';
+            $expectedRooms = $execution->getExpectedRoomsCount();
+            $enforceRoomPhotos = (bool) get_option('limpvix_enforce_room_photos', true);
 
-                error_log(sprintf(
-                    '[PerformCheckIn] WARNING: No room check-in photos for execution %s. ' .
-                    'GAP G-EXEC-BRIEFING: Cannot enforce room count without Briefing reference.',
-                    $executionUuid
-                ));
+            if ($roomEvidence === null || !$roomEvidence->hasRoomEvidences()) {
+                if ($enforceRoomPhotos && $expectedRooms > 0) {
+                    return Result::fail(sprintf(
+                        'Room photos are required at check-in. Expected %d room(s) but none were provided. ' .
+                        'Please upload at least one photo per room before starting the service.',
+                        $expectedRooms
+                    ));
+                }
+                $roomWarnings[] = 'Room photos (before service) recommended but none were provided.';
             } else {
                 $roomCount = $roomEvidence->countUniqueRooms('check_in');
+                if ($enforceRoomPhotos && $expectedRooms > 0 && $roomCount < $expectedRooms) {
+                    return Result::fail(sprintf(
+                        'Insufficient room photos at check-in: %d/%d rooms documented. ' .
+                        'Please upload photos of all %d rooms.',
+                        $roomCount, $expectedRooms, $expectedRooms
+                    ));
+                }
                 if ($roomCount < 1) {
                     $roomWarnings[] = 'Room photos must have stage=check_in and a valid roomType.';
                 }

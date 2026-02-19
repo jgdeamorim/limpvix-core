@@ -582,14 +582,14 @@ final class MessageTemplatesPage
                             <input type="radio" name="test_channel" value="sms" checked> SMS (Twilio)
                         </label>
                         <label style="margin-left: 20px;">
-                            <input type="radio" name="test_channel" value="whatsapp"> WhatsApp (360Dialog)
+                            <input type="radio" name="test_channel" value="whatsapp"> WhatsApp (via SMS fallback)
                         </label>
                     </td>
                 </tr>
             </table>
 
             <div class="limpvix-alert warning">
-                <strong>⚠️ Atenção:</strong> O envio de teste consome créditos reais do provedor (Twilio/360Dialog).
+                <strong>⚠️ Atenção:</strong> O envio de teste consome créditos reais do provedor (Twilio SMS).
             </div>
 
             <?php submit_button('📤 Enviar Teste'); ?>
@@ -683,7 +683,7 @@ Equipe Limpvix`
                     <td>
                         <select name="channel" required>
                             <option value="sms">SMS (Twilio)</option>
-                            <option value="whatsapp">WhatsApp (360Dialog)</option>
+                            <option value="whatsapp">WhatsApp (via SMS fallback)</option>
                         </select>
                     </td>
                 </tr>
@@ -716,8 +716,8 @@ Equipe Limpvix`
             </table>
 
             <div class="limpvix-alert info">
-                <strong>💡 Dica:</strong> Para templates WhatsApp, você precisa criar e aprovar o template
-                no 360Dialog antes de usar. Templates SMS não precisam de aprovação prévia.
+                <strong>💡 Dica:</strong> Templates WhatsApp requerem aprovação prévia no provider.
+                Templates SMS não precisam de aprovação prévia.
             </div>
 
             <?php submit_button('💾 Salvar Template'); ?>

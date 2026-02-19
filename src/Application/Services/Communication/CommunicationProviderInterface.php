@@ -7,10 +7,10 @@
  * - Abstração permite trocar provider sem modificar Use Cases
  *
  * IMPLEMENTAÇÕES ESPERADAS:
- * - WhatsApp360DialogProvider (já existe)
- * - TwilioSmsProvider (já existe)
- * - EmailProvider (futuro)
- * - PushNotificationProvider (futuro)
+ * - TwilioSmsProvider (ativo)
+ * - EmailProvider (wp_mail)
+ * - FirebasePushProvider (FCM)
+ * - WhatsApp via Twilio (futuro)
  *
  * @package LimpVix\Application\Services\Communication
  * @since 0.3.0

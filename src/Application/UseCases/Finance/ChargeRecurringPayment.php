@@ -38,6 +38,7 @@ use LimpVix\Domain\Contract\ContractId;
 use LimpVix\Domain\Finance\RecurringPayment;
 use LimpVix\Domain\Finance\RecurringPaymentRepositoryInterface;
 use LimpVix\Domain\Finance\PaymentProviderInterface;
+use LimpVix\Domain\Finance\Events\RecurringPaymentCompleted;
 use LimpVix\Common\Result;
 
 defined('ABSPATH') || exit;
@@ -163,7 +164,13 @@ class ChargeRecurringPayment
             // 9. Save payment
             $this->paymentRepository->save($payment);
 
-            // 10. Return result
+            // 10. Fire domain event if payment is processing/approved
+            if ($this->isSuccessResponse($gatewayResponse)) {
+                $event = new RecurringPaymentCompleted($payment);
+                do_action('limpvix_recurring_payment_completed', $event->toArray());
+            }
+
+            // 11. Return result
             return Result::ok([
                 'payment_uuid'           => $payment->getPaymentUuid(),
                 'gateway_transaction_id' => $payment->getGatewayTransactionId(),

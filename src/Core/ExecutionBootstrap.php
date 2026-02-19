@@ -144,6 +144,12 @@ final class ExecutionBootstrap
         // Evento: Execution Rescheduled
         add_action('limpvix_execution_rescheduled', [self::class, 'onExecutionRescheduled'], 10, 1);
 
+        // S1-EXEC-TRANSITION: Auto-trigger CHECKED_IN → IN_EXECUTION
+        add_action('limpvix_execution_checked_in', [self::class, 'onExecutionCheckedIn'], 10, 3);
+
+        // S1-ALLOCATION-WIRE: Auto-trigger AllocationEngine on execution scheduled
+        add_action('limpvix_execution_scheduled', [self::class, 'onExecutionScheduledAllocate'], 20, 1);
+
         self::logInfo('Execution Event Listeners registered');
     }
 
@@ -263,19 +269,13 @@ final class ExecutionBootstrap
 
             $serviceLocation = new \LimpVix\Domain\Execution\ValueObjects\GeoLocation($lat, $lon);
 
-            // P1.4: Lookup expected rooms count from Briefing's PropertyStructure
+            // P1.4 + G-PROPERTY-STRUCTURE-COUNTS: Use getTotalRoomCount()
             $expectedRoomsCount = 0;
             if ($briefingUuid) {
                 $briefingRepo = new \LimpVix\Infrastructure\Persistence\WpBriefingRepository();
                 $briefing = $briefingRepo->findByUuid($briefingUuid);
                 if ($briefing && $briefing->getStructure()) {
-                    $s = $briefing->getStructure();
-                    $expectedRoomsCount = $s->getBedrooms()
-                        + $s->getBathrooms()
-                        + ($s->hasLivingRoom() ? 1 : 0)
-                        + ($s->hasKitchen() ? 1 : 0)
-                        + ($s->hasOffice() ? 1 : 0)
-                        + ($s->hasExternalArea() ? 1 : 0);
+                    $expectedRoomsCount = $briefing->getStructure()->getTotalRoomCount();
                 }
             }
 
@@ -384,6 +384,122 @@ final class ExecutionBootstrap
         self::logInfo('Execution rescheduled: ' . ($eventData['execution_id'] ?? 'unknown') .
                      ' - From: ' . ($eventData['old_scheduled_date'] ?? 'N/A') .
                      ' - To: ' . ($eventData['new_scheduled_date'] ?? 'N/A'));
+    }
+
+    /**
+     * S1-EXEC-TRANSITION: Auto-trigger CHECKED_IN → IN_EXECUTION
+     *
+     * Quando profissional faz check-in, a execução inicia automaticamente.
+     * Elimina necessidade de chamada manual para startExecution().
+     *
+     * @param string $executionUuid
+     * @param string $orderUuid
+     * @param int $professionalId
+     * @return void
+     */
+    public static function onExecutionCheckedIn(string $executionUuid, string $orderUuid, int $professionalId): void
+    {
+        try {
+            $repository = new \LimpVix\Infrastructure\Persistence\WpExecutionRepository();
+            $execution = $repository->findByUuid($executionUuid);
+
+            if (!$execution) {
+                self::logError("Cannot auto-start execution: UUID {$executionUuid} not found");
+                return;
+            }
+
+            // Transition CHECKED_IN → IN_EXECUTION
+            $execution->startExecution();
+            $repository->save($execution);
+
+            // Fire execution started event
+            do_action('limpvix_execution_started', [
+                'execution_uuid' => $executionUuid,
+                'order_uuid' => $orderUuid,
+                'professional_id' => $professionalId,
+            ]);
+
+            self::logInfo("Auto-started execution {$executionUuid} after check-in (CHECKED_IN → IN_EXECUTION)");
+
+        } catch (\Exception $e) {
+            self::logError("Failed to auto-start execution {$executionUuid}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * S1-ALLOCATION-WIRE: Auto-trigger AllocationEngine on execution scheduled
+     *
+     * Quando uma execução é agendada, busca profissionais automaticamente
+     * via AllocationEngine se nenhum profissional foi alocado ainda.
+     *
+     * @param array $eventData
+     * @return void
+     */
+    public static function onExecutionScheduledAllocate(array $eventData): void
+    {
+        try {
+            $contractId = $eventData['contract_id'] ?? null;
+            $professionalUserId = $eventData['professional_user_id'] ?? null;
+
+            // Se já tem profissional atribuído, pular alocação
+            if ($professionalUserId && $professionalUserId > 0) {
+                self::logInfo("Allocation skipped: Professional #{$professionalUserId} already assigned");
+                return;
+            }
+
+            // Verificar se AllocationEngine está disponível
+            if (!class_exists('LimpVix\\Application\\Services\\Scheduling\\AllocationEngine')) {
+                self::logInfo('AllocationEngine not available - manual allocation required');
+                return;
+            }
+
+            // Buscar schedule UUID para alocação
+            $scheduleUuid = $eventData['schedule_uuid'] ?? null;
+            if (!$scheduleUuid) {
+                self::logInfo('No schedule_uuid in event data - cannot auto-allocate');
+                return;
+            }
+
+            // Instanciar dependências para AllocationEngine
+            $professionalRepo = $GLOBALS['limpvix_professional_repository']
+                ?? new \LimpVix\Infrastructure\Persistence\WpProfessionalRepository();
+            $scheduleRepo = $GLOBALS['limpvix_schedule_repository']
+                ?? new \LimpVix\Infrastructure\Persistence\WpScheduleRepository();
+
+            $proximityScorer = new \LimpVix\Application\Services\Scheduling\ProximityScorer();
+            $availabilityCalc = new \LimpVix\Application\Services\Scheduling\AvailabilityCalculator($scheduleRepo);
+
+            $allocationEngine = new \LimpVix\Application\Services\Scheduling\AllocationEngine(
+                $professionalRepo,
+                $scheduleRepo,
+                $proximityScorer,
+                $availabilityCalc
+            );
+
+            $allocateUseCase = new \LimpVix\Application\UseCases\Scheduling\AllocateProfessional(
+                $scheduleRepo,
+                $professionalRepo,
+                $allocationEngine
+            );
+
+            // Usar complexidade padrão se não especificada
+            $complexity = new \LimpVix\Domain\Scheduling\ValueObjects\ServiceComplexity('standard');
+
+            $result = $allocateUseCase->execute($scheduleUuid, $complexity);
+
+            if ($result['success'] ?? false) {
+                self::logInfo(sprintf(
+                    'Auto-allocated %d professionals for schedule %s',
+                    count($result['allocated_professionals'] ?? []),
+                    $scheduleUuid
+                ));
+            } else {
+                self::logInfo("Auto-allocation failed for schedule {$scheduleUuid}: " . ($result['status'] ?? 'unknown'));
+            }
+
+        } catch (\Exception $e) {
+            self::logError('Auto-allocation failed: ' . $e->getMessage());
+        }
     }
 
     /**

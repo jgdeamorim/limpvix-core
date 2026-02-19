@@ -4,6 +4,12 @@
  * Sprint 1 - Dia 5
  */
 
+// Security: Block direct HTTP access (allow CLI only)
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    die('Direct access not allowed.');
+}
+
 // Carrega WordPress
 define('WP_USE_THEMES', false);
 require_once dirname(dirname(dirname(dirname(__DIR__)))) . '/wp-load.php';

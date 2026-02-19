@@ -56,12 +56,6 @@ final class WordPressCredentialProvider implements CredentialProviderInterface
                 fn() => defined('LIMPVIX_TWILIO_FROM_NUMBER') ? LIMPVIX_TWILIO_FROM_NUMBER : null,
             ]),
 
-            // 360DIALOG
-            'whatsapp.api_key' => $this->resolve([
-                fn() => get_option('limpvix_360dialog_api_key'),
-                fn() => defined('LIMPVIX_360DIALOG_API_KEY') ? LIMPVIX_360DIALOG_API_KEY : null,
-            ]),
-
             // MERCADO PAGO (WooCommerce primeiro)
             'mercadopago.access_token' => $this->resolve([
                 fn() => get_option('_mp_access_token_prod'), // WooCommerce MP Produção

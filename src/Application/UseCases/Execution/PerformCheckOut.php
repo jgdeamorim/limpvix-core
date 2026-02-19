@@ -65,20 +65,33 @@ class PerformCheckOut
                 ));
             }
 
-            // 2. Validar fotos de cômodos no check-out (P0.2)
-            // GAP G-EXEC-BRIEFING: Mesmo problema do check-in - não sabe quantos cômodos.
-            // WARN por agora, não bloqueia.
+            // 2. Validar fotos de cômodos no check-out (S2-ROOM-PHOTOS: BLOCK when rooms > 0)
             $roomWarnings = [];
             $roomCheckOutCount = $evidence->countUniqueRooms('check_out');
-            if ($roomCheckOutCount < 1) {
-                $roomWarnings[] = 'Room photos (after service) are required but none were detected. ' .
-                    'Please ensure check-out evidence includes photos of each room with category=room and stage=check_out.';
+            $expectedRooms = $execution->getExpectedRoomsCount();
+            $enforceRoomPhotos = (bool) get_option('limpvix_enforce_room_photos', true);
 
-                error_log(sprintf(
-                    '[PerformCheckOut] WARNING: No room check-out photos for execution %s. ' .
-                    'GAP G-EXEC-BRIEFING: Cannot enforce room count without Briefing reference.',
-                    $executionUuid
+            if ($enforceRoomPhotos && $expectedRooms > 0 && $roomCheckOutCount < $expectedRooms) {
+                return Result::fail(sprintf(
+                    'Insufficient room photos at check-out: %d/%d rooms documented. ' .
+                    'Please upload after-service photos of all %d rooms.',
+                    $roomCheckOutCount, $expectedRooms, $expectedRooms
                 ));
+            }
+
+            if ($roomCheckOutCount < 1) {
+                $roomWarnings[] = 'Room photos (after service) recommended but none were detected.';
+            }
+
+            // G-ROOM-MATCH: Cross-validate check-in vs check-out rooms
+            if ($roomCheckOutCount > 0 && $execution->getEvidence() !== null) {
+                $roomCheckInCount = $execution->getEvidence()->countUniqueRooms('check_in');
+                if ($roomCheckInCount > 0 && $roomCheckOutCount < $roomCheckInCount) {
+                    $roomWarnings[] = sprintf(
+                        'Room mismatch: %d rooms at check-in but only %d at check-out. Some rooms may be missing.',
+                        $roomCheckInCount, $roomCheckOutCount
+                    );
+                }
             }
 
             // 3. Executar check-out + validação (P0.1: checkout = validation)

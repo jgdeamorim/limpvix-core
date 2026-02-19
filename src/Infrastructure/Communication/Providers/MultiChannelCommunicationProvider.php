@@ -3,7 +3,7 @@
  * MultiChannelCommunicationProvider - Adapter para providers de comunicação
  *
  * Implementa CommunicationProviderInterface delegando para os providers
- * concretos (TwilioSmsProvider, WhatsApp360DialogProvider) conforme o canal.
+ * concretos (TwilioSmsProvider, EmailProvider) conforme o canal.
  *
  * @package LimpVix\Infrastructure\Communication\Providers
  * @since 0.3.1
@@ -18,17 +18,12 @@ defined('ABSPATH') || exit;
 class MultiChannelCommunicationProvider implements CommunicationProviderInterface
 {
     private ?TwilioSmsProvider $twilioProvider = null;
-    private ?WhatsApp360DialogProvider $whatsappProvider = null;
 
     public function __construct()
     {
         // Inicializar providers disponíveis
         if (class_exists(TwilioSmsProvider::class)) {
             $this->twilioProvider = new TwilioSmsProvider();
-        }
-
-        if (class_exists(WhatsApp360DialogProvider::class)) {
-            $this->whatsappProvider = new WhatsApp360DialogProvider();
         }
     }
 
@@ -72,10 +67,35 @@ class MultiChannelCommunicationProvider implements CommunicationProviderInterfac
      */
     public function checkDeliveryStatus(string $messageId): array
     {
-        // Status check não implementado nos providers atuais
-        // Retornar status genérico 'sent'
+        // S2-DELIVERY-TRACK: Delegate to actual providers when available
+        // Try Twilio first (has delivery status API)
+        if ($this->twilioProvider !== null && $this->twilioProvider->isAvailable()) {
+            try {
+                if (method_exists($this->twilioProvider, 'checkDeliveryStatus')) {
+                    return $this->twilioProvider->checkDeliveryStatus($messageId);
+                }
+            } catch (\Exception $e) {
+                error_log("[LimpVix] Twilio delivery check failed for {$messageId}: " . $e->getMessage());
+            }
+        }
+
+        // Fallback: check local message queue for status
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT status, sent_at, delivered_at FROM {$wpdb->prefix}limpvix_message_queue WHERE message_id = %s",
+            $messageId
+        ), ARRAY_A);
+
+        if ($row) {
+            return [
+                'status' => $row['status'] ?? 'unknown',
+                'delivered_at' => $row['delivered_at'] ?? null,
+                'read_at' => null,
+            ];
+        }
+
         return [
-            'status' => 'sent',
+            'status' => 'unknown',
             'delivered_at' => null,
             'read_at' => null,
         ];
@@ -88,7 +108,7 @@ class MultiChannelCommunicationProvider implements CommunicationProviderInterfac
     {
         return match ($channel) {
             'sms' => $this->twilioProvider !== null && $this->twilioProvider->isAvailable(),
-            'whatsapp' => $this->whatsappProvider !== null && $this->whatsappProvider->isAvailable(),
+            'whatsapp' => false, // WhatsApp provider pendente (Twilio WhatsApp futuro)
             'email' => true, // wp_mail() sempre disponível
             default => false,
         };
@@ -96,28 +116,17 @@ class MultiChannelCommunicationProvider implements CommunicationProviderInterfac
 
     private function sendViaWhatsApp(string $recipient, string $content, array $context): array
     {
-        if (!$this->whatsappProvider || !$this->whatsappProvider->isAvailable()) {
-            // Fallback para SMS se WhatsApp indisponível
-            if ($this->twilioProvider && $this->twilioProvider->isAvailable()) {
-                error_log('[LimpVix] WhatsApp indisponível, fallback para SMS');
-                return $this->sendViaSms($recipient, $content, $context);
-            }
-
-            return [
-                'success' => false,
-                'provider_response' => null,
-                'error_type' => 'provider_unavailable',
-                'error_message' => 'WhatsApp provider não configurado e SMS não disponível como fallback',
-            ];
+        // WhatsApp: fallback automático para SMS via Twilio
+        if ($this->twilioProvider && $this->twilioProvider->isAvailable()) {
+            error_log('[LimpVix] WhatsApp solicitado, enviando via SMS (fallback)');
+            return $this->sendViaSms($recipient, $content, $context);
         }
 
-        $success = $this->whatsappProvider->send($recipient, $content, $context);
-
         return [
-            'success' => $success,
-            'provider_response' => ['provider' => '360dialog', 'channel' => 'whatsapp'],
-            'error_type' => $success ? '' : 'send_failed',
-            'error_message' => $success ? '' : 'Falha ao enviar via WhatsApp 360Dialog',
+            'success' => false,
+            'provider_response' => null,
+            'error_type' => 'provider_unavailable',
+            'error_message' => 'Nenhum provider de mensagem disponível',
         ];
     }
 
