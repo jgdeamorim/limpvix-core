@@ -707,8 +707,15 @@ class ProfessionalManagementPage
                                 $isChecked = isset($professionalSkills[$serviceId]);
                                 $hasNR06 = $isChecked && $professionalSkills[$serviceId]['has_certification'];
                                 
-                                // NR-06 apenas para Comercial Pós-Obra
-                                $requiresNR06 = ($service['category'] === 'commercial' && $service['service_type'] === 'post_construction');
+                                // NR-06: serviço comercial com complexidade pós-obra
+                                $requiresNR06 = false;
+                                if ($service['category'] === 'commercial') {
+                                    $complexityTable = $this->wpdb->prefix . 'limpvix_service_complexities';
+                                    $requiresNR06 = (bool) $this->wpdb->get_var($this->wpdb->prepare(
+                                        "SELECT COUNT(*) FROM {$complexityTable} WHERE service_id = %d AND slug = 'post_construction' AND is_active = 1",
+                                        $serviceId
+                                    ));
+                                }
                                 ?>
                                 <tr>
                                     <th style="padding-left: 30px; width: <?php echo $requiresNR06 ? '40%' : '100%'; ?>;">

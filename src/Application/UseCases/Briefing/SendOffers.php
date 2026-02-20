@@ -88,7 +88,7 @@ final class SendOffers
         }
 
         // 4. Get required capabilities (new system) with fallback to legacy skills
-        $capabilityResult = $this->getRequiredCapabilities($contractId, $contract->getServiceCode());
+        $capabilityResult = $this->getRequiredCapabilities($contractId, $contract->getServiceCode(), $contract->getComplexitySlug());
         $requiredSkills = $capabilityResult['skills'];
         $useCapabilities = $capabilityResult['use_capabilities'];
         $capabilitySlugs = $capabilityResult['capability_slugs'];
@@ -194,10 +194,10 @@ final class SendOffers
      * @param string $serviceCode
      * @return array{skills: string[], use_capabilities: bool, capability_slugs: string[]}
      */
-    private function getRequiredCapabilities(int $contractId, string $serviceCode): array
+    private function getRequiredCapabilities(int $contractId, string $serviceCode, ?string $complexitySlug): array
     {
         // Try new capability system first
-        $complexityId = $this->getComplexityIdForContract($contractId, $serviceCode);
+        $complexityId = $this->getComplexityIdForContract($serviceCode, $complexitySlug);
 
         if ($complexityId) {
             $additionalIds = $this->getAdditionalIdsForContract($contractId);
@@ -233,7 +233,7 @@ final class SendOffers
      * @param string $serviceCode
      * @return int|null
      */
-    private function getComplexityIdForContract(int $contractId, string $serviceCode): ?int
+    private function getComplexityIdForContract(string $serviceCode, ?string $complexitySlug): ?int
     {
         // Check if complexity tables exist
         $complexityTable = $this->wpdb->prefix . 'limpvix_service_complexities';
@@ -247,16 +247,29 @@ final class SendOffers
 
         $catalogTable = $this->wpdb->prefix . 'limpvix_service_catalog';
 
-        // Get first active complexity for this service
-        $complexityId = $this->wpdb->get_var(
-            $this->wpdb->prepare(
-                "SELECT sc.id FROM {$complexityTable} sc
-                 JOIN {$catalogTable} cat ON sc.service_id = cat.id
-                 WHERE cat.service_code = %s AND sc.is_active = 1
-                 ORDER BY sc.id ASC LIMIT 1",
-                $serviceCode
-            )
-        );
+        // If contract has complexity_slug, use it for exact match
+        if ($complexitySlug) {
+            $complexityId = $this->wpdb->get_var(
+                $this->wpdb->prepare(
+                    "SELECT sc.id FROM {$complexityTable} sc
+                     JOIN {$catalogTable} cat ON sc.service_id = cat.id
+                     WHERE cat.service_code = %s AND sc.slug = %s AND sc.is_active = 1",
+                    $serviceCode,
+                    $complexitySlug
+                )
+            );
+        } else {
+            // Fallback: first active complexity (legacy contracts without complexity_slug)
+            $complexityId = $this->wpdb->get_var(
+                $this->wpdb->prepare(
+                    "SELECT sc.id FROM {$complexityTable} sc
+                     JOIN {$catalogTable} cat ON sc.service_id = cat.id
+                     WHERE cat.service_code = %s AND sc.is_active = 1
+                     ORDER BY sc.id ASC LIMIT 1",
+                    $serviceCode
+                )
+            );
+        }
 
         return $complexityId ? (int) $complexityId : null;
     }

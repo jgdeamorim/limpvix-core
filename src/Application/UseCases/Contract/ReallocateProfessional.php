@@ -219,7 +219,7 @@ final class ReallocateProfessional
     {
         // Check required capabilities for the contract's service
         $serviceCode = $contract->getServiceCode();
-        $requiredSkills = $this->getRequiredSkillsForService($serviceCode);
+        $requiredSkills = $this->getRequiredSkillsForService($serviceCode, $contract->getComplexitySlug());
 
         if (!empty($requiredSkills)) {
             $professionalSkills = $newProfessional->getSkills();
@@ -265,20 +265,32 @@ final class ReallocateProfessional
      * @param string $serviceCode
      * @return string[]
      */
-    private function getRequiredSkillsForService(string $serviceCode): array
+    private function getRequiredSkillsForService(string $serviceCode, ?string $complexitySlug = null): array
     {
         global $wpdb;
 
         $complexityTable = $wpdb->prefix . 'limpvix_service_complexities';
         $catalogTable = $wpdb->prefix . 'limpvix_service_catalog';
 
-        $complexityId = $wpdb->get_var($wpdb->prepare(
-            "SELECT sc.id FROM {$complexityTable} sc
-             JOIN {$catalogTable} cat ON sc.service_id = cat.id
-             WHERE cat.service_code = %s AND sc.is_active = 1
-             ORDER BY sc.id ASC LIMIT 1",
-            $serviceCode
-        ));
+        // If contract has complexity_slug, use it for exact match
+        if ($complexitySlug) {
+            $complexityId = $wpdb->get_var($wpdb->prepare(
+                "SELECT sc.id FROM {$complexityTable} sc
+                 JOIN {$catalogTable} cat ON sc.service_id = cat.id
+                 WHERE cat.service_code = %s AND sc.slug = %s AND sc.is_active = 1",
+                $serviceCode,
+                $complexitySlug
+            ));
+        } else {
+            // Fallback: first active complexity (legacy contracts without complexity_slug)
+            $complexityId = $wpdb->get_var($wpdb->prepare(
+                "SELECT sc.id FROM {$complexityTable} sc
+                 JOIN {$catalogTable} cat ON sc.service_id = cat.id
+                 WHERE cat.service_code = %s AND sc.is_active = 1
+                 ORDER BY sc.id ASC LIMIT 1",
+                $serviceCode
+            ));
+        }
 
         if ($complexityId) {
             $capabilities = CapabilityRegistry::computeRequired((int) $complexityId, []);

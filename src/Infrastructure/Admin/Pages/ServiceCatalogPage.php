@@ -111,7 +111,7 @@ class ServiceCatalogPage
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
         // Validações
-        if (empty($serviceCode) || empty($displayName) || empty($category) || empty($serviceType)) {
+        if (empty($serviceCode) || empty($displayName) || empty($category)) {
             add_settings_error('limpvix_services', 'invalid_data', 'Campos obrigatórios não preenchidos', 'error');
             return;
         }
@@ -333,7 +333,7 @@ class ServiceCatalogPage
                             <td><?php echo esc_html($service['id']); ?></td>
                             <td><code><?php echo esc_html($service['service_code']); ?></code></td>
                             <td><?php echo esc_html($service['category']); ?></td>
-                            <td><?php echo esc_html($service['service_type']); ?></td>
+                            <td><?php echo $service['service_type'] ? esc_html($service['service_type']) : '—'; ?></td>
                             <td><strong><?php echo esc_html($service['display_name']); ?></strong></td>
                             <td>R$ <?php echo number_format($service['base_price'], 2, ',', '.'); ?></td>
                             <td><span class="status-badge <?php echo $service['is_active'] ? 'active' : 'inactive'; ?>"><?php echo $service['is_active'] ? '✓ Ativo' : '✗ Inativo'; ?></span></td>
@@ -370,7 +370,7 @@ class ServiceCatalogPage
 
         $serviceCode = $service['service_code'] ?? '';
         $category = $service['category'] ?? 'residential';
-        $serviceType = $service['service_type'] ?? 'standard';
+        $serviceType = $service['service_type'] ?? '';
         $displayName = $service['display_name'] ?? '';
         $description = $service['description'] ?? '';
         $basePrice = $service['base_price'] ?? 0;
@@ -391,7 +391,7 @@ class ServiceCatalogPage
                     <th><label for="service_code">Código do Serviço *</label></th>
                     <td>
                         <input type="text" name="service_code" id="service_code" value="<?php echo esc_attr($serviceCode); ?>" class="regular-text" <?php echo $isEdit ? 'readonly' : ''; ?> required>
-                        <p class="description">Slug único (ex: commercial_standard)</p>
+                        <p class="description">Slug único (ex: residential_cleaning, commercial_cleaning)</p>
                     </td>
                 </tr>
                 <tr>
@@ -404,13 +404,15 @@ class ServiceCatalogPage
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="service_type">Tipo de Serviço *</label></th>
+                    <th><label for="service_type">Tipo (metadata)</label></th>
                     <td>
-                        <select name="service_type" id="service_type" required>
+                        <select name="service_type" id="service_type">
+                            <option value="">— Nenhum —</option>
                             <option value="standard" <?php selected($serviceType, 'standard'); ?>>Padrão</option>
                             <option value="pre_move" <?php selected($serviceType, 'pre_move'); ?>>Pré-Mudança</option>
                             <option value="post_construction" <?php selected($serviceType, 'post_construction'); ?>>Pós-Obra</option>
                         </select>
+                        <p class="description">Opcional. Complexidade é gerenciada via aba Complexidades.</p>
                     </td>
                 </tr>
                 <tr>

@@ -508,8 +508,8 @@ class ContractManagementPage
                 <tr>
                     <th><label for="service_code">Serviço *</label></th>
                     <td>
-                        <input type="text" name="service_code" id="service_code" value="<?php echo esc_attr($contract['service_code'] ?? 'residential_standard'); ?>" class="regular-text" required>
-                        <p class="description">Código do serviço (ex: residential_standard, commercial_standard)</p>
+                        <input type="text" name="service_code" id="service_code" value="<?php echo esc_attr($contract['service_code'] ?? 'residential_cleaning'); ?>" class="regular-text" required>
+                        <p class="description">Código do serviço (ex: residential_cleaning, commercial_cleaning)</p>
                     </td>
                 </tr>
                 <tr>

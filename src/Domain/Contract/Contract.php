@@ -43,6 +43,7 @@ class Contract
     private \DateTimeImmutable $startDate;
     private ?\DateTimeImmutable $endDate;
     private string $serviceCode;
+    private ?string $complexitySlug;
     private string $propertyType;
     private float $monthlyValue;
     private ?int $allocatedProfessionalId;
@@ -67,6 +68,7 @@ class Contract
         \DateTimeImmutable $startDate,
         ?\DateTimeImmutable $endDate,
         string $serviceCode,
+        ?string $complexitySlug,
         string $propertyType,
         float $monthlyValue,
         ?int $allocatedProfessionalId,
@@ -84,6 +86,7 @@ class Contract
         $this->startDate = $startDate;
         $this->endDate = $endDate;
         $this->serviceCode = $serviceCode;
+        $this->complexitySlug = $complexitySlug;
         $this->propertyType = $propertyType;
         $this->monthlyValue = $monthlyValue;
         $this->allocatedProfessionalId = $allocatedProfessionalId;
@@ -106,7 +109,8 @@ class Contract
         string $serviceCode,
         string $propertyType,
         float $monthlyValue,
-        bool $autoRenew = true
+        bool $autoRenew = true,
+        ?string $complexitySlug = null
     ): self {
         // Validações
         self::ensureValidContractNumber($contractNumber);
@@ -127,6 +131,7 @@ class Contract
             $startDate,
             $endDate,
             $serviceCode,
+            $complexitySlug,
             $propertyType,
             $monthlyValue,
             null, // Sem profissional alocado ainda
@@ -160,7 +165,8 @@ class Contract
         bool $autoRenew,
         ?string $nextExecutionDate,
         string $createdAt,
-        string $updatedAt
+        string $updatedAt,
+        ?string $complexitySlug = null
     ): self {
         return new self(
             ContractId::fromInt($id),
@@ -172,6 +178,7 @@ class Contract
             new \DateTimeImmutable($startDate),
             $endDate ? new \DateTimeImmutable($endDate) : null,
             $serviceCode,
+            $complexitySlug,
             $propertyType,
             $monthlyValue,
             $allocatedProfessionalId,
@@ -590,6 +597,11 @@ class Contract
     public function getServiceCode(): string
     {
         return $this->serviceCode;
+    }
+
+    public function getComplexitySlug(): ?string
+    {
+        return $this->complexitySlug;
     }
 
     public function getPropertyType(): string

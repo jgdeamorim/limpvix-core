@@ -34,6 +34,7 @@ final class ContractMapper
             'contract_type' => $contract->getContractType(),
             'recurrence_day' => $contract->getRecurrenceDay(),
             'service_code' => $contract->getServiceCode(),
+            'complexity_slug' => $contract->getComplexitySlug(),
             'property_type' => $contract->getPropertyType(),
             'monthly_value' => $contract->getMonthlyValue(),
             'start_date' => $contract->getStartDate()->format('Y-m-d'),
@@ -82,7 +83,8 @@ final class ContractMapper
             (bool) $data['auto_renew'],
             null, // nextExecutionDate será calculado pelo AR
             $data['created_at'],
-            $data['updated_at']
+            $data['updated_at'],
+            $data['complexity_slug'] ?? null
         );
     }
 

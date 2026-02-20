@@ -70,7 +70,9 @@ class CreateContractFromBriefing
             'contract_type' => $briefingData['recurrence_type'],
             'recurrence_day' => $briefingData['recurrence_day'] ?? $this->getDefaultRecurrenceDay($briefingData['recurrence_type']),
             'recurrence_weeks' => $briefingData['recurrence_weeks'] ?? 1,
-            'service_code' => $briefingData['service_type'] ?? 'residential_standard',
+            'service_code' => ($briefingData['property_type'] ?? 'residential') === 'commercial'
+                ? 'commercial_cleaning' : 'residential_cleaning',
+            'complexity_slug' => $briefingData['complexity_slug'] ?? 'standard',
             'property_type' => $briefingData['property_type'] ?? 'residential',
             'estimated_m2' => $briefingData['total_m2'] ?? 0,
             'monthly_value' => $this->calculateMonthlyValue($briefingData),
